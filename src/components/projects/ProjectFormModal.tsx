@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { FolderPlus } from 'lucide-react';
 import type { Language, Project, ProjectStatus, ProjectType } from '../../types/bunyan';
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '../../utils/i18n';
 import { generateSharjahVillaBimElements } from '../../utils/bimModelGenerator';
 import { INITIAL_TAKEOFF_SHEETS } from '../../data/uaeSeedData';
+import { Button, Input, Modal, Select } from '../ui';
 
 interface ProjectFormModalProps {
   isOpen: boolean;
@@ -28,21 +29,20 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const [ownerName, setOwnerName] = useState(initialProject?.ownerName || '');
   const [ownerPhone, setOwnerPhone] = useState(initialProject?.ownerPhone || '+971 50 ');
   const [ownerEmail, setOwnerEmail] = useState(initialProject?.ownerEmail || '');
-  const [ownerNationalId, setOwnerNationalId] = useState(initialProject?.ownerNationalId || '784-');
+  const [ownerNationalId] = useState(initialProject?.ownerNationalId || '784-');
   const [consultantOffice, setConsultantOffice] = useState(initialProject?.consultantOffice || '');
-  const [consultantEngineer, setConsultantEngineer] = useState(initialProject?.consultantEngineer || '');
-  const [residentEngineer, setResidentEngineer] = useState(initialProject?.residentEngineer || '');
+  const [consultantEngineer] = useState(initialProject?.consultantEngineer || '');
+  const [residentEngineer] = useState(initialProject?.residentEngineer || '');
   const [permitNumber, setPermitNumber] = useState(initialProject?.permitNumber || 'SHJ-BP-2026-');
   const [licensingAuthority, setLicensingAuthority] = useState(initialProject?.licensingAuthority || 'بلدية مدينة الشارقة');
   const [approvedBudget, setApprovedBudget] = useState(String(initialProject?.approvedBudget ?? 1800000));
-  const [invoicedAmount, setInvoicedAmount] = useState(String(initialProject?.invoicedAmount ?? 0));
   const [paidAmount, setPaidAmount] = useState(String(initialProject?.paidAmount ?? 0));
   const [actualProgress, setActualProgress] = useState(String(initialProject?.actualProgress ?? 15));
   const [plotNumber, setPlotNumber] = useState(initialProject?.gisData.plotNumber || '512-SHJ');
   const [sectorName, setSectorName] = useState(initialProject?.gisData.sectorName || 'الرحمانية');
   const [plotAreaSqFt, setPlotAreaSqFt] = useState(String(initialProject?.gisData.plotAreaSqFt ?? 10000));
 
-  if (!isOpen) return null;
+  const isAr = lang === 'ar';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +75,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       permitExpiryDate: initialProject?.permitExpiryDate || '2027-12-31',
       licensingAuthority: licensingAuthority.trim(),
       approvedBudget: Number(approvedBudget) || 0,
-      invoicedAmount: Number(invoicedAmount) || 0,
+      invoicedAmount: Number(paidAmount) || 0,
       paidAmount: Number(paidAmount) || 0,
       retentionPercentage: initialProject?.retentionPercentage ?? 10,
       actualProgress: Math.min(100, Math.max(0, Number(actualProgress) || 0)),
@@ -122,227 +122,97 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-6">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-            {initialProject
-              ? lang === 'ar' ? 'تعديل بيانات المشروع' : 'Edit Project'
-              : lang === 'ar' ? 'إنشاء مشروع إنشائي جديد' : 'Create Construction Project'}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidthClass="max-w-3xl"
+      icon={<FolderPlus className="w-4 h-4" />}
+      title={
+        initialProject
+          ? isAr ? 'تعديل بيانات المشروع' : 'Edit Project'
+          : isAr ? 'إنشاء مشروع إنشائي جديد' : 'Create Construction Project'
+      }
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            {isAr ? 'إلغاء' : 'Cancel'}
+          </Button>
+          <Button type="submit" form="bunyan-project-form">
+            {isAr ? 'حفظ المشروع' : 'Save Project'}
+          </Button>
+        </>
+      }
+    >
+      <form id="bunyan-project-form" onSubmit={handleSubmit} className="p-5 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input
+            label={isAr ? 'كود المشروع' : 'Project Code'}
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="font-mono"
+          />
+          <Select
+            label={isAr ? 'نوع المشروع' : 'Project Type'}
+            value={projectType}
+            onChange={(e) => setProjectType(e.target.value as ProjectType)}
           >
-            <X className="w-4 h-4" />
-          </button>
+            {Object.entries(PROJECT_TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{isAr ? v.ar : v.en}</option>
+            ))}
+          </Select>
+          <Select
+            label={isAr ? 'الحالة' : 'Status'}
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+          >
+            {Object.entries(PROJECT_STATUS_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{isAr ? v.ar : v.en}</option>
+            ))}
+          </Select>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'كود المشروع' : 'Project Code'}</span>
-              <input
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'نوع المشروع' : 'Project Type'}</span>
-              <select
-                value={projectType}
-                onChange={(e) => setProjectType(e.target.value as ProjectType)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              >
-                {Object.entries(PROJECT_TYPE_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'الحالة' : 'Status'}</span>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              >
-                {Object.entries(PROJECT_STATUS_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label={isAr ? 'اسم المشروع (عربي)' : 'Project Name (Arabic)'}
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="فيلا سكنية — مويلح"
+          />
+          <Input
+            label={isAr ? 'اسم المشروع (إنجليزي)' : 'Project Name (English)'}
+            required
+            value={nameEn}
+            onChange={(e) => setNameEn(e.target.value)}
+            placeholder="Residential Villa — Muwaileh"
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'اسم المشروع (عربي)' : 'Project Name (Arabic)'}</span>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="فيلا سكنية — مويلح"
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'اسم المشروع (إنجليزي)' : 'Project Name (English)'}</span>
-              <input
-                required
-                value={nameEn}
-                onChange={(e) => setNameEn(e.target.value)}
-                placeholder="Residential Villa — Muwaileh"
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input label={isAr ? 'اسم المالك' : 'Owner Name'} value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+          <Input label={isAr ? 'هاتف المالك' : 'Owner Phone'} value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} className="font-mono" />
+          <Input label={isAr ? 'بريد المالك' : 'Owner Email'} value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'اسم المالك' : 'Owner Name'}</span>
-              <input
-                value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'هاتف المالك' : 'Owner Phone'}</span>
-              <input
-                value={ownerPhone}
-                onChange={(e) => setOwnerPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'بريد المالك' : 'Owner Email'}</span>
-              <input
-                value={ownerEmail}
-                onChange={(e) => setOwnerEmail(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input label={isAr ? 'الاستشاري' : 'Consultant Office'} value={consultantOffice} onChange={(e) => setConsultantOffice(e.target.value)} />
+          <Input label={isAr ? 'رقم رخصة البناء' : 'Permit Number'} value={permitNumber} onChange={(e) => setPermitNumber(e.target.value)} className="font-mono" />
+          <Input label={isAr ? 'جهة الترخيص' : 'Licensing Authority'} value={licensingAuthority} onChange={(e) => setLicensingAuthority(e.target.value)} />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'الاستشاري' : 'Consultant Office'}</span>
-              <input
-                value={consultantOffice}
-                onChange={(e) => setConsultantOffice(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'رقم رخصة البناء' : 'Permit Number'}</span>
-              <input
-                value={permitNumber}
-                onChange={(e) => setPermitNumber(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'جهة الترخيص' : 'Licensing Authority'}</span>
-              <input
-                value={licensingAuthority}
-                onChange={(e) => setLicensingAuthority(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input label={isAr ? 'قيمة المشروع (د.إ)' : 'Project Value (AED)'} type="number" min={0} value={approvedBudget} onChange={(e) => setApprovedBudget(e.target.value)} className="font-mono tabular-nums" />
+          <Input label={isAr ? 'الدفعات المستلمة (د.إ)' : 'Payments Received (AED)'} type="number" min={0} value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} className="font-mono tabular-nums" />
+          <Input label={isAr ? 'نسبة الإنجاز (%)' : 'Progress (%)'} type="number" min={0} max={100} value={actualProgress} onChange={(e) => setActualProgress(e.target.value)} className="font-mono tabular-nums" />
+        </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'الميزانية (د.إ)' : 'Budget (AED)'}</span>
-              <input
-                type="number"
-                min={0}
-                value={approvedBudget}
-                onChange={(e) => setApprovedBudget(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'المستخلصات (د.إ)' : 'Invoiced (AED)'}</span>
-              <input
-                type="number"
-                min={0}
-                value={invoicedAmount}
-                onChange={(e) => setInvoicedAmount(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'المدفوع (د.إ)' : 'Paid (AED)'}</span>
-              <input
-                type="number"
-                min={0}
-                value={paidAmount}
-                onChange={(e) => setPaidAmount(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'نسبة الإنجاز (%)' : 'Progress (%)'}</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={actualProgress}
-                onChange={(e) => setActualProgress(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'رقم القطعة GIS' : 'GIS Plot No.'}</span>
-              <input
-                value={plotNumber}
-                onChange={(e) => setPlotNumber(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'المنطقة / القطاع' : 'Sector / District'}</span>
-              <input
-                value={sectorName}
-                onChange={(e) => setSectorName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{lang === 'ar' ? 'مساحة الأرض (قدم²)' : 'Plot Area (sq.ft)'}</span>
-              <input
-                type="number"
-                min={100}
-                value={plotAreaSqFt}
-                onChange={(e) => setPlotAreaSqFt(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
-              />
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              {lang === 'ar' ? 'إلغاء' : 'Cancel'}
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-lg bg-[#B4863C] text-white font-semibold hover:bg-[#9E7330]"
-            >
-              {lang === 'ar' ? 'حفظ المشروع' : 'Save Project'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Input label={isAr ? 'رقم القطعة GIS' : 'GIS Plot No.'} value={plotNumber} onChange={(e) => setPlotNumber(e.target.value)} className="font-mono" />
+          <Input label={isAr ? 'المنطقة / القطاع' : 'Sector / District'} value={sectorName} onChange={(e) => setSectorName(e.target.value)} />
+          <Input label={isAr ? 'مساحة الأرض (قدم²)' : 'Plot Area (sq.ft)'} type="number" min={100} value={plotAreaSqFt} onChange={(e) => setPlotAreaSqFt(e.target.value)} className="font-mono tabular-nums" />
+        </div>
+      </form>
+    </Modal>
   );
 };

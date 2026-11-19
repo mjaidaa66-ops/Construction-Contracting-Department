@@ -8,6 +8,10 @@ import type {
   TakeoffSheet,
 } from '../types/bunyan';
 import { generateGisPlotTakeoffSheet } from '../utils/gisTakeoffGenerator';
+import {
+  mergeRemoteProjectsWithLocal as mergeRemoteProjectsPure,
+  parseSyncTimestampMs,
+} from './cloudSyncMerge';
 import { isFirestoreOfflinePersistenceEnabled } from './firebase';
 import {
   downloadChunkedDocument,
@@ -152,8 +156,15 @@ export async function loadCachedWorkspaceSnapshot(): Promise<CachedWorkspaceSnap
   const cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, WORKSPACE_KEY);
   if (cached) {
     if (Array.isArray(cached.pendingProjectIds)) {
+      const cachedById = new Map((cached.projects || []).map((p) => [p.id, p]));
+      for (const pid of cached.pendingProjectIds) {
+        const match = cachedById.get(pid);
+        if (match) {
+          pendingProjectPayloads.set(pid, match);
+        }
+      }
       updateCloudSyncState({
-        pendingCount: cached.pendingProjectIds.length,
+        pendingCount: pendingProjectPayloads.size,
         lastSyncedAt: cached.lastSyncedAt ?? currentSyncState.lastSyncedAt,
       });
     }
@@ -585,6 +596,28 @@ export function hasPendingSyncForProject(projectId: string): boolean {
   return pendingProjectPayloads.has(projectId) || projectDebounceTimers.has(projectId);
 }
 
+export function cancelPendingProjectSync(projectId: string): void {
+  const timer = projectDebounceTimers.get(projectId);
+  if (timer) {
+    clearTimeout(timer);
+    projectDebounceTimers.delete(projectId);
+  }
+  pendingProjectPayloads.delete(projectId);
+  const remainingIds = Array.from(pendingProjectPayloads.keys());
+  void saveCachedWorkspaceSnapshot({ pendingProjectIds: remainingIds });
+  updateCloudSyncState({
+    pendingCount: remainingIds.length,
+    status:
+      remainingIds.length > 0
+        ? currentSyncState.isOnline && currentSyncState.isAuthenticated
+          ? 'syncing'
+          : 'offline_cached'
+        : currentSyncState.isOnline && currentSyncState.isAuthenticated
+        ? 'synced'
+        : 'offline_cached',
+  });
+}
+
 export function setNetworkOnlineStatus(isOnline: boolean): void {
   updateCloudSyncState({
     isOnline,
@@ -610,45 +643,13 @@ export function setAuthSyncStatus(isAuthenticated: boolean): void {
   });
 }
 
+export { parseSyncTimestampMs };
+
 export function mergeRemoteProjectsWithLocal(
   localProjects: Project[],
   remoteProjects: Project[]
 ): Project[] {
-  const byId = new Map(localProjects.map((p) => [p.id, p]));
-
-  for (const remote of remoteProjects) {
-    if (hasPendingSyncForProject(remote.id)) {
-      continue;
-    }
-
-    const local = byId.get(remote.id);
-    const localSheetsById = new Map((local?.takeoffSheets || []).map((s) => [s.id, s]));
-
-    const hydratedSheets: TakeoffSheet[] =
-      remote.takeoffSheets && remote.takeoffSheets.length > 0
-        ? remote.takeoffSheets.map((rs) => {
-            const localSheet = localSheetsById.get(rs.id);
-            if (rs.sheetType === 'blueprint_svg' && !rs.svgContent) {
-              const fallbackSvg = generateGisPlotTakeoffSheet(remote);
-              return {
-                ...rs,
-                svgContent: localSheet?.svgContent || fallbackSvg.svgContent,
-              };
-            }
-            return {
-              ...rs,
-              pdfDataUrl: rs.pdfDataUrl || localSheet?.pdfDataUrl,
-            };
-          })
-        : local?.takeoffSheets || [generateGisPlotTakeoffSheet(remote)];
-
-    byId.set(remote.id, {
-      ...remote,
-      takeoffSheets: hydratedSheets,
-    });
-  }
-
-  return Array.from(byId.values());
+  return mergeRemoteProjectsPure(localProjects, remoteProjects, hasPendingSyncForProject);
 }
 
 /**

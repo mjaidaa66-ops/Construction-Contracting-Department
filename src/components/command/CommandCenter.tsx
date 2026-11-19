@@ -1,28 +1,42 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowUpRight,
+  BarChart3,
+  Bell,
+  Box,
   Building2,
-  Columns2,
+  CheckCircle2,
   Compass,
+  FileArchive,
   FileDown,
   FileSpreadsheet,
+  FileText,
   FolderKanban,
   Landmark,
+  Layers,
   MapPin,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Wallet,
 } from 'lucide-react';
 import type {
   CompanyProfile,
   GovernmentTransaction,
   Language,
   Project,
+  Role,
 } from '../../types/bunyan';
 import { DEFAULT_COMPANY_PROFILE } from '../../data/uaeSeedData';
 import { computeProjectTelemetry } from '../../utils/gisTakeoffGenerator';
+import { formatAED, PROJECT_STATUS_LABELS } from '../../utils/i18n';
 import type { CloudSyncState } from '../../services/cloudSyncService';
-import { BunyanLogo } from '../common/BunyanLogo';
+import { deriveWorkspaceAlerts } from '../../utils/workspaceAlerts';
 import { BunyanExportCenter } from '../export/BunyanExportCenter';
 import { CloudSyncStatusBadge } from '../layout/CloudSyncStatusBadge';
 import type { ActiveModule } from '../layout/Sidebar';
+import { Button, Card, CardHeader, StatusIndicator } from '../ui';
 
 interface CommandCenterProps {
   projects: Project[];
@@ -30,24 +44,25 @@ interface CommandCenterProps {
   company?: CompanyProfile;
   transactions: GovernmentTransaction[];
   lang: Language;
+  currentRole?: Role;
+  userEmail?: string | null;
   syncState?: CloudSyncState;
   onSyncNow?: () => void;
   onNavigate: (mod: ActiveModule) => void;
   onSelectProject: (id: string) => void;
+  onOpenSearch?: () => void;
+  onOpenNotifications?: () => void;
 }
 
-interface NavCardItem {
-  id: string;
-  titleAr: string;
-  titleEn: string;
-  subtitleAr: string;
-  subtitleEn: string;
-  metaAr: string;
-  metaEn: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent: 'gold' | 'cyan';
-  action: () => void;
-}
+type WidgetKey = 'charts' | 'activeProjects' | 'files' | 'alerts' | 'shortcuts';
+
+const DEFAULT_WIDGETS: Record<WidgetKey, boolean> = {
+  charts: true,
+  activeProjects: true,
+  files: true,
+  alerts: true,
+  shortcuts: true,
+};
 
 export const CommandCenter: React.FC<CommandCenterProps> = ({
   projects,
@@ -55,359 +70,778 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
   company = DEFAULT_COMPANY_PROFILE,
   transactions,
   lang,
+  currentRole = 'admin',
+  userEmail,
   syncState,
   onSyncNow,
   onNavigate,
   onSelectProject,
+  onOpenSearch,
+  onOpenNotifications,
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [chartTab, setChartTab] = useState<'financials' | 'status'>('financials');
+  const [visibleWidgets, setVisibleWidgets] = useState<Record<WidgetKey, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('bunyan_command_widgets');
+      return raw ? { ...DEFAULT_WIDGETS, ...JSON.parse(raw) } : DEFAULT_WIDGETS;
+    } catch {
+      return DEFAULT_WIDGETS;
+    }
+  });
 
-  const totalPortfolioBudget = useMemo(
-    () => projects.reduce((sum, p) => sum + p.approvedBudget, 0),
-    [projects]
-  );
+  useEffect(() => {
+    try {
+      localStorage.setItem('bunyan_command_widgets', JSON.stringify(visibleWidgets));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [visibleWidgets]);
+
+  // Strictly real portfolio calculations from live projects & transactions
+  const portfolioStats = useMemo(() => {
+    let totalBudget = 0;
+    let totalInvoiced = 0;
+    let totalPaid = 0;
+    let activeCount = 0;
+    let permittingCount = 0;
+    let completedCount = 0;
+    let suspendedCount = 0;
+    let progressSum = 0;
+
+    for (const p of projects) {
+      totalBudget += p.approvedBudget;
+      totalInvoiced += p.invoicedAmount;
+      totalPaid += p.paidAmount;
+      progressSum += p.actualProgress;
+      if (p.status === 'under_construction') activeCount += 1;
+      else if (p.status === 'permitting') permittingCount += 1;
+      else if (p.status === 'completed') completedCount += 1;
+      else suspendedCount += 1;
+    }
+
+    const avgProgress = projects.length > 0 ? Math.round(progressSum / projects.length) : 0;
+    const collectionRate = totalBudget > 0 ? Math.round((totalPaid / totalBudget) * 100) : 0;
+
+    return {
+      totalBudget,
+      totalInvoiced,
+      totalPaid,
+      activeCount,
+      permittingCount,
+      completedCount,
+      suspendedCount,
+      avgProgress,
+      collectionRate,
+    };
+  }, [projects]);
 
   const telemetry = useMemo(() => computeProjectTelemetry(activeProject), [activeProject]);
 
-  const activeTxCount = useMemo(
-    () => transactions.filter((t) => t.projectId === activeProject.id).length,
-    [transactions, activeProject.id]
+  const activeProjectsList = useMemo(
+    () =>
+      projects
+        .filter((p) => p.status === 'under_construction' || p.status === 'permitting')
+        .slice(0, 6),
+    [projects]
   );
 
-  const navCards: NavCardItem[] = [
+  // Recent real documents & engineering sheets aggregated across projects
+  const recentFiles = useMemo(() => {
+    const items: Array<{
+      id: string;
+      name: string;
+      kind: 'document' | 'sheet';
+      projectCode: string;
+      projectId: string;
+      meta: string;
+    }> = [];
+
+    for (const p of projects) {
+      for (const doc of p.documents) {
+        items.push({
+          id: `${p.id}-${doc.id}`,
+          name: doc.name,
+          kind: 'document',
+          projectCode: p.code,
+          projectId: p.id,
+          meta: `${doc.category} · ${doc.uploadedAt}`,
+        });
+      }
+      if (items.length >= 12) break;
+    }
+
+    for (const sh of activeProject.takeoffSheets || []) {
+      items.unshift({
+        id: `sheet-${sh.id}`,
+        name: `${sh.code} · ${lang === 'ar' ? sh.titleAr : sh.title}`,
+        kind: 'sheet',
+        projectCode: activeProject.code,
+        projectId: activeProject.id,
+        meta: `${sh.scaleLabel} · ${sh.sheetType}`,
+      });
+    }
+
+    return items.slice(0, 6);
+  }, [projects, activeProject, lang]);
+
+  const alerts = useMemo(
+    () =>
+      deriveWorkspaceAlerts({
+        projects,
+        transactions,
+        syncState: syncState || {
+          status: 'offline_cached',
+          isOnline: true,
+          isAuthenticated: false,
+          persistenceEnabled: true,
+          lastSyncedAt: null,
+          pendingCount: 0,
+          lastError: null,
+        },
+        lang,
+      }),
+    [projects, transactions, syncState, lang]
+  );
+
+  // Top 5 projects financial comparison for interactive bar chart
+  const topFinancialProjects = useMemo(
+    () =>
+      [...projects]
+        .sort((a, b) => b.approvedBudget - a.approvedBudget)
+        .slice(0, 5),
+    [projects]
+  );
+  const maxBarBudget = Math.max(1, ...topFinancialProjects.map((p) => p.approvedBudget));
+
+  const shortcuts: Array<{
+    id: ActiveModule;
+    titleAr: string;
+    titleEn: string;
+    metaAr: string;
+    metaEn: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
     {
       id: 'studio',
-      titleAr: 'استوديو الحصر و 3D BIM',
-      titleEn: '2D PlanSwift + 3D BIM Studio',
-      subtitleAr: 'بيئة عمل هولوغرافية متزامنة لحصر المخططات ومعاينة المجسمات ثلاثية الأبعاد وخطوط الارتداد.',
-      subtitleEn: 'Synchronized 2D digital takeoff and interactive 3D BIM viewport with GIS setbacks.',
-      metaAr: 'PlanSwift 2D · Three.js 3D',
-      metaEn: 'PlanSwift 2D · Three.js 3D',
-      icon: Columns2,
-      accent: 'gold',
-      action: () => onNavigate('studio'),
+      titleAr: 'استوديو 2D + 3D BIM',
+      titleEn: '2D + 3D BIM Studio',
+      metaAr: 'PlanSwift + Three.js',
+      metaEn: 'PlanSwift + Three.js',
+      icon: Layers,
     },
     {
-      id: 'projects',
-      titleAr: `المشاريع الإنشائية (${projects.length} مشروعاً)`,
-      titleEn: `Construction Projects (${projects.length})`,
-      subtitleAr: 'إدارة محفظة المشاريع المعتمدة، مراحل التنفيذ، المستخلصات المالية، ومستندات الرخص.',
-      subtitleEn: 'Manage Sharjah project portfolio, execution phases, financial milestones, and permits.',
-      metaAr: `${projects.length} مشروع نشط`,
-      metaEn: `${projects.length} Active Projects`,
-      icon: FolderKanban,
-      accent: 'cyan',
-      action: () => onNavigate('projects'),
+      id: 'bim',
+      titleAr: 'محرك 5D BIM الثلاثي الأبعاد',
+      titleEn: '5D BIM Engine',
+      metaAr: `${(activeProject.bimElements || []).length} عنصر`,
+      metaEn: `${(activeProject.bimElements || []).length} elements`,
+      icon: Box,
     },
     {
       id: 'takeoff',
-      titleAr: 'الحصر الهندسي من PDF',
+      titleAr: 'الحصر الهندسي PDF',
       titleEn: 'PDF Quantity Takeoff',
-      subtitleAr: 'استيراد المخططات الهندسية، المعايرة الدقيقة، وحساب جداول الكميات والتسعير 5D BOQ.',
-      subtitleEn: 'Upload engineering PDFs, calibrate drawing scale, and compute live 5D BOQ costs.',
-      metaAr: 'معايرة دقيقة · حصر كميات',
-      metaEn: 'Scale Calibration · 5D BOQ',
+      metaAr: `${(activeProject.takeoffMeasurements || []).length} قياس`,
+      metaEn: `${(activeProject.takeoffMeasurements || []).length} items`,
       icon: FileSpreadsheet,
-      accent: 'gold',
-      action: () => onNavigate('takeoff'),
     },
     {
       id: 'gis',
-      titleAr: 'منصة الأراضي والخرائط',
-      titleEn: 'Sharjah GIS Plot Platform',
-      subtitleAr: 'استعراض إحداثيات القطع، الحوض والمنطقة، الحدود المساحية، واشتراطات البناء.',
-      subtitleEn: 'Inspect plot coordinates, sector demarcation, boundaries, and zoning setbacks.',
-      metaAr: `قطعة ${activeProject.gisData.plotNumber}`,
+      titleAr: 'مستكشف الأراضي GIS',
+      titleEn: 'GIS Plot Explorer',
+      metaAr: `${activeProject.gisData.plotNumber}`,
       metaEn: `Plot ${activeProject.gisData.plotNumber}`,
       icon: Compass,
-      accent: 'cyan',
-      action: () => onNavigate('gis'),
     },
     {
       id: 'government',
-      titleAr: 'التدقيق الذكي والمعاملات الحكومية',
-      titleEn: 'Municipality AI Audit & SEWA',
-      subtitleAr: 'متابعة معاملات بلدية الشارقة وهيئة كهرباء ومياه الشارقة والدفاع المدني والتخطيط.',
-      subtitleEn: 'Track Sharjah Municipality, SEWA, Civil Defense, and DTPS regulatory approvals.',
-      metaAr: `${activeTxCount} معاملة مسجلة`,
-      metaEn: `${activeTxCount} Tracked Clearances`,
+      titleAr: 'بوابة البلدية والهيئات',
+      titleEn: 'Municipal Clearances',
+      metaAr: `${transactions.length} معاملة`,
+      metaEn: `${transactions.length} tracked`,
       icon: Landmark,
-      accent: 'gold',
-      action: () => onNavigate('government'),
     },
     {
-      id: 'export',
-      titleAr: 'مركز التقارير والتصدير الرسمي',
-      titleEn: 'Official 5D BOQ Export Center',
-      subtitleAr: 'إصدار تقارير Excel متعددة الأوراق وملفات PDF رسمية معتمدة بالرقم الضريبي UAE VAT 5%.',
-      subtitleEn: 'Generate multi-sheet Excel workbooks and print-ready A4 PDF reports with UAE TRN.',
-      metaAr: 'Excel (.xlsx) · A4 PDF',
-      metaEn: 'Excel (.xlsx) · A4 PDF',
-      icon: FileDown,
-      accent: 'cyan',
-      action: () => setExportOpen(true),
+      id: 'financials',
+      titleAr: 'الملخص المالي والمستخلصات',
+      titleEn: 'Financial Controller',
+      metaAr: 'AED · UAE VAT 5%',
+      metaEn: 'AED · UAE VAT 5%',
+      icon: Wallet,
     },
   ];
 
+  const isAr = lang === 'ar';
+
   return (
     <div className="space-y-6">
-      {/* 1. Hero Command Banner with Holographic Blueprint Grid & Rotating Radar Rings */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#B4863C]/35 dark:border-[#38BDF8]/30 bg-white/95 dark:bg-[#060D1A] p-6 sm:p-8 shadow-lg">
-        {/* Blueprint SVG Grid & Concentric Rotating Radar Rings Backdrop */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-35 dark:opacity-55">
-          <svg
-            className="h-full w-full"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-          >
-            <defs>
-              <pattern id="heroBlueprintGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 40 0 L 0 0 0 40"
-                  fill="none"
-                  stroke="#38BDF8"
-                  strokeOpacity="0.16"
-                  strokeWidth="0.75"
-                />
-              </pattern>
-              <radialGradient id="heroCyanGlow" cx="75%" cy="35%" r="55%">
-                <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.22" />
-                <stop offset="55%" stopColor="#B4863C" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#060D1A" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#heroBlueprintGrid)" />
-            <rect width="100%" height="100%" fill="url(#heroCyanGlow)" />
-          </svg>
+      {/* 1. Executive Welcome Banner & Active Project Switcher */}
+      <Card padded className="bg-[var(--bg-surface)]">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          <div className="space-y-2.5 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2.5 text-xs">
+              <span className="font-mono font-semibold text-[#B4863C] dark:text-[#C99A49]">
+                {company.licenseNumber}
+              </span>
+              <span className="text-[var(--text-muted)]">·</span>
+              <span className="text-[var(--text-secondary)]">
+                {isAr ? company.nameAr : company.nameEn}
+              </span>
+              <span className="text-[var(--text-muted)]">·</span>
+              <span className="capitalize text-[var(--text-muted)]">
+                {userEmail || currentRole}
+              </span>
+            </div>
 
-          {/* Concentric Holographic Radar Rings */}
-          <div className="absolute -end-20 -top-24 w-[420px] h-[420px] sm:w-[480px] sm:h-[480px] opacity-65">
-            <svg viewBox="0 0 400 400" className="w-full h-full">
-              <g className="animate-radar-slow" style={{ transformOrigin: '200px 200px' }}>
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="182"
-                  fill="none"
-                  stroke="#38BDF8"
-                  strokeOpacity="0.35"
-                  strokeWidth="1.2"
-                  strokeDasharray="14 8 4 8"
-                />
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="146"
-                  fill="none"
-                  stroke="#B4863C"
-                  strokeOpacity="0.45"
-                  strokeWidth="1.5"
-                  strokeDasharray="28 12"
-                />
-                <line x1="200" y1="10" x2="200" y2="390" stroke="#38BDF8" strokeOpacity="0.15" />
-                <line x1="10" y1="200" x2="390" y2="200" stroke="#38BDF8" strokeOpacity="0.15" />
-              </g>
-              <g className="animate-radar-reverse" style={{ transformOrigin: '200px 200px' }}>
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="108"
-                  fill="none"
-                  stroke="#38BDF8"
-                  strokeOpacity="0.55"
-                  strokeWidth="1.2"
-                  strokeDasharray="6 6"
-                />
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="64"
-                  fill="none"
-                  stroke="#D4AF37"
-                  strokeOpacity="0.45"
-                  strokeWidth="1.2"
-                />
-              </g>
-            </svg>
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+              {isAr
+                ? 'مركز القيادة التنفيذي للهندسة والمشاريع'
+                : 'Executive Engineering Command Center'}
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
+              {isAr
+                ? 'نظرة شاملة وفورية على محفظة مشاريع بلدية الشارقة، التدفقات المالية المعتمدة، نماذج 5D BIM، وأرشيف المخططات.'
+                : 'Real-time operational overview across Sharjah Municipality projects, certified cashflow, 5D BIM models, and engineering blueprints.'}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {onOpenSearch && (
+                <Button variant="outline" size="sm" icon={<Search className="w-3.5 h-3.5 text-[#B4863C]" />} onClick={onOpenSearch}>
+                  {isAr ? 'بحث في المنصة (Ctrl+K)' : 'Global Search (Ctrl+K)'}
+                </Button>
+              )}
+              <Button size="sm" icon={<FileDown className="w-3.5 h-3.5" />} onClick={() => setExportOpen(true)}>
+                {isAr ? 'إصدار تقرير رسمي PDF / Excel' : 'Official Export PDF / Excel'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+                onClick={() => setCustomizeOpen((v) => !v)}
+              >
+                {isAr ? 'تخصيص اللوحة' : 'Customize Widgets'}
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          {/* Official Platform Identity & Active Project Telemetry Readout */}
-          <div className="space-y-4 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-3">
-              <BunyanLogo lang={lang} size="lg" />
+          {/* Active Project Context Card */}
+          <div className="w-full xl:w-[420px] shrink-0 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                {isAr ? 'المشروع النشط في بيئة العمل' : 'Active Workspace Project'}
+              </span>
               {syncState && onSyncNow && (
                 <CloudSyncStatusBadge syncState={syncState} lang={lang} onSyncNow={onSyncNow} />
               )}
             </div>
 
-            <div className="space-y-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                {lang === 'ar'
-                  ? 'مركز القيادة الهندسية الهولوغرافي — 5D BIM & GIS'
-                  : 'Holographic 5D BIM & GIS Engineering Command Center'}
-              </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {lang === 'ar'
-                  ? 'بوابة موحدة لإدارة مشاريع بلدية الشارقة، حصر الكميات الرقمي، النمذجة ثلاثية الأبعاد، والتقارير المالية المعتمدة.'
-                  : 'Unified executive gateway for Sharjah Municipality projects, digital takeoff, 3D BIM visualization, and certified BOQ reports.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Active Project Selector (56 Projects) + Instant Plot & Authority Card */}
-          <div className="w-full xl:w-[440px] shrink-0 rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#0B1426]/85 backdrop-blur-md p-4 space-y-3">
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold text-slate-700 dark:text-[#38BDF8]">
-                {lang === 'ar'
-                  ? `المشروع النشط (${projects.length} مشروعاً في المنصة)`
-                  : `Active Project (${projects.length} Total Projects)`}
-              </span>
-              <select
-                value={activeProject.id}
-                onChange={(e) => onSelectProject(e.target.value)}
-                aria-label={lang === 'ar' ? 'اختيار المشروع النشط' : 'Select Active Project'}
-                className="w-full rounded-lg border border-slate-300 dark:border-[#B4863C]/45 bg-white dark:bg-[#060D1A] px-3 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#38BDF8]"
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} · {lang === 'ar' ? p.name : p.nameEn}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
-              <div className="space-y-0.5 min-w-0">
-                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  <MapPin className="w-3.5 h-3.5 text-[#38BDF8] shrink-0" />
-                  <span>{lang === 'ar' ? 'رقم قطعة الأرض' : 'GIS Plot Number'}</span>
-                </div>
-                <div className="font-semibold text-slate-900 dark:text-white truncate">
-                  <span dir="ltr" className="font-mono tabular-nums text-[#B4863C] dark:text-[#D4AF37]">
-                    {activeProject.gisData.plotNumber}
-                  </span>
-                  <span className="mx-1 text-slate-400">·</span>
-                  <span>{activeProject.gisData.sectorName}</span>
-                </div>
-              </div>
-
-              <div className="space-y-0.5 min-w-0">
-                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  <Building2 className="w-3.5 h-3.5 text-[#B4863C] shrink-0" />
-                  <span>{lang === 'ar' ? 'الجهة المرخصة' : 'Licensing Authority'}</span>
-                </div>
-                <div className="font-semibold text-slate-900 dark:text-white truncate">
-                  {activeProject.licensingAuthority}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 2. Main Navigation Grid — 6 Clean Glassmorphism HUD Cards */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {navCards.map((card) => {
-          const Icon = card.icon;
-          const isCyan = card.accent === 'cyan';
-
-          return (
-            <button
-              key={card.id}
-              type="button"
-              onClick={card.action}
-              className={`group text-start rounded-2xl border p-5 sm:p-6 transition-all duration-200 backdrop-blur-md bg-white/95 dark:bg-[#0B1426]/80 flex flex-col justify-between gap-4 ${
-                isCyan
-                  ? 'border-slate-200 dark:border-[#38BDF8]/25 hover:border-[#38BDF8] dark:hover:border-[#38BDF8] hover:shadow-[0_0_24px_rgba(56,189,248,0.18)]'
-                  : 'border-slate-200 dark:border-[#B4863C]/30 hover:border-[#B4863C] dark:hover:border-[#D4AF37] hover:shadow-[0_0_24px_rgba(180,134,60,0.2)]'
-              }`}
+            <select
+              value={activeProject.id}
+              onChange={(e) => onSelectProject(e.target.value)}
+              aria-label={isAr ? 'اختيار المشروع النشط' : 'Select Active Project'}
+              className="w-full h-9 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[#B4863C]/60"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center border shrink-0 transition-colors ${
-                    isCyan
-                      ? 'bg-[#38BDF8]/10 border-[#38BDF8]/30 text-sky-600 dark:text-[#38BDF8]'
-                      : 'bg-[#B4863C]/12 border-[#B4863C]/35 text-[#B4863C] dark:text-[#D4AF37]'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} · {isAr ? p.name : p.nameEn}
+                </option>
+              ))}
+            </select>
+
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-hairline)] text-[11px]">
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)] flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#B4863C] shrink-0" />
+                  <span className="truncate">{isAr ? 'القطعة' : 'Plot'}</span>
                 </div>
-
-                <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[#38BDF8] dark:group-hover:text-[#38BDF8] transition-transform group-hover:-translate-y-0.5 shrink-0" />
+                <div dir="ltr" className="font-mono tabular-nums font-semibold text-[var(--text-primary)] truncate mt-0.5">
+                  {activeProject.gisData.plotNumber}
+                </div>
               </div>
-
-              <div className="space-y-1.5">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#B4863C] dark:group-hover:text-[#38BDF8] transition-colors">
-                  {lang === 'ar' ? card.titleAr : card.titleEn}
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                  {lang === 'ar' ? card.subtitleAr : card.subtitleEn}
-                </p>
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)] flex items-center gap-1">
+                  <Building2 className="w-3 h-3 text-[#B4863C] shrink-0" />
+                  <span className="truncate">{isAr ? 'الخرسانة' : 'Concrete'}</span>
+                </div>
+                <div dir="ltr" className="font-mono tabular-nums font-semibold text-[var(--text-primary)] truncate mt-0.5">
+                  {telemetry.concreteM3} m³
+                </div>
               </div>
-
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs font-medium text-slate-500 dark:text-slate-400">
-                <span
-                  dir={lang === 'en' || card.id === 'studio' || card.id === 'export' ? 'ltr' : 'rtl'}
-                  className="font-mono tabular-nums inline-block"
-                >
-                  {lang === 'ar' ? card.metaAr : card.metaEn}
-                </span>
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)]">{isAr ? 'الإنجاز' : 'Progress'}</div>
+                <div dir="ltr" className="font-mono tabular-nums font-bold text-[#B4863C] dark:text-[#C99A49] mt-0.5">
+                  {telemetry.actualProgress}%
+                </div>
               </div>
-            </button>
-          );
-        })}
-      </section>
-
-      {/* 3. Bottom Telemetry Strip — Strictly 4 Concise Summary Figures with Bidi-Safe LTR Spans */}
-      <section className="rounded-2xl border border-slate-200 dark:border-[#38BDF8]/25 bg-white/95 dark:bg-[#0B1426]/85 backdrop-blur-md p-4 sm:p-5">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {lang === 'ar' ? 'إجمالي الميزانية المعتمدة (56 مشروعاً)' : 'Total Portfolio Budget'}
-            </div>
-            <div className="text-lg sm:text-xl font-bold text-[#B4863C] dark:text-[#D4AF37]">
-              <span dir="ltr" className="font-mono tabular-nums inline-block">
-                {totalPortfolioBudget.toLocaleString('en-AE')} AED
-              </span>
-            </div>
-          </div>
-
-          <div className="lg:border-s lg:border-slate-200 lg:dark:border-slate-800 lg:ps-4 space-y-1">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {lang === 'ar' ? 'كمية الخرسانة (المشروع النشط)' : 'Concrete Volume (Active)'}
-            </div>
-            <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-              <span dir="ltr" className="font-mono tabular-nums inline-block">
-                {telemetry.concreteM3.toLocaleString('en-AE')} m³
-              </span>
-            </div>
-          </div>
-
-          <div className="lg:border-s lg:border-slate-200 lg:dark:border-slate-800 lg:ps-4 space-y-1">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {lang === 'ar' ? 'حديد التسليح (المشروع النشط)' : 'Steel Rebar (Active)'}
-            </div>
-            <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-              <span dir="ltr" className="font-mono tabular-nums inline-block">
-                {telemetry.steelTon.toLocaleString('en-AE')} ton
-              </span>
-            </div>
-          </div>
-
-          <div className="lg:border-s lg:border-slate-200 lg:dark:border-slate-800 lg:ps-4 space-y-1">
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              {lang === 'ar' ? 'نسبة الإنجاز الفعلي' : 'Actual Progress'}
-            </div>
-            <div className="text-lg sm:text-xl font-bold text-sky-600 dark:text-[#38BDF8]">
-              <span dir="ltr" className="font-mono tabular-nums inline-block">
-                {telemetry.actualProgress}%
-              </span>
             </div>
           </div>
         </div>
+
+        {/* Customizable Widget Toggle Bar */}
+        {customizeOpen && (
+          <div className="mt-4 pt-4 border-t border-[var(--border-hairline)] flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-[var(--text-muted)] font-medium me-1">
+              {isAr ? 'إظهار أقسام لوحة القيادة:' : 'Visible Dashboard Sections:'}
+            </span>
+            {(
+              [
+                ['charts', isAr ? 'الرسوم المالية والتنفيذية' : 'Financial & Status Charts'],
+                ['activeProjects', isAr ? 'المشاريع النشطة' : 'Active Projects'],
+                ['files', isAr ? 'آخر الملفات والمخططات' : 'Recent Files & Sheets'],
+                ['alerts', isAr ? 'التنبيهات والإشعارات' : 'Alerts & Notifications'],
+                ['shortcuts', isAr ? 'اختصارات الوحدات' : 'Module Shortcuts'],
+              ] as Array<[WidgetKey, string]>
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() =>
+                  setVisibleWidgets((prev) => ({ ...prev, [key]: !prev[key] }))
+                }
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer bunyan-transition ${
+                  visibleWidgets[key]
+                    ? 'border-[#B4863C] bg-[#B4863C]/10 text-[#B4863C] dark:text-[#C99A49]'
+                    : 'border-[var(--border-hairline)] text-[var(--text-muted)]'
+                }`}
+              >
+                {visibleWidgets[key] ? '✓ ' : ''}
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* 2. Four Core Portfolio KPIs (100% Real Aggregated Data) */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Card padded interactive onClick={() => onNavigate('projects')}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-medium text-[var(--text-muted)]">
+              {isAr ? 'إجمالي المشاريع الهندسية' : 'Total Portfolio Projects'}
+            </span>
+            <FolderKanban className="w-4 h-4 text-[#B4863C] shrink-0" />
+          </div>
+          <div dir="ltr" className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)] mt-2">
+            {projects.length}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)] mt-2 flex items-center gap-1.5">
+            <span>{isAr ? `تراخيص: ${portfolioStats.permittingCount}` : `Permitting: ${portfolioStats.permittingCount}`}</span>
+            <span>·</span>
+            <span>{isAr ? `منجز: ${portfolioStats.completedCount}` : `Completed: ${portfolioStats.completedCount}`}</span>
+          </div>
+        </Card>
+
+        <Card padded interactive onClick={() => onNavigate('financials')}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-medium text-[var(--text-muted)]">
+              {isAr ? 'إجمالي قيمة العقود والميزانيات' : 'Total Portfolio Contract Value'}
+            </span>
+            <Wallet className="w-4 h-4 text-[#B4863C] shrink-0" />
+          </div>
+          <div dir="ltr" className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-[#B4863C] dark:text-[#C99A49] mt-2 truncate">
+            {formatAED(portfolioStats.totalBudget, lang)}
+          </div>
+          <div className="text-[11px] text-[var(--text-muted)] mt-2 truncate font-mono tabular-nums">
+            {isAr ? 'المتبقي:' : 'Remaining:'}{' '}
+            {formatAED(Math.max(0, portfolioStats.totalBudget - portfolioStats.totalPaid), lang)}
+          </div>
+        </Card>
+
+        <Card padded interactive onClick={() => onNavigate('financials')}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-medium text-[var(--text-muted)]">
+              {isAr ? 'إجمالي الدفعات المستلمة' : 'Total Payments Received'}
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          </div>
+          <div dir="ltr" className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)] mt-2 truncate">
+            {formatAED(portfolioStats.totalPaid, lang)}
+          </div>
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono tabular-nums mt-2">
+            {portfolioStats.collectionRate}% {isAr ? 'نسبة التحصيل الفعلي' : 'Portfolio Collection Rate'}
+          </div>
+        </Card>
+
+        <Card padded interactive onClick={() => onNavigate('projects')}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-medium text-[var(--text-muted)]">
+              {isAr ? 'المشاريع النشطة قيد التنفيذ' : 'Active Construction Projects'}
+            </span>
+            <BarChart3 className="w-4 h-4 text-[#B4863C] shrink-0" />
+          </div>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span dir="ltr" className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)]">
+              {portfolioStats.activeCount}
+            </span>
+            <span dir="ltr" className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
+              / {projects.length}
+            </span>
+          </div>
+          <div className="mt-2.5 space-y-1">
+            <div className="h-1.5 rounded-full bg-[var(--bg-surface-subtle)] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#B4863C]"
+                style={{ width: `${portfolioStats.avgProgress}%` }}
+              />
+            </div>
+            <div className="text-[11px] text-[var(--text-muted)] font-mono tabular-nums">
+              {isAr ? `متوسط الإنجاز العام: ${portfolioStats.avgProgress}%` : `Avg Portfolio Progress: ${portfolioStats.avgProgress}%`}
+            </div>
+          </div>
+        </Card>
       </section>
+
+      {/* 3. Interactive Charts & Real Alerts */}
+      {(visibleWidgets.charts || visibleWidgets.alerts) && (
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {visibleWidgets.charts && (
+            <Card className={visibleWidgets.alerts ? 'xl:col-span-8' : 'xl:col-span-12'}>
+              <CardHeader
+                icon={<BarChart3 className="w-4 h-4" />}
+                title={isAr ? 'تحليل المحفظة المالية وتقدم المشاريع' : 'Portfolio Financial & Progress Analytics'}
+                subtitle={isAr ? 'مقارنة قيمة المشاريع والدفعات المستلمة لأعلى المشاريع' : 'Project Value vs Payments Received across top capital projects'}
+                action={
+                  <div className="inline-flex rounded-lg border border-[var(--border-hairline)] p-0.5 bg-[var(--bg-surface-subtle)] text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setChartTab('financials')}
+                      className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                        chartTab === 'financials'
+                          ? 'bg-[#B4863C] text-white'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      {isAr ? 'الدفعات والقيمة' : 'Values & Payments'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartTab('status')}
+                      className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                        chartTab === 'status'
+                          ? 'bg-[#B4863C] text-white'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      {isAr ? 'توزيع الحالات' : 'Status Mix'}
+                    </button>
+                  </div>
+                }
+              />
+
+              <div className="p-5">
+                {chartTab === 'financials' ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-4 text-[11px] text-[var(--text-secondary)]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-slate-400/50 dark:bg-slate-600" />
+                        <span>{isAr ? 'قيمة المشروع' : 'Project Value'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />
+                        <span>{isAr ? 'الدفعات المستلمة' : 'Payments Received'}</span>
+                      </span>
+                    </div>
+
+                    <div className="space-y-3.5">
+                      {topFinancialProjects.map((proj) => {
+                        const budgetPct = Math.round((proj.approvedBudget / maxBarBudget) * 100);
+                        const paidPct =
+                          proj.approvedBudget > 0
+                            ? Math.min(100, Math.round((proj.paidAmount / proj.approvedBudget) * 100))
+                            : 0;
+
+                        return (
+                          <button
+                            key={proj.id}
+                            type="button"
+                            onClick={() => onSelectProject(proj.id)}
+                            className="w-full text-start group space-y-1.5 cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="font-semibold text-[var(--text-primary)] group-hover:text-[#B4863C] truncate">
+                                <span className="font-mono text-[#B4863C] me-1.5">{proj.code}</span>
+                                {isAr ? proj.name : proj.nameEn}
+                              </span>
+                              <span dir="ltr" className="font-mono tabular-nums text-[11px] text-[var(--text-secondary)] shrink-0">
+                                {formatAED(proj.approvedBudget, lang)}
+                              </span>
+                            </div>
+                            <div
+                              className="h-3 rounded-md bg-[var(--bg-surface-subtle)] overflow-hidden relative"
+                              style={{ width: `${Math.max(20, budgetPct)}%` }}
+                            >
+                              <div
+                                className="h-full bg-emerald-500 absolute inset-y-0 start-0"
+                                style={{ width: `${paidPct}%` }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+                    {(
+                      [
+                        ['under_construction', portfolioStats.activeCount, 'bg-emerald-500'],
+                        ['permitting', portfolioStats.permittingCount, 'bg-amber-500'],
+                        ['completed', portfolioStats.completedCount, 'bg-sky-500'],
+                        ['suspended', portfolioStats.suspendedCount, 'bg-rose-500'],
+                      ] as const
+                    ).map(([statusKey, count, barClass]) => {
+                      const pct =
+                        projects.length > 0 ? Math.round((count / projects.length) * 100) : 0;
+                      return (
+                        <div
+                          key={statusKey}
+                          className="p-3.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] space-y-2"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-[var(--text-primary)]">
+                              {isAr
+                                ? PROJECT_STATUS_LABELS[statusKey].ar
+                                : PROJECT_STATUS_LABELS[statusKey].en}
+                            </span>
+                            <span dir="ltr" className="font-mono tabular-nums font-bold text-[var(--text-primary)]">
+                              {count} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-[var(--bg-surface)] overflow-hidden">
+                            <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {visibleWidgets.alerts && (
+            <Card className={visibleWidgets.charts ? 'xl:col-span-4' : 'xl:col-span-12'}>
+              <CardHeader
+                icon={<Bell className="w-4 h-4" />}
+                title={isAr ? 'التنبيهات والإشعارات الحية' : 'Operational Alerts'}
+                action={
+                  onOpenNotifications && (
+                    <Button variant="ghost" size="xs" onClick={onOpenNotifications}>
+                      {isAr ? `الكل (${alerts.length})` : `All (${alerts.length})`}
+                    </Button>
+                  )
+                }
+              />
+              <div className="divide-y divide-[var(--border-hairline)]">
+                {alerts.slice(0, 5).map((al) => (
+                  <button
+                    key={al.id}
+                    type="button"
+                    onClick={() => {
+                      if (al.projectId) onSelectProject(al.projectId);
+                      onNavigate(al.targetModule);
+                    }}
+                    className="w-full p-3.5 text-start hover:bg-[var(--bg-surface-subtle)] flex items-start gap-2.5 bunyan-transition cursor-pointer"
+                  >
+                    <AlertTriangle
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${
+                        al.severity === 'critical'
+                          ? 'text-rose-500'
+                          : al.severity === 'warning'
+                          ? 'text-amber-500'
+                          : 'text-[#B4863C]'
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                        {isAr ? al.titleAr : al.titleEn}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-muted)] line-clamp-2">
+                        {isAr ? al.detailAr : al.detailEn}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {alerts.length === 0 && (
+                  <div className="p-6 text-center text-xs text-[var(--text-muted)]">
+                    {isAr ? 'لا توجد تنبيهات حرجة حالياً.' : 'No active alerts.'}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </section>
+      )}
+
+      {/* 4. Active Projects + Recent Documents/Sheets + Account & Sync Card */}
+      {(visibleWidgets.activeProjects || visibleWidgets.files) && (
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {visibleWidgets.activeProjects && (
+            <Card className={visibleWidgets.files ? 'xl:col-span-7' : 'xl:col-span-12'}>
+              <CardHeader
+                icon={<FolderKanban className="w-4 h-4" />}
+                title={isAr ? 'آخر المشاريع والأنشطة الهندسية' : 'Active Projects & Field Progress'}
+                action={
+                  <Button variant="ghost" size="xs" onClick={() => onNavigate('projects')}>
+                    {isAr ? `عرض الـ ${projects.length}` : `View All ${projects.length}`}
+                  </Button>
+                }
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-start text-xs">
+                  <thead className="bg-[var(--bg-surface-subtle)] border-b border-[var(--border-hairline)] text-[var(--text-muted)]">
+                    <tr>
+                      <th className="px-4 py-2.5 text-start font-semibold">{isAr ? 'المشروع' : 'Project'}</th>
+                      <th className="px-4 py-2.5 text-start font-semibold">{isAr ? 'القطاع' : 'Sector'}</th>
+                      <th className="px-4 py-2.5 text-end font-semibold">{isAr ? 'الإنجاز' : 'Progress'}</th>
+                      <th className="px-4 py-2.5 text-start font-semibold">{isAr ? 'الحالة' : 'Status'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-hairline)]">
+                    {activeProjectsList.map((p) => (
+                      <tr
+                        key={p.id}
+                        onClick={() => {
+                          onSelectProject(p.id);
+                          onNavigate('projects');
+                        }}
+                        className="hover:bg-[var(--bg-surface-subtle)] cursor-pointer bunyan-transition"
+                      >
+                        <td className="px-4 py-2.5 min-w-[200px]">
+                          <div className="font-semibold text-[var(--text-primary)] truncate">
+                            {isAr ? p.name : p.nameEn}
+                          </div>
+                          <div className="text-[11px] font-mono text-[#B4863C]">
+                            {p.code} · {p.gisData.plotNumber}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-[var(--text-secondary)] whitespace-nowrap">
+                          {p.gisData.sectorName}
+                        </td>
+                        <td dir="ltr" className="px-4 py-2.5 text-end font-mono tabular-nums font-semibold text-[var(--text-primary)]">
+                          {p.actualProgress}%
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <StatusIndicator
+                            tone={
+                              p.status === 'under_construction'
+                                ? 'success'
+                                : p.status === 'permitting'
+                                ? 'warning'
+                                : p.status === 'completed'
+                                ? 'info'
+                                : 'danger'
+                            }
+                            label={
+                              isAr
+                                ? PROJECT_STATUS_LABELS[p.status].ar
+                                : PROJECT_STATUS_LABELS[p.status].en
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {visibleWidgets.files && (
+            <Card className={visibleWidgets.activeProjects ? 'xl:col-span-5' : 'xl:col-span-12'}>
+              <CardHeader
+                icon={<FileArchive className="w-4 h-4" />}
+                title={isAr ? 'آخر الملفات والمخططات' : 'Recent Sheets & Documents'}
+                action={
+                  <Button variant="ghost" size="xs" onClick={() => onNavigate('documents')}>
+                    {isAr ? 'أرشيف الوثائق' : 'Open Vault'}
+                  </Button>
+                }
+              />
+              <div className="divide-y divide-[var(--border-hairline)]">
+                {recentFiles.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectProject(item.projectId);
+                      onNavigate(item.kind === 'sheet' ? 'takeoff' : 'documents');
+                    }}
+                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--bg-surface-subtle)] bunyan-transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText className="w-4 h-4 text-[#B4863C] shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                          {item.name}
+                        </div>
+                        <div className="text-[11px] font-mono text-[var(--text-muted)] truncate">
+                          {item.projectCode} · {item.meta}
+                        </div>
+                      </div>
+                    </div>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                  </button>
+                ))}
+              </div>
+
+              <div className="px-4 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-between text-xs">
+                <span className="text-[var(--text-muted)]">
+                  {isAr ? 'الحساب والنسخ الاحتياطي السحابي' : 'Account, Cloud Sync & Backup'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('settings')}
+                  className="inline-flex items-center gap-1 font-semibold text-[#B4863C] hover:underline cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>{isAr ? 'إدارة' : 'Manage'}</span>
+                </button>
+              </div>
+            </Card>
+          )}
+        </section>
+      )}
+
+      {/* 5. Quick Engineering Module Shortcuts */}
+      {visibleWidgets.shortcuts && (
+        <section className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            {isAr ? 'اختصارات سريعة للوحدات الهندسية' : 'Quick Engineering Workspace Shortcuts'}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {shortcuts.map((sc) => {
+              const Icon = sc.icon;
+              return (
+                <Card
+                  key={sc.id}
+                  padded
+                  interactive
+                  onClick={() => onNavigate(sc.id)}
+                  className="flex items-center justify-between gap-3 group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-center text-[#B4863C] shrink-0">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[#B4863C] truncate">
+                        {isAr ? sc.titleAr : sc.titleEn}
+                      </div>
+                      <div className="text-[11px] font-mono text-[var(--text-muted)] truncate mt-0.5">
+                        {isAr ? sc.metaAr : sc.metaEn}
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#B4863C] shrink-0" />
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <BunyanExportCenter
         isOpen={exportOpen}

@@ -3,7 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { AlertCircle, CloudDownload, FileWarning, Loader2 } from 'lucide-react';
 import { resolveSheetBinaryUrl } from '../../services/cloudSyncService';
 import type { Language, TakeoffSheet } from '../../types/bunyan';
-import { ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
+import { disposePdfDocumentProxy, ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
 import { dataUrlOrBlobToUint8Array } from '../../utils/takeoffSheetLoader';
 
 interface SheetBackdropRendererProps {
@@ -72,9 +72,15 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
     };
   }, [sheet.id, sheet.sheetType, sheet.pdfDataUrl, sheet.pdfManifestId, lang]);
 
+  const activePdfDocRef = useRef<PDFDocumentProxy | null>(null);
+
   // Load PDFDocumentProxy whenever resolvedUrl changes for a pdf_document sheet
   useEffect(() => {
     if (sheet.sheetType !== 'pdf_document' || !resolvedUrl) {
+      if (activePdfDocRef.current) {
+        void disposePdfDocumentProxy(activePdfDocRef.current);
+        activePdfDocRef.current = null;
+      }
       setPdfDoc(null);
       setLoadingPdf(false);
       onPdfLoadedRef.current?.(1);
@@ -91,7 +97,14 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
         const bytes = await dataUrlOrBlobToUint8Array(resolvedUrl!);
         if (cancelled) return;
         const doc = await pdfjs.getDocument({ data: bytes }).promise;
-        if (cancelled) return;
+        if (cancelled) {
+          await disposePdfDocumentProxy(doc);
+          return;
+        }
+        if (activePdfDocRef.current && activePdfDocRef.current !== doc) {
+          void disposePdfDocumentProxy(activePdfDocRef.current);
+        }
+        activePdfDocRef.current = doc;
         setPdfDoc(doc);
         onPdfLoadedRef.current?.(doc.numPages);
       } catch (err) {
@@ -115,6 +128,10 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
     loadDocument();
     return () => {
       cancelled = true;
+      if (activePdfDocRef.current) {
+        void disposePdfDocumentProxy(activePdfDocRef.current);
+        activePdfDocRef.current = null;
+      }
     };
   }, [sheet.id, sheet.sheetType, resolvedUrl, lang]);
 

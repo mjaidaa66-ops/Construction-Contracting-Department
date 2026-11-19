@@ -7,20 +7,28 @@ import type {
   TakeoffProjectSummary,
 } from '../types/bunyan';
 import { CATEGORY_LABELS, formatAED } from './i18n';
+import { evaluateTakeoffVerificationState } from './takeoffCalculations';
 
-export function exportTakeoffToExcel(params: {
+export function buildTakeoffWorkbook(params: {
   project: Project;
   company: CompanyProfile;
   measurements: TakeoffMeasurement[];
   summary: TakeoffProjectSummary;
   rateLibrary: RateLibraryItem[];
-}): void {
+}): XLSX.WorkBook {
   const { project, company, measurements, summary, rateLibrary } = params;
   const wb = XLSX.utils.book_new();
+  const verification = evaluateTakeoffVerificationState(
+    project.takeoffSheets || [],
+    measurements,
+    project.bimElements
+  );
 
   // Sheet 1: Executive BOQ Summary (AED + 5% UAE VAT)
   const summaryRows = [
     ['BUNYAN CORE SYSTEM — UAE 5D BOQ SUMMARY'],
+    ['Verification Status', verification.badgeEn, 'Source', verification.status],
+    ['Audit Notice', verification.noticeEn],
     ['Company', company.nameEn, 'TRN', company.trnNumber],
     ['Project Code', project.code, 'Project Name', project.nameEn],
     ['Permit No.', project.permitNumber, 'Authority', project.licensingAuthority],
@@ -44,12 +52,16 @@ export function exportTakeoffToExcel(params: {
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'BOQ Summary AED');
 
-  // Sheet 2: Detailed Takeoff Measurements
+  // Sheet 2: Detailed Takeoff Measurements (with per-row calibration status)
+  const sheetCalibratedMap = new Map(
+    (project.takeoffSheets || []).map((s) => [s.id, s.calibrated])
+  );
   const measRows = [
-    ['ID', 'Sheet ID', 'Category', 'Tool', 'Description (EN)', 'Description (AR)', 'Quantity', 'Unit', 'Unit Rate (AED)', 'Total Cost (AED)', 'Linked BIM ID'],
+    ['ID', 'Sheet ID', 'Scale Status', 'Category', 'Tool', 'Description (EN)', 'Description (AR)', 'Quantity', 'Unit', 'Unit Rate (AED)', 'Total Cost (AED)', 'Linked BIM ID'],
     ...measurements.map((m) => [
       m.id,
       m.sheetId,
+      sheetCalibratedMap.get(m.sheetId) ? 'Calibrated' : 'Uncalibrated Draft',
       CATEGORY_LABELS[m.category].en,
       m.tool,
       m.label,
@@ -100,7 +112,18 @@ export function exportTakeoffToExcel(params: {
   const wsBim = XLSX.utils.aoa_to_sheet(bimRows);
   XLSX.utils.book_append_sheet(wb, wsBim, '5D BIM Quantities');
 
-  const safeCode = project.code.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return wb;
+}
+
+export function exportTakeoffToExcel(params: {
+  project: Project;
+  company: CompanyProfile;
+  measurements: TakeoffMeasurement[];
+  summary: TakeoffProjectSummary;
+  rateLibrary: RateLibraryItem[];
+}): void {
+  const wb = buildTakeoffWorkbook(params);
+  const safeCode = params.project.code.replace(/[^a-zA-Z0-9_-]/g, '_');
   XLSX.writeFile(wb, `${safeCode}_BOQ_5D_Takeoff.xlsx`);
 }
 

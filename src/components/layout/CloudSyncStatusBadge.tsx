@@ -10,7 +10,7 @@ export interface CloudSyncStatusBadgeProps {
 }
 
 function formatSyncTime(iso: string | null, lang: Language): string {
-  if (!iso) return lang === 'ar' ? 'جاهز محلياً' : 'Local Cache';
+  if (!iso) return lang === 'ar' ? 'محلي' : 'Local';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('en-AE', {
@@ -40,15 +40,15 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
       : 'Cloud Synced'
     : !syncState.isOnline
     ? isAr
-      ? 'غير متصل · محفوظ محلياً'
-      : 'Offline Cached'
+      ? 'غير متصل'
+      : 'Offline'
     : isAr
     ? 'محفوظ محلياً'
-    : 'Offline Cached';
+    : 'Cached';
 
   return (
     <div
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[#B4863C]/40 bg-slate-100/95 dark:bg-[#111A2C] px-2 py-1 text-xs shadow-sm"
+      className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-1 text-xs"
       title={
         syncState.lastError
           ? syncState.lastError
@@ -57,26 +57,22 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
           : 'Firebase Firestore Real-Time Sync & Offline Persistence Status'
       }
     >
-      {/* Status Indicator */}
-      <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5">
+      <div className="inline-flex items-center gap-1.5 px-2 py-0.5">
         {isSyncing ? (
-          <Loader2 className="w-3.5 h-3.5 text-[#D4AF37] animate-spin shrink-0" />
+          <Loader2 className="w-3.5 h-3.5 text-[#B4863C] animate-spin shrink-0" />
         ) : isSynced ? (
-          <span
-            className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
-            aria-hidden="true"
-          />
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
         ) : (
           <CloudOff className="w-3.5 h-3.5 text-amber-500 shrink-0" />
         )}
 
         <span
-          className={`font-semibold whitespace-nowrap ${
+          className={`text-[11px] font-semibold whitespace-nowrap ${
             isSyncing
-              ? 'text-[#B4863C] dark:text-[#D4AF37]'
+              ? 'text-[#B4863C] dark:text-[#C99A49]'
               : isSynced
-              ? 'text-emerald-700 dark:text-emerald-400'
-              : 'text-amber-700 dark:text-amber-400'
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-amber-600 dark:text-amber-400'
           }`}
         >
           {statusText}
@@ -85,7 +81,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         {syncState.lastSyncedAt && !isSyncing && (
           <span
             dir="ltr"
-            className="hidden xl:inline-block font-mono tabular-nums text-[10.5px] text-slate-500 dark:text-slate-400"
+            className="hidden 2xl:inline-block font-mono tabular-nums text-[10px] text-[var(--text-muted)]"
           >
             {timeLabel}
           </span>
@@ -94,29 +90,26 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         {syncState.pendingCount > 0 && !isSynced && (
           <span
             dir="ltr"
-            className="hidden sm:inline-block font-mono tabular-nums text-[10px] font-bold text-[#B4863C] dark:text-[#D4AF37]"
+            className="font-mono tabular-nums text-[10px] font-bold text-[#B4863C] dark:text-[#C99A49]"
           >
             ({syncState.pendingCount})
           </span>
         )}
       </div>
 
-      {/* Manual Sync Now Action Button */}
       <button
         type="button"
         onClick={onSyncNow}
         disabled={isSyncing}
         aria-label={isAr ? 'مزامنة يدوية الآن' : 'Sync Now'}
-        className="inline-flex items-center gap-1 rounded-md bg-[#B4863C] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#9E7330] disabled:opacity-60 transition-colors whitespace-nowrap shrink-0"
+        className="inline-flex items-center gap-1 rounded-md bg-[#B4863C] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#9E7330] disabled:opacity-60 bunyan-transition whitespace-nowrap shrink-0 cursor-pointer"
       >
         {isSyncing ? (
           <Cloud className="w-3 h-3 shrink-0" />
         ) : (
           <RefreshCw className="w-3 h-3 shrink-0" />
         )}
-        <span className="hidden md:inline">
-          {isAr ? 'مزامنة يدوية الآن' : 'Sync Now'}
-        </span>
+        <span className="hidden lg:inline">{isAr ? 'مزامنة' : 'Sync'}</span>
       </button>
     </div>
   );

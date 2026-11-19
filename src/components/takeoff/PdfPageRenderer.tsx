@@ -30,7 +30,8 @@ export const PdfPageRenderer: React.FC<PdfPageRendererProps> = ({
     let renderTask: { cancel: () => void; promise: Promise<void> } | null = null;
 
     async function renderPage() {
-      const page = await pdfDoc.getPage(pageNumber);
+      const safePageNum = Math.min(Math.max(1, pageNumber || 1), Math.max(1, pdfDoc.numPages || 1));
+      const page = await pdfDoc.getPage(safePageNum);
       if (cancelled) return;
 
       const view = page.view; // [x1, y1, x2, y2] MediaBox/CropBox

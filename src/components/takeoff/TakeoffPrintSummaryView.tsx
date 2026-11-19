@@ -22,7 +22,10 @@ import type {
   TakeoffSheet,
 } from '../../types/bunyan';
 import { CATEGORY_LABELS, formatAED } from '../../utils/i18n';
-import { computeTakeoffSummary } from '../../utils/takeoffCalculations';
+import {
+  computeTakeoffSummary,
+  evaluateTakeoffVerificationState,
+} from '../../utils/takeoffCalculations';
 import { exportTakeoffToExcel } from '../../utils/takeoffExportEngine';
 
 interface TakeoffPrintSummaryViewProps {
@@ -161,6 +164,10 @@ export const TakeoffPrintSummaryView: React.FC<TakeoffPrintSummaryViewProps> = (
 
   const reportDate = new Date().toISOString().slice(0, 10);
   const linkedBimCount = filteredMeasurements.filter((m) => Boolean(m.linkedBimElementId)).length;
+  const verification = useMemo(
+    () => evaluateTakeoffVerificationState(sheets, filteredMeasurements, project.bimElements),
+    [sheets, filteredMeasurements, project.bimElements]
+  );
 
   const sectionToggles = [
     {
@@ -335,9 +342,13 @@ export const TakeoffPrintSummaryView: React.FC<TakeoffPrintSummaryViewProps> = (
           <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-[#B4863C] pb-4">
             <div className="space-y-1">
               <div className="text-[11px] font-semibold tracking-wide text-[#B4863C]">
-                {lang === 'ar'
-                  ? 'تقرير ملخص الكميات والمقايسة الهندسية المعتمد'
-                  : 'ENGINEERING QUANTITIES & 5D BOQ TAKEOFF SUMMARY'}
+                {verification.status === 'certified_calibrated'
+                  ? lang === 'ar'
+                    ? 'تقرير ملخص الكميات والمقايسة الهندسية المعتمد'
+                    : 'VERIFIED QUANTITIES & 5D BOQ TAKEOFF SUMMARY'
+                  : lang === 'ar'
+                  ? `تقرير حصر كميات — ${verification.badgeAr}`
+                  : `QUANTITIES REPORT — ${verification.badgeEn.toUpperCase()}`}
               </div>
               <h1 className="text-lg font-bold text-slate-900">
                 {lang === 'ar' ? company.nameAr : company.nameEn}
@@ -491,7 +502,7 @@ export const TakeoffPrintSummaryView: React.FC<TakeoffPrintSummaryViewProps> = (
                           ? (row.costAed / activeSummary.directCostAed) * 100
                           : 0;
                       return (
-                        <tr key={row.category}>
+                        <tr key={`${row.category}-${row.unit}`}>
                           <td className="border border-slate-300 px-2.5 py-1.5 font-semibold text-slate-900">
                             {lang === 'ar'
                               ? CATEGORY_LABELS[row.category].ar

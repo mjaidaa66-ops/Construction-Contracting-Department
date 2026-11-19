@@ -16,11 +16,360 @@ export interface ProjectTelemetry {
   actualProgress: number;
   plannedProgress: number;
   source: 'takeoff' | 'bim';
+  steelEstimated?: boolean;
+  concreteEstimated?: boolean;
+}
+
+export interface Utm40NCoordinates {
+  eastingM: number;
+  northingM: number;
+  zone: 40;
+  hemisphere: 'N';
+  epsg: 'EPSG:32640';
+  convergenceDeg: number;
+}
+
+export type GisCoordinateStatus = 'verified' | 'outside_uae' | 'missing';
+export type GisBoundarySource = 'surveyed_polygon' | 'estimated_from_area' | 'missing';
+
+export interface GisEdgeSurvey {
+  index: number;
+  fromLabel: string;
+  toLabel: string;
+  lengthM: number;
+  azimuthDeg: number;
+  bearingCardinal: string;
+}
+
+export interface GisSurveyAnalysis {
+  coordinateStatus: GisCoordinateStatus;
+  latitude: number | null;
+  longitude: number | null;
+  utm40N: Utm40NCoordinates | null;
+  boundarySource: GisBoundarySource;
+  surveyedAreaM2: number;
+  declaredAreaM2: number;
+  perimeterM: number;
+  edges: GisEdgeSurvey[];
+  setbackPolygon: Array<{ x: number; y: number }>;
+  buildableAreaM2: number;
+  coveragePct: number;
+  reliability: 'verified_survey' | 'partial_estimate' | 'unverified';
+}
+
+// ============================================================================
+// WGS84 <-> UAE UTM Zone 40N (EPSG:32640, Central Meridian 57°E)
+// ============================================================================
+
+const WGS84_A = 6378137.0;
+const WGS84_F = 1 / 298.257223563;
+const WGS84_E2 = WGS84_F * (2 - WGS84_F);
+const WGS84_EP2 = WGS84_E2 / (1 - WGS84_E2);
+const UTM_K0 = 0.9996;
+const UTM_40_CM_RAD = (57 * Math.PI) / 180;
+const UTM_FALSE_EASTING = 500000.0;
+
+export function wgs84ToUtm40N(latitudeDeg: number, longitudeDeg: number): Utm40NCoordinates | null {
+  if (!Number.isFinite(latitudeDeg) || !Number.isFinite(longitudeDeg)) return null;
+  if (latitudeDeg === 0 && longitudeDeg === 0) return null;
+  if (Math.abs(latitudeDeg) > 84 || Math.abs(longitudeDeg) > 180) return null;
+
+  const lat = (latitudeDeg * Math.PI) / 180;
+  const lon = (longitudeDeg * Math.PI) / 180;
+
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const tanLat = Math.tan(lat);
+
+  const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
+  const T = tanLat * tanLat;
+  const C = WGS84_EP2 * cosLat * cosLat;
+  const A = cosLat * (lon - UTM_40_CM_RAD);
+
+  const e2 = WGS84_E2;
+  const e4 = e2 * e2;
+  const e6 = e4 * e2;
+
+  const M =
+    WGS84_A *
+    ((1 - e2 / 4 - (3 * e4) / 64 - (5 * e6) / 256) * lat -
+      ((3 * e2) / 8 + (3 * e4) / 32 + (45 * e6) / 1024) * Math.sin(2 * lat) +
+      ((15 * e4) / 256 + (45 * e6) / 1024) * Math.sin(4 * lat) -
+      ((35 * e6) / 3072) * Math.sin(6 * lat));
+
+  const eastingM =
+    UTM_FALSE_EASTING +
+    UTM_K0 *
+      N *
+      (A +
+        ((1 - T + C) * Math.pow(A, 3)) / 6 +
+        ((5 - 18 * T + T * T + 72 * C - 58 * WGS84_EP2) * Math.pow(A, 5)) / 120);
+
+  const falseNorthing = latitudeDeg < 0 ? 10000000.0 : 0.0;
+  const northingM =
+    falseNorthing +
+    UTM_K0 *
+      (M +
+        N *
+          tanLat *
+          ((A * A) / 2 +
+            ((5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4)) / 24 +
+            ((61 - 58 * T + T * T + 600 * C - 330 * WGS84_EP2) * Math.pow(A, 6)) / 720));
+
+  const convergenceRad = Math.atan(Math.tan(lon - UTM_40_CM_RAD) * sinLat);
+
+  return {
+    eastingM: Number(eastingM.toFixed(3)),
+    northingM: Number(northingM.toFixed(3)),
+    zone: 40,
+    hemisphere: 'N',
+    epsg: 'EPSG:32640',
+    convergenceDeg: Number(((convergenceRad * 180) / Math.PI).toFixed(4)),
+  };
+}
+
+export function utm40NToWgs84(
+  eastingM: number,
+  northingM: number,
+  northernHemisphere = true
+): { latitude: number; longitude: number } | null {
+  if (!Number.isFinite(eastingM) || !Number.isFinite(northingM)) return null;
+
+  const x = eastingM - UTM_FALSE_EASTING;
+  const y = northernHemisphere ? northingM : northingM - 10000000.0;
+
+  const e2 = WGS84_E2;
+  const e4 = e2 * e2;
+  const e6 = e4 * e2;
+  const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+
+  const M = y / UTM_K0;
+  const mu = M / (WGS84_A * (1 - e2 / 4 - (3 * e4) / 64 - (5 * e6) / 256));
+
+  const phi1Rad =
+    mu +
+    ((3 * e1) / 2 - (27 * Math.pow(e1, 3)) / 32) * Math.sin(2 * mu) +
+    ((21 * e1 * e1) / 16 - (55 * Math.pow(e1, 4)) / 32) * Math.sin(4 * mu) +
+    ((151 * Math.pow(e1, 3)) / 96) * Math.sin(6 * mu) +
+    ((1097 * Math.pow(e1, 4)) / 512) * Math.sin(8 * mu);
+
+  const sinPhi1 = Math.sin(phi1Rad);
+  const cosPhi1 = Math.cos(phi1Rad);
+  const tanPhi1 = Math.tan(phi1Rad);
+
+  const N1 = WGS84_A / Math.sqrt(1 - e2 * sinPhi1 * sinPhi1);
+  const T1 = tanPhi1 * tanPhi1;
+  const C1 = WGS84_EP2 * cosPhi1 * cosPhi1;
+  const R1 = (WGS84_A * (1 - e2)) / Math.pow(1 - e2 * sinPhi1 * sinPhi1, 1.5);
+  const D = x / (N1 * UTM_K0);
+
+  const latRad =
+    phi1Rad -
+    ((N1 * tanPhi1) / R1) *
+      ((D * D) / 2 -
+        ((5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * WGS84_EP2) * Math.pow(D, 4)) / 24 +
+        ((61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * WGS84_EP2 - 3 * C1 * C1) *
+          Math.pow(D, 6)) /
+          720);
+
+  const lonRad =
+    UTM_40_CM_RAD +
+    (D -
+      ((1 + 2 * T1 + C1) * Math.pow(D, 3)) / 6 +
+      ((5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * WGS84_EP2 + 24 * T1 * T1) * Math.pow(D, 5)) /
+        120) /
+      cosPhi1;
+
+  return {
+    latitude: Number(((latRad * 180) / Math.PI).toFixed(7)),
+    longitude: Number(((lonRad * 180) / Math.PI).toFixed(7)),
+  };
+}
+
+export function evaluateGisCoordinates(gis: GisPlotData): {
+  status: GisCoordinateStatus;
+  latitude: number | null;
+  longitude: number | null;
+  utm40N: Utm40NCoordinates | null;
+} {
+  const lat = gis.latitude;
+  const lng = gis.longitude;
+  if (
+    typeof lat !== 'number' ||
+    typeof lng !== 'number' ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    (lat === 0 && lng === 0)
+  ) {
+    return { status: 'missing', latitude: null, longitude: null, utm40N: null };
+  }
+
+  const utm40N = wgs84ToUtm40N(lat, lng);
+  const inUae = lat >= 22.4 && lat <= 26.6 && lng >= 51.4 && lng <= 56.6;
+  return {
+    status: inUae ? 'verified' : 'outside_uae',
+    latitude: lat,
+    longitude: lng,
+    utm40N,
+  };
+}
+
+// ============================================================================
+// Surveyed Polygon Geometry & True Inward Edge-Offset Setbacks
+// ============================================================================
+
+export function computeSignedPolygonArea(points: Array<{ x: number; y: number }>): number {
+  if (points.length < 3) return 0;
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % points.length];
+    sum += p1.x * p2.y - p2.x * p1.y;
+  }
+  return 0.5 * sum;
+}
+
+export function computePolygonAreaM2(points: Array<{ x: number; y: number }>): number {
+  return Math.abs(computeSignedPolygonArea(points));
+}
+
+function azimuthToCardinal(azDeg: number): string {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const idx = Math.round((((azDeg % 360) + 360) % 360) / 45) % 8;
+  return dirs[idx];
+}
+
+export function computePolygonEdgeSurveys(points: GisBoundaryPoint[]): GisEdgeSurvey[] {
+  if (points.length < 2) return [];
+  const edges: GisEdgeSurvey[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % points.length];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const lengthM = Number(Math.hypot(dx, dy).toFixed(2));
+    // Screen/survey coordinates where +x = East, -y = North (so North azimuth = atan2(dx, -dy))
+    const rawAz = (Math.atan2(dx, -dy) * 180) / Math.PI;
+    const azimuthDeg = Number((((rawAz % 360) + 360) % 360).toFixed(1));
+    edges.push({
+      index: i + 1,
+      fromLabel: p1.label || `P${i + 1}`,
+      toLabel: p2.label || `P${((i + 1) % points.length) + 1}`,
+      lengthM,
+      azimuthDeg,
+      bearingCardinal: azimuthToCardinal(azimuthDeg),
+    });
+  }
+  return edges;
 }
 
 /**
- * Ensures any GIS plot has >= 3 valid boundary coordinates in meters.
- * Falls back to a rectangular plot sized directly from plotAreaSqM when omitted.
+ * Computes true polygonal inward-offset setbacks for arbitrary convex or skewed plots.
+ * Supports distinct front/rear/left/right setback distances classified by each edge's outward normal.
+ */
+export function computeInsetPolygonSetback(
+  points: Array<{ x: number; y: number }>,
+  setbacks: GisPlotData['setbacks'],
+  frontSide: 'north' | 'south' = 'south'
+): Array<{ x: number; y: number }> {
+  if (points.length < 3) return [];
+  const signedArea = computeSignedPolygonArea(points);
+  if (Math.abs(signedArea) < 1e-4) return [];
+
+  // If signedArea > 0 in Cartesian coordinates: (+x right, +y down) means clockwise visually,
+  // but algebraically tangent=(dx, dy) has inward normal = (-dy, dx) / len when signedArea > 0.
+  const sign = signedArea >= 0 ? 1 : -1;
+
+  const sFront = Math.max(0, setbacks?.front ?? 3);
+  const sRear = Math.max(0, setbacks?.rear ?? 3);
+  const sLeft = Math.max(0, setbacks?.sideLeft ?? 2);
+  const sRight = Math.max(0, setbacks?.sideRight ?? 2);
+
+  interface OffsetLine {
+    px: number;
+    py: number;
+    tx: number;
+    ty: number;
+  }
+
+  const lines: OffsetLine[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+
+    const tx = dx / len;
+    const ty = dy / len;
+    const inX = -sign * ty;
+    const inY = sign * tx;
+    const outX = -inX;
+    const outY = -inY;
+
+    let dist = sLeft;
+    if (Math.abs(outX) >= Math.abs(outY)) {
+      dist = outX >= 0 ? sRight : sLeft;
+    } else if (frontSide === 'north') {
+      dist = outY < 0 ? sFront : sRear;
+    } else {
+      dist = outY > 0 ? sFront : sRear;
+    }
+
+    lines.push({
+      px: a.x + inX * dist,
+      py: a.y + inY * dist,
+      tx,
+      ty,
+    });
+  }
+
+  if (lines.length < 3) return [];
+
+  const inset: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l1 = lines[(i - 1 + lines.length) % lines.length];
+    const l2 = lines[i];
+    const det = l1.tx * l2.ty - l1.ty * l2.tx;
+    if (Math.abs(det) < 1e-5) {
+      inset.push({
+        x: Number(l2.px.toFixed(3)),
+        y: Number(l2.py.toFixed(3)),
+      });
+    } else {
+      const rx = l2.px - l1.px;
+      const ry = l2.py - l1.py;
+      const t = (rx * l2.ty - ry * l2.tx) / det;
+      inset.push({
+        x: Number((l1.px + t * l1.tx).toFixed(3)),
+        y: Number((l1.py + t * l1.ty).toFixed(3)),
+      });
+    }
+  }
+
+  // Ensure inset polygon orientation hasn't inverted (over-setback collapse)
+  const insetSignedArea = computeSignedPolygonArea(inset);
+  if (insetSignedArea * signedArea <= 0) {
+    return [];
+  }
+
+  return inset;
+}
+
+export function evaluateBoundarySource(gis: GisPlotData): GisBoundarySource {
+  if (Array.isArray(gis.boundaryPoints) && gis.boundaryPoints.length >= 3) {
+    return 'surveyed_polygon';
+  }
+  if (typeof gis.plotAreaSqM === 'number' && Number.isFinite(gis.plotAreaSqM) && gis.plotAreaSqM > 20) {
+    return 'estimated_from_area';
+  }
+  return 'missing';
+}
+
+/**
+ * Ensures any GIS plot has >= 3 valid boundary coordinates in meters when surveyed or area-backed.
+ * Falls back to a rectangular plot sized directly from plotAreaSqM when boundaryPoints omitted.
  */
 export function normalizeBoundaryPoints(gis: GisPlotData): GisBoundaryPoint[] {
   if (Array.isArray(gis.boundaryPoints) && gis.boundaryPoints.length >= 3) {
@@ -43,9 +392,52 @@ export function normalizeBoundaryPoints(gis: GisPlotData): GisBoundaryPoint[] {
   ];
 }
 
+export function analyzeGisPlot(
+  gis: GisPlotData,
+  frontSide: 'north' | 'south' = 'south'
+): GisSurveyAnalysis {
+  const coord = evaluateGisCoordinates(gis);
+  const boundarySource = evaluateBoundarySource(gis);
+  const pts = normalizeBoundaryPoints(gis);
+  const surveyedAreaM2 = Number(computePolygonAreaM2(pts).toFixed(2));
+  const edges = computePolygonEdgeSurveys(pts);
+  const perimeterM = Number(edges.reduce((acc, e) => acc + e.lengthM, 0).toFixed(2));
+
+  const setbackPolygon = computeInsetPolygonSetback(pts, gis.setbacks, frontSide);
+  const buildableAreaM2 = Number(computePolygonAreaM2(setbackPolygon).toFixed(2));
+  const declaredAreaM2 = Number((gis.plotAreaSqM || surveyedAreaM2 || 0).toFixed(2));
+  const denom = surveyedAreaM2 > 0 ? surveyedAreaM2 : declaredAreaM2 > 0 ? declaredAreaM2 : 1;
+  const coveragePct = Number(Math.min(100, (buildableAreaM2 / denom) * 100).toFixed(1));
+
+  let reliability: GisSurveyAnalysis['reliability'] = 'unverified';
+  if (coord.status === 'verified' && boundarySource === 'surveyed_polygon') {
+    reliability = 'verified_survey';
+  } else if (coord.status !== 'missing' || boundarySource !== 'missing') {
+    reliability = 'partial_estimate';
+  }
+
+  return {
+    coordinateStatus: coord.status,
+    latitude: coord.latitude,
+    longitude: coord.longitude,
+    utm40N: coord.utm40N,
+    boundarySource,
+    surveyedAreaM2,
+    declaredAreaM2,
+    perimeterM,
+    edges,
+    setbackPolygon,
+    buildableAreaM2,
+    coveragePct,
+    reliability,
+  };
+}
+
 export interface NormalizedPlotGeometry {
   rawPoints: GisBoundaryPoint[];
   centeredPoints: Array<{ x: number; z: number; label: string }>;
+  setbackCenteredPoints: Array<{ x: number; z: number }>;
+  buildableAreaM2: number;
   widthM: number;
   depthM: number;
   setbackBox: {
@@ -59,7 +451,7 @@ export interface NormalizedPlotGeometry {
 }
 
 /**
- * Computes origin-centered 3D plot polygon & Sharjah Municipality inner setback bounds.
+ * Computes origin-centered 3D plot polygon & true polygonal inward-offset setback envelope.
  */
 export function computePlotGeometryCentered(gis: GisPlotData): NormalizedPlotGeometry {
   const rawPoints = normalizeBoundaryPoints(gis);
@@ -86,22 +478,42 @@ export function computePlotGeometryCentered(gis: GisPlotData): NormalizedPlotGeo
     label: pt.label || `P${idx + 1}`,
   }));
 
-  const halfW = widthM / 2;
-  const halfD = depthM / 2;
+  const insetPoly = computeInsetPolygonSetback(rawPoints, gis.setbacks, 'south');
+  const setbackCenteredPoints = insetPoly.map((p) => ({
+    x: Number((p.x - cx).toFixed(3)),
+    z: Number((p.y - cy).toFixed(3)),
+  }));
 
-  const sLeft = Math.min(halfW - 2, Math.max(0, gis.setbacks?.sideLeft ?? 2));
-  const sRight = Math.min(halfW - 2, Math.max(0, gis.setbacks?.sideRight ?? 2));
-  const sRear = Math.min(halfD - 2, Math.max(0, gis.setbacks?.rear ?? 3));
-  const sFront = Math.min(halfD - 2, Math.max(0, gis.setbacks?.front ?? 3));
+  const buildableAreaM2 = Number(computePolygonAreaM2(insetPoly).toFixed(2));
 
-  const sbMinX = -halfW + sLeft;
-  const sbMaxX = halfW - sRight;
-  const sbMinZ = -halfD + sRear;
-  const sbMaxZ = halfD - sFront;
+  let sbMinX: number;
+  let sbMaxX: number;
+  let sbMinZ: number;
+  let sbMaxZ: number;
+
+  if (setbackCenteredPoints.length >= 3) {
+    sbMinX = Math.min(...setbackCenteredPoints.map((p) => p.x));
+    sbMaxX = Math.max(...setbackCenteredPoints.map((p) => p.x));
+    sbMinZ = Math.min(...setbackCenteredPoints.map((p) => p.z));
+    sbMaxZ = Math.max(...setbackCenteredPoints.map((p) => p.z));
+  } else {
+    const halfW = widthM / 2;
+    const halfD = depthM / 2;
+    const sLeft = Math.min(halfW - 2, Math.max(0, gis.setbacks?.sideLeft ?? 2));
+    const sRight = Math.min(halfW - 2, Math.max(0, gis.setbacks?.sideRight ?? 2));
+    const sRear = Math.min(halfD - 2, Math.max(0, gis.setbacks?.rear ?? 3));
+    const sFront = Math.min(halfD - 2, Math.max(0, gis.setbacks?.front ?? 3));
+    sbMinX = -halfW + sLeft;
+    sbMaxX = halfW - sRight;
+    sbMinZ = -halfD + sRear;
+    sbMaxZ = halfD - sFront;
+  }
 
   return {
     rawPoints,
     centeredPoints,
+    setbackCenteredPoints,
+    buildableAreaM2,
     widthM,
     depthM,
     setbackBox: {
@@ -149,7 +561,7 @@ export function generateGisPlotTakeoffSheet(project: Project): TakeoffSheet {
   const originX = (svgWidth - drawW) / 2;
   const originY = (svgHeight - drawH) / 2;
 
-  const toPx = (pt: GisBoundaryPoint) => ({
+  const toPx = (pt: { x: number; y: number; label?: string }) => ({
     px: Number((originX + (pt.x - minX) * pixelsPerMeter).toFixed(1)),
     py: Number((originY + (pt.y - minY) * pixelsPerMeter).toFixed(1)),
     label: pt.label || '',
@@ -158,15 +570,17 @@ export function generateGisPlotTakeoffSheet(project: Project): TakeoffSheet {
   const mappedPts = points.map(toPx);
   const polyStr = mappedPts.map((p) => `${p.px},${p.py}`).join(' ');
 
-  const sLeftPx = Math.min(drawW * 0.35, (gis.setbacks?.sideLeft ?? 2) * pixelsPerMeter);
-  const sRightPx = Math.min(drawW * 0.35, (gis.setbacks?.sideRight ?? 2) * pixelsPerMeter);
-  const sRearPx = Math.min(drawH * 0.35, (gis.setbacks?.rear ?? 3) * pixelsPerMeter);
-  const sFrontPx = Math.min(drawH * 0.35, (gis.setbacks?.front ?? 3) * pixelsPerMeter);
+  const insetPoly = computeInsetPolygonSetback(points, gis.setbacks, 'south');
+  const mappedInsetPts = insetPoly.map((p) => toPx(p));
+  const insetPolyStr = mappedInsetPts.map((p) => `${p.px},${p.py}`).join(' ');
+  const buildableAreaM2 = computePolygonAreaM2(insetPoly);
 
-  const envX = originX + sLeftPx;
-  const envY = originY + sRearPx;
-  const envW = Math.max(40, drawW - sLeftPx - sRightPx);
-  const envH = Math.max(40, drawH - sRearPx - sFrontPx);
+  const envMinX = mappedInsetPts.length >= 3 ? Math.min(...mappedInsetPts.map((p) => p.px)) : originX + 30;
+  const envMaxX = mappedInsetPts.length >= 3 ? Math.max(...mappedInsetPts.map((p) => p.px)) : originX + drawW - 30;
+  const envMinY = mappedInsetPts.length >= 3 ? Math.min(...mappedInsetPts.map((p) => p.py)) : originY + 30;
+  const envMaxY = mappedInsetPts.length >= 3 ? Math.max(...mappedInsetPts.map((p) => p.py)) : originY + drawH - 30;
+  const envCenterX = (envMinX + envMaxX) / 2;
+  const envCenterY = (envMinY + envMaxY) / 2;
 
   const scaleBarMeters = 5;
   const scaleBarPx = Math.min(260, Math.max(60, scaleBarMeters * pixelsPerMeter));
@@ -214,19 +628,20 @@ export function generateGisPlotTakeoffSheet(project: Project): TakeoffSheet {
     <polygon points="${polyStr}" fill="rgba(180,134,60,0.06)" stroke="#D4AF37" stroke-width="2.5"/>
     ${cornerLabelsSvg}
 
-    <!-- Sharjah Municipality Setback Envelope -->
-    <rect x="${envX.toFixed(1)}" y="${envY.toFixed(1)}" width="${envW.toFixed(1)}" height="${envH.toFixed(
-      1
-    )}" fill="rgba(56,189,248,0.08)" stroke="#38BDF8" stroke-width="1.8" stroke-dasharray="7 5"/>
+    <!-- Sharjah Municipality True Polygonal Setback Envelope -->
+    ${
+      mappedInsetPts.length >= 3
+        ? `<polygon points="${insetPolyStr}" fill="rgba(56,189,248,0.08)" stroke="#38BDF8" stroke-width="1.8" stroke-dasharray="7 5"/>`
+        : ''
+    }
 
     <!-- Structural Grid Lines inside Buildable Footprint -->
-    <line x1="${(envX + envW * 0.5).toFixed(1)}" y1="${envY.toFixed(1)}" x2="${(
-      envX +
-      envW * 0.5
-    ).toFixed(1)}" y2="${(envY + envH).toFixed(1)}" stroke="rgba(226,232,240,0.28)" stroke-dasharray="4 4"/>
-    <line x1="${envX.toFixed(1)}" y1="${(envY + envH * 0.5).toFixed(1)}" x2="${(
-      envX + envW
-    ).toFixed(1)}" y2="${(envY + envH * 0.5).toFixed(1)}" stroke="rgba(226,232,240,0.28)" stroke-dasharray="4 4"/>
+    <line x1="${envCenterX.toFixed(1)}" y1="${envMinY.toFixed(1)}" x2="${envCenterX.toFixed(
+      1
+    )}" y2="${envMaxY.toFixed(1)}" stroke="rgba(226,232,240,0.28)" stroke-dasharray="4 4"/>
+    <line x1="${envMinX.toFixed(1)}" y1="${envCenterY.toFixed(1)}" x2="${envMaxX.toFixed(
+      1
+    )}" y2="${envCenterY.toFixed(1)}" stroke="rgba(226,232,240,0.28)" stroke-dasharray="4 4"/>
 
     <!-- Header & Setback Telemetry -->
     <text x="48" y="38" fill="#D4AF37" font-size="12" font-weight="700" font-family="monospace">GIS AUTO-SHEET · ${project.code} · ${safePlotTitle}</text>
@@ -236,14 +651,14 @@ export function generateGisPlotTakeoffSheet(project: Project): TakeoffSheet {
       gis.setbacks.rear
     }m L:${gis.setbacks.sideLeft}m R:${gis.setbacks.sideRight}m</text>
 
-    <text x="${(envX + envW / 2).toFixed(1)}" y="${(envY + envH / 2 - 6).toFixed(
+    <text x="${envCenterX.toFixed(1)}" y="${(envCenterY - 6).toFixed(
       1
     )}" text-anchor="middle" fill="#F8FAFC" font-size="13" font-weight="700" font-family="monospace">ALLOWABLE BUILDABLE ENVELOPE</text>
-    <text x="${(envX + envW / 2).toFixed(1)}" y="${(envY + envH / 2 + 14).toFixed(
+    <text x="${envCenterX.toFixed(1)}" y="${(envCenterY + 14).toFixed(
       1
-    )}" text-anchor="middle" fill="#38BDF8" font-size="11" font-family="monospace">${(
-      envW / pixelsPerMeter
-    ).toFixed(2)}m × ${(envH / pixelsPerMeter).toFixed(2)}m (CALIBRATED)</text>
+    )}" text-anchor="middle" fill="#38BDF8" font-size="11" font-family="monospace">${buildableAreaM2.toFixed(
+      1
+    )} m² BUILDABLE (CALIBRATED)</text>
 
     <!-- Calibrated Scale Reference Bar -->
     <line x1="48" y1="664" x2="${(48 + scaleBarPx).toFixed(1)}" y2="664" stroke="#38BDF8" stroke-width="3"/>
@@ -490,7 +905,7 @@ export function generateProjectBimElements(project: Project): BimElement[] {
  */
 export function computeProjectTelemetry(project: Project): ProjectTelemetry {
   const meas = project.takeoffMeasurements || [];
-  const bim = project.bimElements && project.bimElements.length > 0
+  const bim = project.bimElements !== undefined
     ? project.bimElements
     : generateProjectBimElements(project);
 
@@ -501,6 +916,7 @@ export function computeProjectTelemetry(project: Project): ProjectTelemetry {
     .filter((b) => b.boqCategory === 'concrete')
     .reduce((sum, b) => sum + b.volumeM3, 0);
 
+  const concreteEstimated = concreteFromTakeoff <= 0;
   const concreteM3 = Number(
     (concreteFromTakeoff > 0 ? concreteFromTakeoff : concreteFromBim).toFixed(1)
   );
@@ -513,6 +929,7 @@ export function computeProjectTelemetry(project: Project): ProjectTelemetry {
     );
 
   // Structural rebar ratio (~115 kg per m³ RC concrete) when rebar is not yet explicitly drawn
+  const steelEstimated = steelFromTakeoff <= 0;
   const steelKg = Math.round(steelFromTakeoff > 0 ? steelFromTakeoff : concreteM3 * 115);
   const steelTon = Number((steelKg / 1000).toFixed(2));
 
@@ -536,5 +953,7 @@ export function computeProjectTelemetry(project: Project): ProjectTelemetry {
     actualProgress: project.actualProgress,
     plannedProgress: project.plannedProgress,
     source: meas.length > 0 ? 'takeoff' : 'bim',
+    steelEstimated,
+    concreteEstimated,
   };
 }

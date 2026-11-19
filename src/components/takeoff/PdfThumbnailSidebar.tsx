@@ -43,12 +43,12 @@ const ThumbnailItem: React.FC<{
       onClick={onSelect}
       className={`w-full p-2 rounded-lg border text-center transition-colors ${
         isActive
-          ? 'border-[#B4863C] bg-[#B4863C]/10'
-          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+          ? 'border-[#B4863C] bg-[#B4863C]/12'
+          : 'border-[var(--border-hairline)] hover:bg-[var(--bg-surface)]'
       }`}
     >
-      <canvas ref={canvasRef} className="mx-auto rounded border border-slate-200 bg-white max-w-full" />
-      <div className="mt-1.5 text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-300">
+      <canvas ref={canvasRef} className="mx-auto rounded border border-[var(--border-hairline)] bg-white max-w-full" />
+      <div className="mt-1.5 text-[11px] font-mono font-semibold text-[var(--text-secondary)]">
         P.{pageNumber}
       </div>
     </button>
@@ -64,8 +64,8 @@ export const PdfThumbnailSidebar: React.FC<PdfThumbnailSidebarProps> = ({
   const pages = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
 
   return (
-    <div className="w-36 shrink-0 border-e border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0F172A] flex flex-col h-full overflow-hidden">
-      <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+    <div className="w-36 shrink-0 border-e border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex flex-col h-full overflow-hidden">
+      <div className="px-3 py-2.5 border-b border-[var(--border-hairline)] text-[11px] font-semibold text-[var(--text-secondary)]">
         {lang === 'ar' ? `الصفحات (${pdfDoc.numPages})` : `Pages (${pdfDoc.numPages})`}
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-2">

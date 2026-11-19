@@ -37,6 +37,7 @@ import { formatAED } from '../../utils/i18n';
 import { computeTakeoffSummary } from '../../utils/takeoffCalculations';
 import { uploadSheetBinaryToCloud } from '../../services/cloudSyncService';
 import { parseUploadedDrawingFile } from '../../utils/takeoffSheetLoader';
+import { Button, Card, SegmentedTabs } from '../ui';
 import { BimAuditModal } from '../bim/BimAuditModal';
 import { Bim3DViewport } from '../bim/Bim3DViewport';
 import { BunyanExportCenter } from '../export/BunyanExportCenter';
@@ -73,8 +74,9 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
   }, [project]);
 
   const measurements: TakeoffMeasurement[] = project.takeoffMeasurements || [];
+  const isParametricBim = project.bimElements === undefined;
   const bimElements: BimElement[] = useMemo(() => {
-    if (project.bimElements && project.bimElements.length > 0) {
+    if (project.bimElements !== undefined) {
       return project.bimElements;
     }
     return generateProjectBimElements(project);
@@ -115,25 +117,30 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
 
   // Calibration Lock & BimAuditModal state
   const [calibrationAuditOpen, setCalibrationAuditOpen] = useState(false);
-  const [analysisReport, setAnalysisReport] = useState<DrawingAnalysisReport>({
+  const [analysisReport, setAnalysisReport] = useState<DrawingAnalysisReport>(() => ({
     id: `rep-${project.id}`,
-    fileName: `${project.code}_Sharjah_BIM_Takeoff.ifc`,
+    fileName: isParametricBim ? `${project.code}_Parametric_GIS_Model` : `${project.code}_BIM_Takeoff`,
     sourceType: 'vector_pdf',
-    verificationStatus: 'verified',
-    badge: 'BIM VERIFIED',
-    confidenceScore: 98,
+    verificationStatus: bimElements.length === 0 ? 'missing_data' : isParametricBim ? 'estimated' : 'verified',
+    badge: bimElements.length === 0 ? 'EXTRACTION FAILED' : isParametricBim ? 'HUMAN REVIEW REQUIRED' : 'BIM VERIFIED',
+    confidenceScore: bimElements.length === 0 ? 0 : isParametricBim ? 75 : 98,
     elementCount: bimElements.length,
-    warnings: [],
+    warnings:
+      bimElements.length === 0
+        ? ['No 3D BIM elements loaded.']
+        : isParametricBim
+        ? ['Using GIS-derived parametric preview; calibrate 2D sheets or import IFC/DXF for certified BOQ.']
+        : [],
     calibration: {
-      isCalibrated: true,
+      isCalibrated: !isParametricBim && bimElements.length > 0,
       referenceLengthM: 5.0,
       measuredUnits: 200,
       scaleFactor: 1.0,
-      lockedAt: new Date().toISOString(),
+      lockedAt: !isParametricBim && bimElements.length > 0 ? new Date().toISOString() : undefined,
     },
     analyzedAt: new Date().toISOString(),
-    boqUnlocked: true,
-  });
+    boqUnlocked: !isParametricBim && bimElements.length > 0,
+  }));
 
   // Sharjah Municipality AI Audit State
   const [auditRunning, setAuditRunning] = useState(false);
@@ -407,61 +414,43 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Futuristic BIM Command HUD Header + Floating Live Telemetry */}
-      <div className="rounded-2xl border border-slate-200 dark:border-[#B4863C]/30 bg-white/95 dark:bg-[#0B1120]/90 backdrop-blur-md p-4 space-y-3.5 shadow-sm">
+      {/* Unified Studio Header & Live 5D Telemetry */}
+      <Card className="p-4 space-y-4">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           {/* View Mode Segmented Switcher */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-[#111A2C] border border-slate-200 dark:border-[#B4863C]/25">
-              <button
-                type="button"
-                onClick={() => setViewMode('2d')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                  viewMode === '2d'
-                    ? 'bg-[#B4863C] text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Ruler className="w-3.5 h-3.5" />
-                <span>{lang === 'ar' ? '2D PlanSwift الحصر' : '2D PlanSwift'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('split')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                  viewMode === 'split'
-                    ? 'bg-[#B4863C] text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Columns2 className="w-3.5 h-3.5" />
-                <span>{lang === 'ar' ? 'العرض المزدوج المتزامن (2D + 3D)' : 'Split-Screen 2D + 3D'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('3d')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                  viewMode === '3d'
-                    ? 'bg-[#B4863C] text-white'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Box className="w-3.5 h-3.5" />
-                <span>{lang === 'ar' ? '3D BIM التفاعلي' : '3D BIM'}</span>
-              </button>
-            </div>
+            <SegmentedTabs<StudioViewMode>
+              value={viewMode}
+              onChange={setViewMode}
+              items={[
+                {
+                  id: '2d',
+                  label: lang === 'ar' ? '2D PlanSwift الحصر' : '2D PlanSwift',
+                  icon: <Ruler className="w-3.5 h-3.5" />,
+                },
+                {
+                  id: 'split',
+                  label: lang === 'ar' ? 'العرض المزدوج (2D + 3D)' : 'Split 2D + 3D',
+                  icon: <Columns2 className="w-3.5 h-3.5" />,
+                },
+                {
+                  id: '3d',
+                  label: lang === 'ar' ? '3D BIM التفاعلي' : '3D BIM',
+                  icon: <Box className="w-3.5 h-3.5" />,
+                },
+              ]}
+            />
 
             {canLinkPair && (
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Link2 className="w-3.5 h-3.5 text-[#B4863C]" />}
                 onClick={handleLinkSelected2DTo3D}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#B4863C]/40 bg-[#B4863C]/10 text-[#B4863C] dark:text-[#D4AF37] text-xs font-semibold hover:bg-[#B4863C]/20 whitespace-nowrap"
+                className="border-[#B4863C]/45 text-[#B4863C] dark:text-[#C99A49]"
               >
-                <Link2 className="w-3.5 h-3.5" />
-                <span>
-                  {lang === 'ar' ? 'ربط القياس المحدد بالعنصر 3D' : 'Link Selected 2D ↔ 3D'}
-                </span>
-              </button>
+                {lang === 'ar' ? 'ربط القياس المحدد بالعنصر 3D' : 'Link Selected 2D ↔ 3D'}
+              </Button>
             )}
           </div>
 
@@ -470,116 +459,110 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
             <input
               ref={studioUploadInputRef}
               type="file"
-              accept=".pdf,application/pdf,image/*"
+              accept=".pdf,.dxf,application/pdf,image/*"
               onChange={handleStudioUploadFile}
               className="hidden"
             />
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              loading={uploadingStudioSheet}
+              icon={!uploadingStudioSheet ? <FileUp className="w-3.5 h-3.5 text-[#B4863C]" /> : undefined}
               onClick={() => studioUploadInputRef.current?.click()}
-              disabled={uploadingStudioSheet}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#B4863C]/45 bg-[#B4863C]/10 text-[#B4863C] dark:text-[#D4AF37] text-xs font-semibold hover:bg-[#B4863C]/20 disabled:opacity-60 whitespace-nowrap"
             >
-              {uploadingStudioSheet ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <FileUp className="w-3.5 h-3.5" />
-              )}
-              <span>{lang === 'ar' ? 'إضافة مخطط PDF/صورة' : 'Upload PDF / Image'}</span>
-            </button>
+              {lang === 'ar' ? 'إضافة مخطط PDF / DXF / صورة' : 'Upload PDF / DXF / Image'}
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Download className="w-3.5 h-3.5 text-[#B4863C]" />}
               onClick={() => setExportOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#38BDF8]/45 bg-[#38BDF8]/10 text-sky-700 dark:text-[#38BDF8] text-xs font-semibold hover:bg-[#38BDF8]/20 whitespace-nowrap"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>{lang === 'ar' ? 'تصدير 5D BOQ' : 'Export 5D BOQ'}</span>
-            </button>
+              {lang === 'ar' ? 'تصدير 5D BOQ' : 'Export 5D BOQ'}
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<ShieldCheck className="w-3.5 h-3.5 text-[#B4863C]" />}
               onClick={() => setCalibrationAuditOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#B4863C]" />
-              <span>{lang === 'ar' ? 'قفل معايرة المقياس' : 'Scale Lock Audit'}</span>
-            </button>
+              {lang === 'ar' ? 'قفل معايرة المقياس' : 'Scale Lock Audit'}
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
+              loading={auditRunning}
+              icon={!auditRunning ? <ClipboardCheck className="w-3.5 h-3.5" /> : undefined}
               onClick={handleRunSharjahAudit}
-              disabled={auditRunning}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] disabled:opacity-60 whitespace-nowrap"
             >
-              {auditRunning ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <ClipboardCheck className="w-3.5 h-3.5" />
-              )}
-              <span>
-                {lang === 'ar'
-                  ? 'تدقيق بلدية الشارقة الذكي (AI)'
-                  : 'Sharjah Municipality AI Audit'}
-              </span>
-            </button>
+              {lang === 'ar'
+                ? 'تدقيق بلدية الشارقة الذكي (AI)'
+                : 'Sharjah Municipality AI Audit'}
+            </Button>
           </div>
         </div>
 
-        {/* Floating Live Quantity Telemetry Strip (Concrete, Rebar, Masonry, Budget, Progress) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2.5 border-t border-slate-100 dark:border-[#B4863C]/20">
-          <div className="animate-hud-breathe rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#111A2C]/80 backdrop-blur-md px-3 py-2">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+        {/* Live Quantity Telemetry Strip (Concrete, Rebar, Masonry, Budget, Progress) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-3 border-t border-[var(--border-hairline)]">
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] px-3 py-2">
+            <div className="text-[11px] text-[var(--text-muted)]">
               {lang === 'ar' ? 'الخرسانة (Concrete)' : 'Concrete Volume'}
             </div>
-            <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+            <div className="font-bold text-sm text-[var(--text-primary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {telemetry.concreteM3.toLocaleString('en-AE')}{' '}
-                <span className="text-[11px] text-[#38BDF8]">m³</span>
+                <span className="text-[11px] text-[var(--text-muted)]">m³</span>
               </span>
             </div>
           </div>
-          <div className="animate-hud-breathe rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#111A2C]/80 backdrop-blur-md px-3 py-2">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">
-              {lang === 'ar' ? 'حديد التسليح (Rebar)' : 'Rebar Weight'}
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] px-3 py-2">
+            <div className="text-[11px] text-[var(--text-muted)]">
+              {lang === 'ar'
+                ? telemetry.source === 'takeoff'
+                  ? 'حديد التسليح (تقدير إنشائي)'
+                  : 'حديد التسليح (تقديري BIM)'
+                : 'Rebar (Est. 115kg/m³)'}
             </div>
-            <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+            <div className="font-bold text-sm text-[var(--text-primary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {telemetry.steelKg.toLocaleString('en-AE')}{' '}
-                <span className="text-[11px] text-[#D4AF37]">kg</span>
-                <span className="text-[10px] text-slate-500 ms-1.5">({telemetry.steelTon} ton)</span>
+                <span className="text-[11px] text-[#B4863C]">kg</span>
+                <span className="text-[10px] text-[var(--text-muted)] ms-1.5">({telemetry.steelTon} ton)</span>
               </span>
             </div>
           </div>
-          <div className="animate-hud-breathe rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#111A2C]/80 backdrop-blur-md px-3 py-2">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] px-3 py-2">
+            <div className="text-[11px] text-[var(--text-muted)]">
               {lang === 'ar' ? 'المباني (Masonry)' : 'Masonry Blockwork'}
             </div>
-            <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+            <div className="font-bold text-sm text-[var(--text-primary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {telemetry.masonryM2.toLocaleString('en-AE')}{' '}
-                <span className="text-[11px] text-[#38BDF8]">m²</span>
+                <span className="text-[11px] text-[var(--text-muted)]">m²</span>
               </span>
             </div>
           </div>
-          <div className="animate-hud-breathe rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#111A2C]/80 backdrop-blur-md px-3 py-2">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] px-3 py-2">
+            <div className="text-[11px] text-[var(--text-muted)]">
               {lang === 'ar' ? 'الميزانية المعتمدة' : 'Approved Budget'}
             </div>
-            <div className="font-bold text-xs sm:text-sm text-[#B4863C] dark:text-[#D4AF37] mt-0.5 truncate">
+            <div className="font-bold text-xs sm:text-sm text-[#B4863C] dark:text-[#C99A49] mt-0.5 truncate">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {formatAED(telemetry.approvedBudgetAed, 'en')}
               </span>
             </div>
           </div>
-          <div className="animate-hud-breathe rounded-xl border border-slate-200 dark:border-[#38BDF8]/30 bg-slate-50/90 dark:bg-[#111A2C]/80 backdrop-blur-md px-3 py-2">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] px-3 py-2">
+            <div className="text-[11px] text-[var(--text-muted)]">
               {lang === 'ar' ? 'نسبة الإنجاز / GIS' : 'Progress & Plot'}
             </div>
-            <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+            <div className="font-bold text-sm text-[var(--text-primary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {telemetry.actualProgress}%{' '}
-                <span className="text-[11px] font-normal text-[#38BDF8]">
+                <span className="text-[11px] font-normal text-[var(--text-muted)]">
                   · #{project.gisData.plotNumber}
                 </span>
               </span>
@@ -588,55 +571,55 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
         </div>
 
         {/* Live 5D BOQ Cost Strip (Updates instantaneously with 2D changes) */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-[var(--border-hairline)] text-xs">
           <div>
-            <div className="text-slate-500">{lang === 'ar' ? 'التكلفة المباشرة' : 'Direct Cost'}</div>
-            <div className="font-bold text-slate-900 dark:text-white mt-0.5">
+            <div className="text-[var(--text-muted)]">{lang === 'ar' ? 'التكلفة المباشرة' : 'Direct Cost'}</div>
+            <div className="font-bold text-[var(--text-primary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {formatAED(summary.directCostAed, 'en')}
               </span>
             </div>
           </div>
           <div>
-            <div className="text-slate-500">
+            <div className="text-[var(--text-muted)]">
               {lang === 'ar'
                 ? `الإدارية والربح (${summary.overheadPercent + summary.profitPercent}%)`
                 : `OH & Profit (${summary.overheadPercent + summary.profitPercent}%)`}
             </div>
-            <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+            <div className="font-semibold text-[var(--text-secondary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {formatAED(summary.overheadAed + summary.profitAed, 'en')}
               </span>
             </div>
           </div>
           <div>
-            <div className="text-slate-500">
+            <div className="text-[var(--text-muted)]">
               {lang === 'ar' ? `ضريبة UAE VAT (${summary.vatPercent}%)` : `UAE VAT (${summary.vatPercent}%)`}
             </div>
-            <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+            <div className="font-semibold text-[var(--text-secondary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {formatAED(summary.vatAed, 'en')}
               </span>
             </div>
           </div>
           <div>
-            <div className="text-slate-500">{lang === 'ar' ? 'عناصر BIM / بنود 2D' : 'BIM / 2D Sync'}</div>
-            <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+            <div className="text-[var(--text-muted)]">{lang === 'ar' ? 'عناصر BIM / بنود 2D' : 'BIM / 2D Sync'}</div>
+            <div className="font-semibold text-[var(--text-secondary)] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {bimElements.length} · {measurements.length}
               </span>
             </div>
           </div>
           <div>
-            <div className="text-slate-500">{lang === 'ar' ? 'الإجمالي النهائي AED' : 'Grand Total AED'}</div>
-            <div className="font-bold text-sm text-[#B4863C] dark:text-[#D4AF37] mt-0.5">
+            <div className="text-[var(--text-muted)]">{lang === 'ar' ? 'الإجمالي النهائي AED' : 'Grand Total AED'}</div>
+            <div className="font-bold text-sm text-[#B4863C] dark:text-[#C99A49] mt-0.5">
               <span dir="ltr" className="font-mono tabular-nums inline-block">
                 {formatAED(summary.grandTotalAed, 'en')}
               </span>
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Main Synchronized Studio Viewport Area + Optional Sharjah Compliance Side Panel */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
@@ -758,11 +741,11 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
 
         {/* Sharjah Municipality AI Compliance Audit Side Panel */}
         {auditDrawerOpen && (
-          <aside className="xl:col-span-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] overflow-hidden flex flex-col max-h-[820px]">
-            <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <aside className="xl:col-span-4 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] overflow-hidden flex flex-col max-h-[820px]">
+            <div className="px-4 py-3.5 border-b border-[var(--border-hairline)] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-[#B4863C]" />
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                <h3 className="text-xs font-bold text-[var(--text-primary)]">
                   {lang === 'ar'
                     ? 'تقرير تدقيق بلدية الشارقة الآلي'
                     : 'Sharjah Municipality Compliance Audit'}
@@ -774,7 +757,7 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
                   setAuditDrawerOpen(false);
                   setHighlightedBimIds([]);
                 }}
-                className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-surface-subtle)]"
                 aria-label="Close audit panel"
               >
                 <X className="w-4 h-4" />

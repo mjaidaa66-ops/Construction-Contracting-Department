@@ -11,6 +11,7 @@ import {
   EyeOff,
   Layers,
   Link2,
+  RotateCcw,
   Scissors,
 } from 'lucide-react';
 import type {
@@ -54,13 +55,13 @@ const CATEGORY_COLORS: Record<string, number> = {
   site_grid: 0x1e293b,
 };
 
-const PRESET_VECTORS: Record<BimCameraPreset, [number, number, number]> = {
-  iso: [22, 16, 22],
-  top: [0.01, 32, 0.01],
-  front: [0, 6, 26],
-  back: [0, 6, -26],
-  left: [-26, 6, 0],
-  right: [26, 6, 0],
+const PRESET_DIRECTIONS: Record<BimCameraPreset, [number, number, number]> = {
+  iso: [0.68, 0.52, 0.68],
+  top: [0.001, 1.0, 0.001],
+  front: [0, 0.22, 1.0],
+  back: [0, 0.22, -1.0],
+  left: [-1.0, 0.22, 0],
+  right: [1.0, 0.22, 0],
 };
 
 const BIM_LEVELS: Array<{ id: BimLevel | 'all'; ar: string; en: string }> = [
@@ -106,9 +107,25 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
   const [sectionOffset, setSectionOffset] = useState<number>(6);
   const [activeLevel, setActiveLevel] = useState<BimLevel | 'all'>('all');
   const [hiddenDisciplines, setHiddenDisciplines] = useState<Set<BimDiscipline>>(new Set());
+  const [viewportKey, setViewportKey] = useState(0);
 
   const callbacksRef = useRef({ onSelectElement });
   callbacksRef.current = { onSelectElement };
+
+  const selectedIdRef = useRef<string | null>(selectedId);
+  selectedIdRef.current = selectedId;
+
+  const highlightedIdsRef = useRef<string[]>(highlightedElementIds);
+  highlightedIdsRef.current = highlightedElementIds;
+
+  const activeLevelRef = useRef<BimLevel | 'all'>(activeLevel);
+  activeLevelRef.current = activeLevel;
+
+  const hiddenDisciplinesRef = useRef<Set<BimDiscipline>>(hiddenDisciplines);
+  hiddenDisciplinesRef.current = hiddenDisciplines;
+
+  const cameraPresetRef = useRef<BimCameraPreset>(cameraPreset);
+  cameraPresetRef.current = cameraPreset;
 
   const sceneRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -123,6 +140,8 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     transitionActive: boolean;
     targetPos: THREE.Vector3;
     targetLookAt: THREE.Vector3;
+    modelCenter: THREE.Vector3;
+    modelRadius: number;
     isSoftwareGl: boolean;
   } | null>(null);
 
@@ -196,19 +215,25 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     scene.background = new THREE.Color(0x0b1324);
     scene.fog = new THREE.FogExp2(0x0b1324, 0.011);
 
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmremGenerator.dispose();
+    const buildEnvironment = () => {
+      scene.environment?.dispose();
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      const roomEnv = new RoomEnvironment();
+      scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+      roomEnv.dispose();
+      pmremGenerator.dispose();
+    };
+    buildEnvironment();
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 300);
-    camera.position.set(...PRESET_VECTORS.iso);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 600);
+    camera.position.set(22, 16, 22);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.07;
     controls.target.set(0, 4, 0);
-    controls.minDistance = 4;
-    controls.maxDistance = 85;
+    controls.minDistance = 2;
+    controls.maxDistance = 140;
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
     const hemi = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 0.85);
@@ -370,8 +395,10 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       clipPlanes,
       requestRender,
       transitionActive: false,
-      targetPos: new THREE.Vector3(...PRESET_VECTORS.iso),
+      targetPos: new THREE.Vector3(22, 16, 22),
       targetLookAt: new THREE.Vector3(0, 4, 0),
+      modelCenter: new THREE.Vector3(0, 4, 0),
+      modelRadius: 18,
       isSoftwareGl,
     };
 
@@ -413,6 +440,15 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       setWebglError('WebGL context lost');
     };
     const onContextRestored = () => {
+      buildEnvironment();
+      bimGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((m) => {
+            m.needsUpdate = true;
+          });
+        }
+      });
       setWebglError(null);
       requestRender();
     };
@@ -443,6 +479,8 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
 
+      const disposedGeos = new Set<THREE.BufferGeometry>();
+      const disposedMats = new Set<THREE.Material>();
       [bimGroup, gisGroup].forEach((grp) => {
         grp.traverse((obj) => {
           if (
@@ -450,9 +488,17 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
             obj instanceof THREE.LineSegments ||
             obj instanceof THREE.LineLoop
           ) {
-            obj.geometry.dispose();
-            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-            else obj.material.dispose();
+            if (!disposedGeos.has(obj.geometry)) {
+              obj.geometry.dispose();
+              disposedGeos.add(obj.geometry);
+            }
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m) => {
+              if (!disposedMats.has(m)) {
+                m.dispose();
+                disposedMats.add(m);
+              }
+            });
           }
         });
       });
@@ -464,9 +510,9 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       renderer.dispose();
       sceneRef.current = null;
     };
-  }, []);
+  }, [viewportKey]);
 
-  // Sync BIM Elements, Void Cutout Frames, Render Mode, Clipping Planes & Violation Highlighting
+  // 1. Sync BIM Elements Geometry & Section Planes ONLY when model, renderMode or section changes
   useEffect(() => {
     const st = sceneRef.current;
     if (!st) return;
@@ -499,12 +545,20 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     st.clipPlanes.y.constant = sectionOffset;
     st.clipPlanes.z.constant = sectionOffset;
 
+    const curSelected = selectedIdRef.current;
+    const curHighlighted = new Set(highlightedIdsRef.current);
+    const curActiveLevel = activeLevelRef.current;
+    const curHidden = hiddenDisciplinesRef.current;
+
     for (const el of elements) {
-      const geo = new THREE.BoxGeometry(el.dimensions[0], el.dimensions[1], el.dimensions[2]);
+      const w = Math.max(0.04, el.dimensions[0]);
+      const h = Math.max(0.04, el.dimensions[1]);
+      const d = Math.max(0.04, el.dimensions[2]);
+      const geo = new THREE.BoxGeometry(w, h, d);
       const baseColor = CATEGORY_COLORS[el.category] ?? 0x94a3b8;
       const isGlass = el.category === 'glass';
-      const isSelected = el.id === selectedId;
-      const isViolation = highlightedSet.has(el.id);
+      const isSelected = el.id === curSelected;
+      const isViolation = curHighlighted.has(el.id);
 
       const matColor = isViolation ? 0xef4444 : isSelected ? 0xd4a853 : baseColor;
       const emissiveColor = isViolation ? 0xdc2626 : isSelected ? 0x9e7330 : 0x000000;
@@ -540,49 +594,52 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
         mesh.rotation.set(el.rotation[0], el.rotation[1], el.rotation[2]);
       }
 
-      const levelVisible = activeLevel === 'all' || el.level === activeLevel;
-      const discVisible = !hiddenDisciplines.has(el.discipline);
+      const levelVisible = curActiveLevel === 'all' || el.level === curActiveLevel;
+      const discVisible = !curHidden.has(el.discipline);
       mesh.visible = levelVisible && discVisible;
       mesh.castShadow = !isGlass && el.category !== 'site_grid';
       mesh.receiveShadow = true;
       mesh.userData.bimId = el.id;
+      mesh.userData.baseColor = baseColor;
+      mesh.userData.category = el.category;
+      mesh.userData.discipline = el.discipline;
+      mesh.userData.level = el.level;
 
-      // Architectural Holographic Edge Glow (Cyan #38BDF8 & Gold #F59E0B across all render modes)
-      if (mesh.visible) {
-        const edgeGeo = new THREE.EdgesGeometry(geo);
-        const isGoldAccent =
-          isSelected ||
-          el.category === 'stair' ||
-          el.category === 'door_window';
-        const edgeColor = isViolation
-          ? 0xf43f5e
-          : isGoldAccent
-          ? 0xf59e0b
-          : 0x38bdf8;
-        const edgeOpacity =
-          isSelected || isViolation
-            ? 0.98
-            : renderMode === 'xray' || renderMode === 'wireframe'
-            ? 0.85
-            : el.discipline === 'architectural' || el.discipline === 'mep'
-            ? 0.56
-            : 0.36;
+      // Architectural Holographic Edge Glow (Cyan #38BDF8 & Gold #F59E0B)
+      const edgeGeo = new THREE.EdgesGeometry(geo);
+      const isGoldAccent =
+        isSelected ||
+        el.category === 'stair' ||
+        el.category === 'door_window';
+      const edgeColor = isViolation
+        ? 0xf43f5e
+        : isGoldAccent
+        ? 0xf59e0b
+        : 0x38bdf8;
+      const edgeOpacity =
+        isSelected || isViolation
+          ? 0.98
+          : renderMode === 'xray' || renderMode === 'wireframe'
+          ? 0.85
+          : el.discipline === 'architectural' || el.discipline === 'mep'
+          ? 0.56
+          : 0.36;
 
-        const edgeMat = new THREE.LineBasicMaterial({
-          color: edgeColor,
-          transparent: true,
-          opacity: edgeOpacity,
-        });
-        const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
-        mesh.add(edgeLines);
-      }
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: edgeColor,
+        transparent: true,
+        opacity: edgeOpacity,
+      });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      edgeLines.userData.isEdgeGlow = true;
+      mesh.add(edgeLines);
 
-      // Render subtle void cutout wireframe markers when voidCutouts are present
-      if (el.voidCutouts && el.voidCutouts.length > 0 && mesh.visible) {
+      // Subtle void cutout wireframe markers when voidCutouts are present
+      if (el.voidCutouts && el.voidCutouts.length > 0) {
         el.voidCutouts.forEach((vc, idx) => {
-          const cutW = Math.min(el.dimensions[0] * 0.8, vc.width);
-          const cutH = Math.min(el.dimensions[1] * 0.85, vc.height);
-          const cutD = Math.min(el.dimensions[2] + 0.04, 0.35);
+          const cutW = Math.min(w * 0.8, vc.width);
+          const cutH = Math.min(h * 0.85, vc.height);
+          const cutD = Math.min(d + 0.04, 0.35);
           const cutGeo = new THREE.BoxGeometry(cutW, cutH, cutD);
           const edgesGeo = new THREE.EdgesGeometry(cutGeo);
           cutGeo.dispose();
@@ -593,7 +650,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
               ? (idx - (el.voidCutouts.length - 1) / 2) * (cutW + 1.2)
               : 0;
           wire.position.set(
-            Math.max(-el.dimensions[0] / 3, Math.min(el.dimensions[0] / 3, offsetX)),
+            Math.max(-w / 3, Math.min(w / 3, offsetX)),
             0,
             0
           );
@@ -605,14 +662,88 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       st.meshMap.set(el.id, mesh);
     }
 
+    // Auto-frame camera bounds to imported BIM/IFC/DXF geometry
+    if (st.bimGroup.children.length > 0) {
+      _scratchBox.setFromObject(st.bimGroup);
+      if (!_scratchBox.isEmpty()) {
+        _scratchBox.getCenter(_scratchCenter);
+        _scratchBox.getSize(_scratchSize);
+        const radius = Math.max(10, _scratchSize.length() * 0.72);
+        st.modelCenter.copy(_scratchCenter);
+        st.modelRadius = radius;
+        st.controls.maxDistance = Math.max(140, radius * 6);
+        const dir = PRESET_DIRECTIONS[cameraPresetRef.current];
+        const dist = radius * 1.48;
+        st.targetLookAt.copy(_scratchCenter);
+        st.targetPos.set(
+          _scratchCenter.x + dir[0] * dist,
+          _scratchCenter.y + dir[1] * dist,
+          _scratchCenter.z + dir[2] * dist
+        );
+        st.transitionActive = true;
+      }
+    }
+
     st.requestRender();
-  }, [elements, selectedId, highlightedSet, hiddenDisciplines, activeLevel, renderMode, sectionMode, sectionOffset]);
+  }, [elements, renderMode, sectionMode, sectionOffset, viewportKey]);
+
+  // 2. Lightweight Visibility Filter Update (zero GPU buffer rebuild)
+  useEffect(() => {
+    const st = sceneRef.current;
+    if (!st) return;
+    st.meshMap.forEach((mesh) => {
+      const level = mesh.userData.level as BimLevel;
+      const disc = mesh.userData.discipline as BimDiscipline;
+      const levelVisible = activeLevel === 'all' || level === activeLevel;
+      const discVisible = !hiddenDisciplines.has(disc);
+      mesh.visible = levelVisible && discVisible;
+    });
+    st.requestRender();
+  }, [activeLevel, hiddenDisciplines, viewportKey]);
+
+  // 3. Lightweight Selection & Violation Highlighting (zero GPU buffer rebuild)
+  useEffect(() => {
+    const st = sceneRef.current;
+    if (!st) return;
+    st.meshMap.forEach((mesh, id) => {
+      const mat = mesh.material as THREE.MeshPhysicalMaterial;
+      const baseColor = (mesh.userData.baseColor as number) ?? 0x94a3b8;
+      const category = mesh.userData.category as string;
+      const discipline = mesh.userData.discipline as BimDiscipline;
+      const isSelected = id === selectedId;
+      const isViolation = highlightedSet.has(id);
+
+      mat.color.setHex(isViolation ? 0xef4444 : isSelected ? 0xd4a853 : baseColor);
+      mat.emissive.setHex(isViolation ? 0xdc2626 : isSelected ? 0x9e7330 : 0x000000);
+      mat.emissiveIntensity = isViolation ? 0.65 : isSelected ? 0.45 : 0;
+
+      mesh.children.forEach((child) => {
+        if (child instanceof THREE.LineSegments && child.userData.isEdgeGlow) {
+          const edgeMat = child.material as THREE.LineBasicMaterial;
+          const isGoldAccent =
+            isSelected || category === 'stair' || category === 'door_window';
+          edgeMat.color.setHex(isViolation ? 0xf43f5e : isGoldAccent ? 0xf59e0b : 0x38bdf8);
+          edgeMat.opacity =
+            isSelected || isViolation
+              ? 0.98
+              : renderMode === 'xray' || renderMode === 'wireframe'
+              ? 0.85
+              : discipline === 'architectural' || discipline === 'mep'
+              ? 0.56
+              : 0.36;
+        }
+      });
+    });
+    st.requestRender();
+  }, [selectedId, highlightedSet, renderMode, viewportKey]);
 
   // Sync Holographic Concentric Radar Rings + GIS Plot Boundary & Sharjah Setbacks
   useEffect(() => {
     const st = sceneRef.current;
     if (!st) return;
 
+    const disposedGeos = new Set<THREE.BufferGeometry>();
+    const disposedMats = new Set<THREE.Material>();
     while (st.gisGroup.children.length > 0) {
       const child = st.gisGroup.children[0];
       st.gisGroup.remove(child);
@@ -622,9 +753,17 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           obj instanceof THREE.LineSegments ||
           obj instanceof THREE.LineLoop
         ) {
-          obj.geometry.dispose();
-          if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-          else obj.material.dispose();
+          if (!disposedGeos.has(obj.geometry)) {
+            obj.geometry.dispose();
+            disposedGeos.add(obj.geometry);
+          }
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((m) => {
+            if (!disposedMats.has(m)) {
+              m.dispose();
+              disposedMats.add(m);
+            }
+          });
         }
       });
     }
@@ -692,25 +831,26 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     const boundaryLoop = new THREE.LineLoop(boundaryGeo, boundaryMat);
     st.gisGroup.add(boundaryLoop);
 
-    // Corner Laser Beacons
+    // Corner Laser Beacons (shared geometry & material, zero clone leak)
     const pylonGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 12);
     const pylonMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
     geom.centeredPoints.forEach((pt) => {
-      const pylon = new THREE.Mesh(pylonGeo.clone(), pylonMat.clone());
+      const pylon = new THREE.Mesh(pylonGeo, pylonMat);
       pylon.position.set(pt.x, 0.675, pt.z);
       st.gisGroup.add(pylon);
     });
-    pylonGeo.dispose();
-    pylonMat.dispose();
 
     // C. Inner Sharjah Municipality Setback Laser Envelope (#38BDF8 Sky Cyan)
     const { minX, maxX, minZ, maxZ, buildableWidthM, buildableDepthM } = geom.setbackBox;
-    const setbackVecs = [
-      new THREE.Vector3(minX, 0.05, minZ),
-      new THREE.Vector3(maxX, 0.05, minZ),
-      new THREE.Vector3(maxX, 0.05, maxZ),
-      new THREE.Vector3(minX, 0.05, maxZ),
-    ];
+    const setbackVecs =
+      geom.setbackCenteredPoints && geom.setbackCenteredPoints.length >= 3
+        ? geom.setbackCenteredPoints.map((pt) => new THREE.Vector3(pt.x, 0.05, pt.z))
+        : [
+            new THREE.Vector3(minX, 0.05, minZ),
+            new THREE.Vector3(maxX, 0.05, minZ),
+            new THREE.Vector3(maxX, 0.05, maxZ),
+            new THREE.Vector3(minX, 0.05, maxZ),
+          ];
     const setbackGeo = new THREE.BufferGeometry().setFromPoints(setbackVecs);
     const setbackMat = new THREE.LineBasicMaterial({
       color: 0x38bdf8,
@@ -734,18 +874,23 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     st.gisGroup.add(envPad);
 
     st.requestRender();
-  }, [gisData]);
+  }, [gisData, viewportKey]);
 
-  // Smooth Camera Preset Transition
+  // Smooth Camera Preset Transition relative to active model bounds
   useEffect(() => {
     const st = sceneRef.current;
     if (!st) return;
-    const vec = PRESET_VECTORS[cameraPreset];
-    st.targetPos.set(vec[0], vec[1], vec[2]);
-    st.targetLookAt.set(0, 4, 0);
+    const dir = PRESET_DIRECTIONS[cameraPreset];
+    const dist = Math.max(16, st.modelRadius * 1.48);
+    st.targetLookAt.copy(st.modelCenter);
+    st.targetPos.set(
+      st.modelCenter.x + dir[0] * dist,
+      st.modelCenter.y + dir[1] * dist,
+      st.modelCenter.z + dir[2] * dist
+    );
     st.transitionActive = true;
     st.requestRender();
-  }, [cameraPreset]);
+  }, [cameraPreset, viewportKey]);
 
   // Auto-Focus Camera onto Highlighted Violation Elements
   useEffect(() => {
@@ -789,10 +934,10 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
   return (
     <div className="space-y-3">
       {/* Level & Discipline Filters Bar */}
-      <div className="rounded-xl border border-slate-200 dark:border-[#38BDF8]/25 bg-white/95 dark:bg-[#0B1426]/85 backdrop-blur-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 me-1">
-            <Layers className="w-3.5 h-3.5 text-[#38BDF8]" />
+          <span className="inline-flex items-center gap-1 text-[var(--text-muted)] me-1">
+            <Layers className="w-3.5 h-3.5 text-[#B4863C]" />
             <span>{lang === 'ar' ? 'الطابق:' : 'Level:'}</span>
           </span>
           {BIM_LEVELS.map((lvl) => (
@@ -803,7 +948,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
               className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${
                 activeLevel === lvl.id
                   ? 'bg-[#B4863C] text-white'
-                  : 'bg-slate-50 dark:bg-[#060D1A]/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-[#38BDF8]/50'
+                  : 'bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-hairline)] hover:border-[#B4863C]/50'
               }`}
             >
               {lang === 'ar' ? lvl.ar : lvl.en}
@@ -821,11 +966,11 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                 onClick={() => toggleDiscipline(disc.id)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-colors whitespace-nowrap ${
                   hidden
-                    ? 'bg-slate-50 dark:bg-[#060D1A]/70 border-slate-200 dark:border-slate-800 text-slate-400 line-through'
-                    : 'bg-slate-50 dark:bg-[#060D1A]/80 border-slate-200 dark:border-[#38BDF8]/30 text-slate-700 dark:text-slate-200'
+                    ? 'bg-[var(--bg-surface-subtle)] border-[var(--border-hairline)] text-[var(--text-muted)] line-through opacity-70'
+                    : 'bg-[var(--bg-surface-subtle)] border-[var(--border-strong)] text-[var(--text-primary)] hover:border-[#B4863C]/50'
                 }`}
               >
-                {hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3 text-[#38BDF8]" />}
+                {hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3 text-[#B4863C]" />}
                 <span>{lang === 'ar' ? disc.ar : disc.en}</span>
               </button>
             );
@@ -833,36 +978,47 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
         </div>
       </div>
 
-      {/* Full-Width Holographic 3D WebGL Canvas + Floating Glass HUD Side Panels */}
-      <div className="relative rounded-2xl border border-slate-200 dark:border-[#38BDF8]/30 bg-[#060D1A] h-[560px] overflow-hidden shadow-lg">
+      {/* Full-Width 3D WebGL Canvas + Clean Architectural Side Panels */}
+      <div className="relative rounded-xl border border-[var(--border-hairline)] bg-[#060D1A] h-[600px] overflow-hidden">
         <div ref={canvasMountRef} className="w-full h-full" />
 
         {webglError && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#060D1A] text-slate-300 text-xs p-6 text-center">
-            <div>
-              <p className="font-semibold text-amber-400 mb-1">WebGL Viewport Notice</p>
+            <div className="space-y-2">
+              <p className="font-semibold text-amber-400">WebGL Viewport Notice</p>
               <p>{webglError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setWebglError(null);
+                  setViewportKey((k) => k + 1);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4863C] text-white font-semibold hover:bg-[#9E7330]"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{lang === 'ar' ? 'إعادة تشغيل WebGL' : 'Reinitialize 3D Viewport'}</span>
+              </button>
             </div>
           </div>
         )}
 
-        {/* Top-Start Floating Glass HUD: BIM & GIS Telemetry */}
+        {/* Top-Start Compact Architectural Spec Label */}
         <div
-          className={`animate-hud-breathe absolute top-3 start-3 z-10 rounded-xl backdrop-blur-md bg-[#0B1426]/75 border border-[#38BDF8]/30 px-3.5 py-2.5 text-[11px] text-slate-200 pointer-events-none space-y-1.5 ${
+          className={`absolute top-3 start-3 z-10 rounded-xl bg-[#0B1426]/92 border border-slate-700/80 px-3.5 py-2.5 text-[11px] text-slate-200 pointer-events-none space-y-1.5 ${
             inspectorOpen
               ? 'hidden sm:block max-w-[calc(100%-290px)] lg:max-w-[440px]'
               : 'max-w-[calc(100%-200px)] sm:max-w-[440px]'
           }`}
         >
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span dir="ltr" className="font-mono font-bold text-[#F59E0B]">
+            <span dir="ltr" className="font-mono font-bold text-[#C99A49]">
               {projectCode ? `${projectCode} · ` : ''}3D BIM
             </span>
             <span dir="ltr" className="font-mono tabular-nums text-slate-100">
               {elements.length} EL
             </span>
             <span aria-hidden="true" className="text-slate-600">|</span>
-            <span dir="ltr" className="font-mono text-[#38BDF8] font-semibold">
+            <span dir="ltr" className="font-mono text-slate-300 font-semibold">
               {renderMode.toUpperCase()}
             </span>
             {highlightedElementIds.length > 0 && (
@@ -878,17 +1034,17 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-slate-300 pt-1 border-t border-slate-700/60">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-slate-300 pt-1 border-t border-slate-700/70">
             {gisData && (
               <span>
                 {lang === 'ar' ? 'القطعة:' : 'Plot:'}{' '}
-                <span dir="ltr" className="font-mono tabular-nums text-[#F59E0B] font-semibold">
+                <span dir="ltr" className="font-mono tabular-nums text-[#C99A49] font-semibold">
                   {gisData.plotNumber}
                 </span>
                 {' · '}
                 <span>{gisData.sectorName}</span>
                 {' · '}
-                <span dir="ltr" className="font-mono tabular-nums text-[#38BDF8]">
+                <span dir="ltr" className="font-mono tabular-nums text-slate-200">
                   {gisData.plotAreaSqM.toLocaleString('en-AE')} m²
                 </span>
               </span>
@@ -908,29 +1064,29 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           </div>
         </div>
 
-        {/* Top-End Floating Glass HUD: Collapsible Element Inspector & 5D Takeoff Card */}
-        <div className="animate-hud-breathe absolute top-3 end-3 z-10 w-[230px] sm:w-[265px] max-h-[calc(100%-96px)] flex flex-col rounded-xl backdrop-blur-md bg-[#0B1426]/75 border border-[#38BDF8]/30 text-slate-100 overflow-hidden">
+        {/* Top-End Collapsible Element Inspector & 5D Takeoff Card */}
+        <div className="absolute top-3 end-3 z-10 w-[235px] sm:w-[270px] max-h-[calc(100%-96px)] flex flex-col rounded-xl bg-[#0B1426]/92 border border-slate-700/80 text-slate-100 overflow-hidden">
           <button
             type="button"
             onClick={() => setInspectorOpen((v) => !v)}
-            className="px-3.5 py-2.5 border-b border-[#38BDF8]/20 flex items-center justify-between gap-2 text-xs hover:bg-[#38BDF8]/10 transition-colors"
+            className="px-3.5 py-2.5 border-b border-slate-700/80 flex items-center justify-between gap-2 text-xs hover:bg-slate-800/60 transition-colors"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Box className="w-4 h-4 text-[#F59E0B] shrink-0" />
+              <Box className="w-4 h-4 text-[#C99A49] shrink-0" />
               <span className="font-bold truncate">
                 {selectedElement
                   ? lang === 'ar'
                     ? 'خصائص العنصر المحدد'
-                    : 'Selected Element HUD'
+                    : 'Selected Element Inspector'
                   : lang === 'ar'
                   ? 'ملخص الحصر 5D BIM'
-                  : '5D BIM Takeoff HUD'}
+                  : '5D BIM Takeoff Summary'}
               </span>
             </div>
             {inspectorOpen ? (
-              <ChevronUp className="w-3.5 h-3.5 text-[#38BDF8] shrink-0" />
+              <ChevronUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-[#38BDF8] shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             )}
           </button>
 
@@ -940,13 +1096,13 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                 <div className="space-y-2.5 text-[11px]">
                   <p className="text-slate-300 leading-relaxed">
                     {lang === 'ar'
-                      ? 'انقر على أي عنصر في المجسم الهولوغرافي لعرض مواصفاته وكمياته الصافية.'
-                      : 'Click any holographic BIM element to inspect structural specs and net quantities.'}
+                      ? 'انقر على أي عنصر في المجسم ثلاثي الأبعاد لعرض مواصفاته وكمياته الصافية.'
+                      : 'Click any BIM element in the 3D scene to inspect structural specs and net quantities.'}
                   </p>
-                  <div className="border border-slate-700/70 rounded-lg divide-y divide-slate-800/80 bg-[#060D1A]/60">
+                  <div className="border border-slate-700/70 rounded-lg divide-y divide-slate-800/80 bg-[#060D1A]/75">
                     <div className="px-2.5 py-1.5 flex justify-between gap-2">
                       <span className="text-slate-400">{lang === 'ar' ? 'خرسانة النموذج' : 'BIM Concrete'}</span>
-                      <span dir="ltr" className="font-mono tabular-nums font-semibold text-[#38BDF8]">
+                      <span dir="ltr" className="font-mono tabular-nums font-semibold text-slate-100">
                         {bimStats.concreteM3} m³
                       </span>
                     </div>
@@ -958,7 +1114,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     </div>
                     <div className="px-2.5 py-1.5 flex justify-between gap-2">
                       <span className="text-slate-400">{lang === 'ar' ? 'التكلفة التقديرية' : '5D Estimate'}</span>
-                      <span dir="ltr" className="font-mono tabular-nums font-bold text-[#F59E0B]">
+                      <span dir="ltr" className="font-mono tabular-nums font-bold text-[#C99A49]">
                         {formatAED(bimStats.totalCostAed, 'en')}
                       </span>
                     </div>
@@ -970,7 +1126,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     <div className="text-xs font-bold text-white leading-snug">
                       {lang === 'ar' ? selectedElement.nameAr : selectedElement.name}
                     </div>
-                    <div dir="ltr" className="text-[10.5px] text-[#38BDF8] font-mono mt-0.5 truncate">
+                    <div dir="ltr" className="text-[10.5px] text-[#C99A49] font-mono mt-0.5 truncate">
                       {selectedElement.guid} · {selectedElement.level}
                     </div>
                   </div>
@@ -986,7 +1142,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-[#060D1A]/65 border border-slate-700/70 text-[11px]">
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-[#060D1A]/75 border border-slate-700/70 text-[11px]">
                     <div>
                       <div className="text-slate-400">{lang === 'ar' ? 'الخرسانة' : 'Grade'}</div>
                       <div dir="ltr" className="font-mono font-semibold text-white truncate">
@@ -1001,7 +1157,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     </div>
                   </div>
 
-                  <div className="border border-slate-700/70 rounded-lg divide-y divide-slate-800/80 bg-[#060D1A]/60 text-[11px]">
+                  <div className="border border-slate-700/70 rounded-lg divide-y divide-slate-800/80 bg-[#060D1A]/75 text-[11px]">
                     <div className="px-2.5 py-1.5 flex justify-between gap-2">
                       <span className="text-slate-400">
                         {lang === 'ar' ? 'المساحة الإجمالية' : 'Gross Area'}
@@ -1024,13 +1180,13 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     </div>
                     <div className="px-2.5 py-1.5 flex justify-between gap-2">
                       <span className="text-slate-400">{lang === 'ar' ? 'الحجم' : 'Volume'}</span>
-                      <span dir="ltr" className="font-mono tabular-nums font-semibold text-[#38BDF8]">
+                      <span dir="ltr" className="font-mono tabular-nums font-semibold text-slate-100">
                         {selectedElement.volumeM3.toFixed(2)} m³
                       </span>
                     </div>
-                    <div className="px-2.5 py-2 flex justify-between gap-2 bg-[#B4863C]/10">
+                    <div className="px-2.5 py-2 flex justify-between gap-2 bg-[#B4863C]/12">
                       <span className="font-bold text-white">{lang === 'ar' ? 'التكلفة 5D' : '5D Cost'}</span>
-                      <span dir="ltr" className="font-mono tabular-nums font-bold text-[#F59E0B]">
+                      <span dir="ltr" className="font-mono tabular-nums font-bold text-[#C99A49]">
                         {formatAED(selectedElement.estimatedCost, 'en')}
                       </span>
                     </div>
@@ -1078,7 +1234,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           <button
             type="button"
             onClick={() => setDockCollapsed((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-lg backdrop-blur-md bg-[#0B1426]/85 border border-b-0 border-[#38BDF8]/30 text-[11px] font-medium text-slate-200 hover:text-white"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-lg bg-[#0E1628]/95 border border-b-0 border-slate-700/80 text-[11px] font-medium text-slate-200 hover:text-white"
           >
             {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             <span>
@@ -1093,7 +1249,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           </button>
 
           {!dockCollapsed && (
-            <div className="w-full rounded-xl backdrop-blur-md bg-[#0B1426]/85 border border-[#38BDF8]/30 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <div className="w-full rounded-xl bg-[#0E1628]/95 border border-slate-700/80 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
               {/* Camera Presets */}
               <div className="flex items-center gap-1">
                 {(['iso', 'top', 'front', 'back', 'left', 'right'] as BimCameraPreset[]).map((p) => (
@@ -1121,7 +1277,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     onClick={() => setRenderMode(m)}
                     className={`px-2 py-1 rounded font-mono uppercase transition-colors ${
                       renderMode === m
-                        ? 'bg-[#38BDF8] text-[#060D1A] font-bold'
+                        ? 'bg-[#B4863C]/25 text-[#E5B869] border border-[#B4863C]/60 font-semibold'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
@@ -1132,7 +1288,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
 
               {/* Clipping Section Planes */}
               <div className="flex items-center gap-1.5 border-s border-slate-700 ps-2">
-                <Scissors className="w-3.5 h-3.5 text-[#F59E0B]" />
+                <Scissors className="w-3.5 h-3.5 text-[#C99A49]" />
                 {(['none', 'x', 'y', 'z', 'box'] as BimSectionMode[]).map((s) => (
                   <button
                     key={s}
@@ -1155,7 +1311,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     step={0.5}
                     value={sectionOffset}
                     onChange={(e) => setSectionOffset(Number(e.target.value))}
-                    className="w-20 accent-[#38BDF8]"
+                    className="w-20 accent-[#B4863C]"
                     aria-label="Section clipping offset"
                   />
                 )}

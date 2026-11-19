@@ -20,7 +20,11 @@ import type {
   TakeoffProjectSummary,
 } from '../../types/bunyan';
 import { CATEGORY_LABELS, formatAED } from '../../utils/i18n';
-import { computeTakeoffSummary } from '../../utils/takeoffCalculations';
+import {
+  computeTakeoffSummary,
+  evaluateTakeoffVerificationState,
+  type TakeoffVerificationSummary,
+} from '../../utils/takeoffCalculations';
 import { generateProjectBimElements } from '../../utils/gisTakeoffGenerator';
 import { BunyanLogo } from '../common/BunyanLogo';
 
@@ -124,6 +128,7 @@ interface OfficialSheetProps {
   company: CompanyProfile;
   boqLines: ExportBoqLine[];
   summary: TakeoffProjectSummary;
+  verification: TakeoffVerificationSummary;
   generatedDate: string;
 }
 
@@ -136,6 +141,7 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
   company,
   boqLines,
   summary,
+  verification,
   generatedDate,
 }) => {
   const isAr = reportLang === 'ar';
@@ -302,9 +308,13 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
         }}
       >
         <h1 style={{ fontSize: '14px', fontWeight: 700, color: '#020617', margin: 0 }}>
-          {isAr
-            ? 'جدول الكميات والتكاليف الهندسية المعتمد (5D BOQ & ضريبة القيمة المضافة UAE VAT)'
-            : 'Certified 5D Engineering Bill of Quantities & UAE VAT Financial Schedule'}
+          {verification.status === 'certified_calibrated'
+            ? isAr
+              ? 'جدول الكميات والتكاليف الهندسية المعتمد (5D BOQ & ضريبة القيمة المضافة UAE VAT)'
+              : 'Verified 5D Engineering Bill of Quantities & UAE VAT Financial Schedule'
+            : isAr
+            ? `جدول الكميات (${verification.badgeAr})`
+            : `5D Bill of Quantities (${verification.badgeEn})`}
         </h1>
         <span
           dir="ltr"
@@ -490,7 +500,13 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
               </tr>
               <tr style={{ backgroundColor: '#0B1120', color: '#ffffff' }}>
                 <td style={{ padding: '10px 12px', fontWeight: 700, fontSize: '13px' }}>
-                  {isAr ? 'الإجمالي النهائي المعتمد شامل الضريبة' : 'GRAND TOTAL INCLUDING UAE VAT'}
+                  {verification.status === 'certified_calibrated'
+                    ? isAr
+                      ? 'الإجمالي النهائي المعتمد شامل الضريبة'
+                      : 'VERIFIED GRAND TOTAL INCLUDING UAE VAT'
+                    : isAr
+                    ? 'الإجمالي التقديري شامل الضريبة (غير معتمد نهائياً)'
+                    : 'ESTIMATED GRAND TOTAL INCL. UAE VAT (DRAFT)'}
                 </td>
                 <td
                   dir="ltr"
@@ -720,10 +736,15 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     document.body.classList.add('bunyan-printing-official');
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
     return () => {
       document.body.classList.remove('bunyan-printing-official');
+      window.removeEventListener('keydown', handleEsc);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   const summaryConfig = project.takeoffSummaryConfig || {
     overheadPercent: 10,
@@ -732,7 +753,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
   };
 
   // Build unified BOQ lines: prefer explicit 2D PlanSwift measurements, fallback cleanly to 5D BIM elements
-  const { boqLines, summary, dataOrigin } = useMemo(() => {
+  const { boqLines, summary, dataOrigin, verification } = useMemo(() => {
     const meas = project.takeoffMeasurements || [];
     if (meas.length > 0) {
       const lines: ExportBoqLine[] = meas.map((m) => ({
@@ -746,6 +767,11 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
         totalCostAed: m.totalCostAed,
         source: '2D PlanSwift',
       }));
+      const ver = evaluateTakeoffVerificationState(
+        project.takeoffSheets || [],
+        meas,
+        project.bimElements
+      );
       return {
         boqLines: lines,
         summary: computeTakeoffSummary(
@@ -756,6 +782,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
           summaryConfig.vatPercent
         ),
         dataOrigin: '2d_takeoff' as const,
+        verification: ver,
       };
     }
 
@@ -815,6 +842,11 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
         summaryConfig.vatPercent
       ),
       dataOrigin: '5d_bim' as const,
+      verification: evaluateTakeoffVerificationState(
+        project.takeoffSheets || [],
+        [],
+        bim
+      ),
     };
   }, [project, summaryConfig]);
 
@@ -842,7 +874,9 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
     const safeCode = (project.code || project.id).replace(/[^a-zA-Z0-9_-]/g, '_');
 
     const summarySheetRows: (string | number)[][] = [
-      ['منصة بنيان | BUNYAN CORE — 5D BOQ & UAE VAT OFFICIAL SUMMARY'],
+      ['منصة بنيان | BUNYAN CORE — 5D BOQ & UAE VAT SUMMARY'],
+      ['Verification Status', verification.badgeEn],
+      ['Verification Notice', verification.noticeEn],
       [],
       ['COMPANY & TAX REGISTRATION DETAILS', 'بيانات المقاول والضريبة'],
       ['Company (AR)', company.nameAr],
@@ -898,7 +932,11 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
       const items = linesByCategory.get(cat);
       if (!items || items.length === 0) return;
       const meta = CATEGORY_LABELS[cat];
+      const byUnit = new Map<string, ExportBoqLine[]>();
       items.forEach((item) => {
+        const list = byUnit.get(item.unit) || [];
+        list.push(item);
+        byUnit.set(item.unit, list);
         boqRows.push([
           rowIdx++,
           cat.toUpperCase(),
@@ -913,21 +951,23 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
           item.totalCostAed,
         ]);
       });
-      const catQty = items.reduce((s, i) => s + i.quantity, 0);
-      const catCost = items.reduce((s, i) => s + i.totalCostAed, 0);
-      boqRows.push([
-        '',
-        cat.toUpperCase(),
-        `مجموع فئة: ${meta.ar}`,
-        `SUBTOTAL: ${meta.en}`,
-        '',
-        '',
-        '',
-        items[0].unit,
-        Number(catQty.toFixed(2)),
-        '',
-        Number(catCost.toFixed(2)),
-      ]);
+      byUnit.forEach((unitItems, unitKey) => {
+        const catQty = unitItems.reduce((s, i) => s + i.quantity, 0);
+        const catCost = unitItems.reduce((s, i) => s + i.totalCostAed, 0);
+        boqRows.push([
+          '',
+          cat.toUpperCase(),
+          `مجموع فئة (${unitKey}): ${meta.ar}`,
+          `SUBTOTAL (${unitKey}): ${meta.en}`,
+          '',
+          '',
+          '',
+          unitKey,
+          Number(catQty.toFixed(2)),
+          '',
+          Number(catCost.toFixed(2)),
+        ]);
+      });
     });
 
     boqRows.push([]);
@@ -1066,10 +1106,17 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
 
   return (
     <>
-      <div className="print-modal-root fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5">
-        <div className="print-modal-card w-full max-w-6xl max-h-[94vh] flex flex-col rounded-2xl border border-[#B4863C]/35 bg-[#0B1120] text-slate-100 overflow-hidden shadow-2xl">
-          {/* Glassmorphism HUD Action Toolbar */}
-          <div className="px-5 py-3.5 border-b border-[#B4863C]/25 bg-[#111A2C]/90 flex flex-wrap items-center justify-between gap-3 no-print">
+      <div
+        className="print-modal-root fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-3 sm:p-5"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="print-modal-card w-full max-w-6xl max-h-[94vh] flex flex-col rounded-lg border border-slate-700/70 bg-[#0E1628] text-slate-100 overflow-hidden">
+          {/* Action Toolbar */}
+          <div className="px-5 py-3.5 border-b border-slate-800 bg-[#0B1222] flex flex-wrap items-center justify-between gap-3 no-print">
             <div className="flex items-center gap-3">
               <BunyanLogo iconOnly size="sm" />
               <div>
@@ -1078,10 +1125,10 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
                     ? 'مركز التصدير الرسمي لجداول الكميات 5D BOQ'
                     : 'Official 5D BOQ & Tax Report Export Center'}
                 </h3>
-                <p className="text-[11px] font-mono text-slate-400">
+                <p className="text-[11px] font-mono tabular-nums text-slate-400">
                   {project.code} · {boqLines.length}{' '}
                   {lang === 'ar' ? 'بند كميات' : 'BOQ items'} ·{' '}
-                  {dataOrigin === '2d_takeoff' ? '2D PlanSwift + 5D' : '5D BIM Parametric'}
+                  {lang === 'ar' ? verification.badgeAr : verification.badgeEn}
                 </p>
               </div>
             </div>
@@ -1090,16 +1137,16 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
               <button
                 type="button"
                 onClick={() => setReportLang((l) => (l === 'ar' ? 'en' : 'ar'))}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900/70 text-xs font-semibold text-slate-200 hover:border-[#B4863C]/60 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-700 bg-slate-900/70 text-xs font-semibold text-slate-200 hover:border-[#B4863C] whitespace-nowrap transition-colors"
               >
-                <Globe className="w-3.5 h-3.5 text-[#38BDF8]" />
+                <Globe className="w-3.5 h-3.5 text-[#C99A49]" />
                 <span>{reportLang === 'ar' ? 'معاينة: العربية (RTL)' : 'Preview: English (LTR)'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 whitespace-nowrap transition-colors"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 <span>{lang === 'ar' ? 'تصدير Excel (.xlsx)' : 'Export Excel (.xlsx)'}</span>
@@ -1109,7 +1156,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={downloadingPdf}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#38BDF8] text-[#060D1A] text-xs font-bold hover:bg-sky-300 disabled:opacity-65 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] disabled:opacity-65 whitespace-nowrap transition-colors"
               >
                 {downloadingPdf ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1130,9 +1177,9 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
               <button
                 type="button"
                 onClick={handleDirectPrint}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md border border-slate-700 bg-slate-800/80 text-slate-100 text-xs font-semibold hover:bg-slate-700 whitespace-nowrap transition-colors"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5 text-slate-300" />
                 <span>{lang === 'ar' ? 'طباعة مباشرة (Print)' : 'Direct Print (A4)'}</span>
               </button>
 
@@ -1140,7 +1187,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label={lang === 'ar' ? 'إغلاق' : 'Close'}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1165,14 +1212,24 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
             </div>
           )}
 
+          {verification.status !== 'certified_calibrated' && (
+            <div className="px-5 py-2 bg-amber-950/60 border-b border-amber-500/35 text-amber-200 text-xs flex items-center justify-between gap-3 no-print">
+              <span>{lang === 'ar' ? verification.noticeAr : verification.noticeEn}</span>
+              <span className="font-mono font-semibold shrink-0">
+                {lang === 'ar' ? verification.badgeAr : verification.badgeEn}
+              </span>
+            </div>
+          )}
+
           {/* Scrollable Live A4 Preview */}
-          <div className="print-scroll-area flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900/90">
+          <div className="print-scroll-area flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900/95">
             <OfficialReportSheet
               reportLang={reportLang}
               project={project}
               company={company}
               boqLines={boqLines}
               summary={summary}
+              verification={verification}
               generatedDate={generatedDate}
             />
           </div>
@@ -1189,6 +1246,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
         company={company}
         boqLines={boqLines}
         summary={summary}
+        verification={verification}
         generatedDate={generatedDate}
       />
     </>

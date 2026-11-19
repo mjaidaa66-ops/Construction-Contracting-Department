@@ -5,7 +5,6 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -48,6 +47,44 @@ function stripUndefinedDeep<T>(value: T): T {
       }
     }
     return clean as T;
+  }
+  return value;
+}
+
+function isFirestoreTimestampLike(value: unknown): value is {
+  toDate?: () => Date;
+  seconds?: number;
+  nanoseconds?: number;
+} {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.toDate === 'function') return true;
+  return (
+    typeof obj.seconds === 'number' &&
+    typeof obj.nanoseconds === 'number' &&
+    !('x' in obj) &&
+    Object.keys(obj).length <= 3
+  );
+}
+
+export function normalizeFirestoreData<T>(value: T): T {
+  if (isFirestoreTimestampLike(value)) {
+    if (typeof value.toDate === 'function') {
+      return value.toDate().toISOString() as unknown as T;
+    }
+    if (typeof value.seconds === 'number') {
+      return new Date(value.seconds * 1000).toISOString() as unknown as T;
+    }
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeFirestoreData(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = normalizeFirestoreData(v);
+    }
+    return out as T;
   }
   return value;
 }
@@ -128,11 +165,12 @@ export async function downloadChunkedDocument(manifestId: string): Promise<{
   try {
     const manifestSnap = await getDoc(doc(db, 'document_manifests', safeId));
     if (!manifestSnap.exists()) return null;
-    const manifest = manifestSnap.data() as DocumentManifest;
+    const manifest = normalizeFirestoreData(manifestSnap.data() as DocumentManifest);
+    const safeOwnerId = sanitizeFirestoreId(manifest.ownerId || '');
 
     const chunksQuery = query(
       collection(db, 'document_manifests', safeId, 'chunks'),
-      orderBy('index', 'asc')
+      where('ownerId', '==', safeOwnerId)
     );
     const chunksSnap = await getDocs(chunksQuery);
     const ordered = chunksSnap.docs
@@ -172,16 +210,17 @@ export async function upsertUserProfile(params: {
   const safeUid = sanitizeFirestoreId(params.uid);
   const path = `users/${safeUid}`;
   try {
+    const rawDisplay = (params.displayName || 'Engineer').trim().slice(0, 120) || 'Engineer';
     const ref = doc(db, 'users', safeUid);
     const existing = await getDoc(ref);
     if (!existing.exists()) {
       const profile = {
         uid: safeUid,
-        email: params.email,
-        displayName: params.displayName || 'Engineer',
+        email: params.email.slice(0, 200),
+        displayName: rawDisplay,
         role: params.role && params.role !== 'admin' ? params.role : 'engineer',
-        companyName: params.companyName || '',
-        licenseNumber: params.licenseNumber || '',
+        companyName: (params.companyName || '').slice(0, 160),
+        licenseNumber: (params.licenseNumber || '').slice(0, 80),
         biometricRegistered: params.biometricRegistered ?? false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -195,22 +234,25 @@ export async function upsertUserProfile(params: {
       };
     }
 
-    const existingData = existing.data() as UserProfile;
+    const existingData = normalizeFirestoreData(existing.data() as UserProfile);
     const updated = {
       uid: safeUid,
       email: existingData.email,
-      displayName: params.displayName || existingData.displayName,
+      displayName: (params.displayName || existingData.displayName || 'Engineer').trim().slice(0, 120),
       role: existingData.role,
-      companyName: params.companyName ?? existingData.companyName ?? '',
-      licenseNumber: params.licenseNumber ?? existingData.licenseNumber ?? '',
+      companyName: (params.companyName ?? existingData.companyName ?? '').slice(0, 160),
+      licenseNumber: (params.licenseNumber ?? existingData.licenseNumber ?? '').slice(0, 80),
       biometricRegistered: params.biometricRegistered ?? existingData.biometricRegistered,
-      createdAt: existingData.createdAt,
+      createdAt: existing.data().createdAt,
       updatedAt: serverTimestamp(),
     };
     await setDoc(ref, updated);
     return {
       ...existingData,
-      ...updated,
+      displayName: updated.displayName,
+      companyName: updated.companyName,
+      licenseNumber: updated.licenseNumber,
+      biometricRegistered: updated.biometricRegistered,
       updatedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -225,12 +267,14 @@ export async function saveProjectToCloud(project: Project, ownerId: string): Pro
   try {
     const ref = doc(db, 'projects', safeId);
     const existing = await getDoc(ref);
+    const rawCode = (project.code || safeId).trim().slice(0, 40);
+    const safeCode = rawCode.length >= 2 ? rawCode : `${rawCode}_PRJ`.slice(0, 40);
     const payload: Record<string, unknown> = {
       id: safeId,
       ownerId: existing.exists() ? (existing.data().ownerId as string) : safeOwnerId,
-      code: (project.code || safeId).slice(0, 40),
-      name: (project.name || 'مشروع جديد').slice(0, 200),
-      nameEn: (project.nameEn || project.name || 'New Project').slice(0, 200),
+      code: safeCode,
+      name: (project.name || 'مشروع جديد').trim().slice(0, 200) || 'مشروع جديد',
+      nameEn: (project.nameEn || project.name || 'New Project').trim().slice(0, 200) || 'New Project',
       category: project.category || 'المشاريع الإنشائية',
       projectType: project.projectType,
       status: project.status,
@@ -248,9 +292,9 @@ export async function saveProjectToCloud(project: Project, ownerId: string): Pro
       permitDate: project.permitDate || '',
       permitExpiryDate: project.permitExpiryDate || '',
       licensingAuthority: project.licensingAuthority || '',
-      approvedBudget: Number(project.approvedBudget) || 0,
-      invoicedAmount: Number(project.invoicedAmount) || 0,
-      paidAmount: Number(project.paidAmount) || 0,
+      approvedBudget: Math.max(0, Number(project.approvedBudget) || 0),
+      invoicedAmount: Math.max(0, Number(project.invoicedAmount) || 0),
+      paidAmount: Math.max(0, Number(project.paidAmount) || 0),
       retentionPercentage: Math.min(50, Math.max(0, Number(project.retentionPercentage) || 0)),
       actualProgress: Math.min(100, Math.max(0, Number(project.actualProgress) || 0)),
       plannedProgress: Math.min(100, Math.max(0, Number(project.plannedProgress) || 0)),
@@ -308,10 +352,23 @@ export async function ensureProjectExistsInCloud(
   }
 }
 
-export async function deleteProjectFromCloud(projectId: string): Promise<void> {
+export async function deleteProjectFromCloud(
+  projectId: string,
+  manifestIds?: string[]
+): Promise<void> {
   const safeId = sanitizeFirestoreId(projectId);
   const path = `projects/${safeId}`;
   try {
+    if (Array.isArray(manifestIds)) {
+      for (const mid of manifestIds) {
+        if (!mid) continue;
+        try {
+          await deleteChunkedDocument(mid);
+        } catch {
+          // Best-effort cleanup for orphaned chunk manifests
+        }
+      }
+    }
     await deleteDoc(doc(db, 'projects', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
@@ -329,7 +386,7 @@ export function subscribeProjects(
     q,
     { includeMetadataChanges: true },
     (snap) => {
-      const list = snap.docs.map((d) => d.data() as Project);
+      const list = snap.docs.map((d) => normalizeFirestoreData(d.data() as Project));
       onData(list, {
         hasPendingWrites: snap.metadata.hasPendingWrites,
         fromCache: snap.metadata.fromCache,
@@ -356,20 +413,30 @@ export async function saveTransactionToCloud(
       ownerId: existing.exists() ? existing.data().ownerId : sanitizeFirestoreId(ownerId),
       projectId: sanitizeFirestoreId(tx.projectId),
       authority: tx.authority,
-      transactionNumber: tx.transactionNumber,
-      serviceName: tx.serviceName,
-      serviceNameEn: tx.serviceNameEn || tx.serviceName,
+      transactionNumber: (tx.transactionNumber || safeId).slice(0, 80),
+      serviceName: (tx.serviceName || 'طلب اعتماد فني').slice(0, 200),
+      serviceNameEn: (tx.serviceNameEn || tx.serviceName || 'Approval Request').slice(0, 200),
       status: tx.status,
       submissionDate: tx.submissionDate,
       lastUpdatedDate: tx.lastUpdatedDate,
-      reviewEngineer: tx.reviewEngineer,
-      notes: tx.notes || '',
-      officialPortalUrl: tx.officialPortalUrl,
+      reviewEngineer: (tx.reviewEngineer || '').slice(0, 120),
+      notes: (tx.notes || '').slice(0, 1000),
+      officialPortalUrl: (tx.officialPortalUrl || '').slice(0, 500),
       createdAt: existing.exists() ? existing.data().createdAt : serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteTransactionFromCloud(txId: string): Promise<void> {
+  const safeId = sanitizeFirestoreId(txId);
+  const path = `government_transactions/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'government_transactions', safeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
@@ -385,7 +452,7 @@ export function subscribeTransactions(
     { includeMetadataChanges: true },
     (snap) => {
       onData(
-        snap.docs.map((d) => d.data() as GovernmentTransaction),
+        snap.docs.map((d) => normalizeFirestoreData(d.data() as GovernmentTransaction)),
         {
           hasPendingWrites: snap.metadata.hasPendingWrites,
           fromCache: snap.metadata.fromCache,
@@ -406,16 +473,17 @@ export async function saveRateItemToCloud(
   const safeId = sanitizeFirestoreId(item.id);
   const path = `rate_library/${safeId}`;
   try {
+    const rawCode = (item.code || safeId).trim().slice(0, 20);
     await setDoc(doc(db, 'rate_library', safeId), {
       id: safeId,
       ownerId: sanitizeFirestoreId(ownerId),
-      code: item.code,
-      category: item.category,
-      nameAr: item.nameAr,
-      nameEn: item.nameEn,
-      unit: item.unit,
-      rateAed: Number(item.rateAed) || 0,
-      materialSpec: item.materialSpec || '',
+      code: rawCode.length >= 2 ? rawCode : `${rawCode}_R`.slice(0, 20),
+      category: String(item.category).slice(0, 40),
+      nameAr: (item.nameAr || item.nameEn || 'بند').slice(0, 200),
+      nameEn: (item.nameEn || item.nameAr || 'Item').slice(0, 200),
+      unit: String(item.unit || 'unit').slice(0, 20),
+      rateAed: Math.max(0, Number(item.rateAed) || 0),
+      materialSpec: (item.materialSpec || '').slice(0, 200),
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
@@ -435,7 +503,7 @@ export function subscribeRateLibrary(
     { includeMetadataChanges: true },
     (snap) => {
       onData(
-        snap.docs.map((d) => d.data() as RateLibraryItem),
+        snap.docs.map((d) => normalizeFirestoreData(d.data() as RateLibraryItem)),
         {
           hasPendingWrites: snap.metadata.hasPendingWrites,
           fromCache: snap.metadata.fromCache,

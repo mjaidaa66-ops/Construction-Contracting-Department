@@ -1,17 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import confetti from 'canvas-confetti';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommandCenter } from './components/command/CommandCenter';
-import { GisPlotExplorer } from './components/gis/GisPlotExplorer';
-import { GovernmentPortal } from './components/government/GovernmentPortal';
-import { BimModule } from './components/bim/BimModule';
 import { ProjectsModule } from './components/projects/ProjectsModule';
-import { BunyanBimTakeoffStudio } from './components/studio/BunyanBimTakeoffStudio';
-import { TakeoffModule } from './components/takeoff/TakeoffModule';
+import { GovernmentPortal } from './components/government/GovernmentPortal';
 import { SettingsAuthModule } from './components/settings/SettingsAuthModule';
 import { Sidebar, type ActiveModule } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
+import { GlobalCommandModal } from './components/layout/GlobalCommandModal';
+import { NotificationsDrawer } from './components/layout/NotificationsDrawer';
+import { BunyanExportCenter } from './components/export/BunyanExportCenter';
+import { SkeletonBlock, ToastProvider, useToast } from './components/ui';
+import { deriveWorkspaceAlerts } from './utils/workspaceAlerts';
+import { getRolePermissions } from './utils/rbacPermissions';
 import {
   DEFAULT_COMPANY_PROFILE,
   INITIAL_PROJECTS,
@@ -26,11 +28,14 @@ import {
 } from './services/firebase';
 import {
   deleteProjectFromCloud,
+  deleteTransactionFromCloud,
+  ensureProjectExistsInCloud,
   saveRateItemToCloud,
   saveTransactionToCloud,
   upsertUserProfile,
 } from './services/firestoreStorage';
 import {
+  cancelPendingProjectSync,
   flushPendingProjectSyncs,
   getCloudSyncState,
   loadCachedWorkspaceSnapshot,
@@ -56,11 +61,65 @@ import type {
   ThemeMode,
 } from './types/bunyan';
 
+const FinancialSummaryModule = lazy(() =>
+  import('./components/financials/FinancialSummaryModule').then((m) => ({
+    default: m.FinancialSummaryModule,
+  }))
+);
+const DocumentsModule = lazy(() =>
+  import('./components/documents/DocumentsModule').then((m) => ({
+    default: m.DocumentsModule,
+  }))
+);
+const BunyanBimTakeoffStudio = lazy(() =>
+  import('./components/studio/BunyanBimTakeoffStudio').then((m) => ({
+    default: m.BunyanBimTakeoffStudio,
+  }))
+);
+const BimModule = lazy(() =>
+  import('./components/bim/BimModule').then((m) => ({
+    default: m.BimModule,
+  }))
+);
+const TakeoffModule = lazy(() =>
+  import('./components/takeoff/TakeoffModule').then((m) => ({
+    default: m.TakeoffModule,
+  }))
+);
+const GisPlotExplorer = lazy(() =>
+  import('./components/gis/GisPlotExplorer').then((m) => ({
+    default: m.GisPlotExplorer,
+  }))
+);
+
+function ModuleLoadingFallback() {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <SkeletonBlock className="h-24 w-full" />
+        <SkeletonBlock className="h-24 w-full" />
+        <SkeletonBlock className="h-24 w-full" />
+      </div>
+      <SkeletonBlock className="h-80 w-full" />
+    </div>
+  );
+}
+
 function BunyanWorkspace() {
   const [lang, setLang] = useState<Language>('ar');
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [activeModule, setActiveModule] = useState<ActiveModule>('command');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bunyan_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
   const [activeProjectId, setActiveProjectId] = useState<string>(INITIAL_PROJECTS[0].id);
@@ -74,6 +133,8 @@ function BunyanWorkspace() {
   const [firestoreConnected, setFirestoreConnected] = useState<boolean>(false);
   const [syncState, setSyncState] = useState<CloudSyncState>(() => getCloudSyncState());
   const [highlightedMeasurementId, setHighlightedMeasurementId] = useState<string | null>(null);
+  const { pushToast } = useToast();
+  const perms = useMemo(() => getRolePermissions(currentRole), [currentRole]);
 
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
@@ -101,6 +162,26 @@ function BunyanWorkspace() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('bunyan_sidebar_collapsed', String(sidebarCollapsed));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [sidebarCollapsed]);
+
+  // Global Cmd/Ctrl + K quick command search shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Subscribe to cloud sync badge state + hydrate IndexedDB offline cache + listen to browser online/offline
   useEffect(() => {
@@ -206,28 +287,66 @@ function BunyanWorkspace() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0];
 
+  const workspaceAlerts = useMemo(
+    () => deriveWorkspaceAlerts({ projects, transactions, syncState, lang }),
+    [projects, transactions, syncState, lang]
+  );
+
   const handleSaveProject = (updated: Project) => {
-    const isNew = !projectsRef.current.some((p) => p.id === updated.id);
+    const stamped: Project = {
+      ...updated,
+      updatedAt: new Date().toISOString(),
+    };
+    const isNew = !projectsRef.current.some((p) => p.id === stamped.id);
     const nextProjects = isNew
-      ? [updated, ...projectsRef.current]
-      : projectsRef.current.map((p) => (p.id === updated.id ? updated : p));
+      ? [stamped, ...projectsRef.current]
+      : projectsRef.current.map((p) => (p.id === stamped.id ? stamped : p));
 
     setProjects(nextProjects);
     if (isNew) {
-      setActiveProjectId(updated.id);
+      setActiveProjectId(stamped.id);
       confetti({ particleCount: 55, spread: 60, origin: { y: 0.7 } });
     }
 
     // 1.5s Debounced Auto-Save to Firestore + immediate IndexedDB offline cache + chunked DocumentManifest sync
     scheduleProjectSync({
-      project: updated,
+      project: stamped,
       allProjects: nextProjects,
       ownerId: cloudUid,
       onManifestAttached: handleAttachManifestProject,
     });
   };
 
+  const handleEngineeringProjectUpdate = (updated: Project) => {
+    if (!perms.canEditEngineering) {
+      pushToast(
+        lang === 'ar'
+          ? 'تعديل البيانات الهندسية متاح للمدير والمهندس فقط.'
+          : 'Engineering edits require Admin or Engineer role.',
+        'error'
+      );
+      return;
+    }
+    handleSaveProject(updated);
+  };
+
   const handleDeleteProject = async (id: string) => {
+    if (!perms.canDeleteProjects) {
+      pushToast(
+        lang === 'ar' ? 'حذف المشاريع متاح لدور المدير (Admin) فقط.' : 'Project deletion requires Admin role.',
+        'error'
+      );
+      return;
+    }
+    const target = projectsRef.current.find((p) => p.id === id);
+    const manifestIds = target
+      ? [
+          ...(target.documents || []).map((d) => d.manifestId).filter((x): x is string => Boolean(x)),
+          ...(target.takeoffSheets || []).map((s) => s.pdfManifestId).filter((x): x is string => Boolean(x)),
+        ]
+      : [];
+
+    cancelPendingProjectSync(id);
     const next = projectsRef.current.filter((p) => p.id !== id);
     setProjects(next);
     if (activeProjectId === id && next[0]) {
@@ -235,11 +354,20 @@ function BunyanWorkspace() {
     }
     await saveCachedWorkspaceSnapshot({ projects: next });
     if (cloudUid) {
-      await deleteProjectFromCloud(id);
+      await deleteProjectFromCloud(id, manifestIds);
     }
   };
 
   const handleSaveTransaction = async (tx: GovernmentTransaction) => {
+    if (!perms.canManageGovernment) {
+      pushToast(
+        lang === 'ar'
+          ? 'إدارة المعاملات البلدية متاحة للمدير والمهندس فقط.'
+          : 'Municipal clearances require Admin or Engineer role.',
+        'error'
+      );
+      return;
+    }
     const exists = transactions.some((item) => item.id === tx.id);
     const next = exists
       ? transactions.map((item) => (item.id === tx.id ? tx : item))
@@ -247,17 +375,34 @@ function BunyanWorkspace() {
     setTransactions(next);
     await saveCachedWorkspaceSnapshot({ transactions: next });
     if (cloudUid) {
+      const parentProject = projectsRef.current.find((p) => p.id === tx.projectId);
+      if (parentProject) {
+        await ensureProjectExistsInCloud(parentProject, cloudUid);
+      }
       await saveTransactionToCloud(tx, cloudUid);
     }
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const handleDeleteTransaction = async (id: string) => {
+    if (!perms.canManageGovernment) {
+      pushToast(
+        lang === 'ar'
+          ? 'حذف المعاملات متاح للمدير والمهندس فقط.'
+          : 'Deleting clearances requires Admin or Engineer role.',
+        'error'
+      );
+      return;
+    }
     const next = transactions.filter((t) => t.id !== id);
     setTransactions(next);
-    void saveCachedWorkspaceSnapshot({ transactions: next });
+    await saveCachedWorkspaceSnapshot({ transactions: next });
+    if (cloudUid) {
+      await deleteTransactionFromCloud(id);
+    }
   };
 
   const handleUpdateRate = async (item: RateLibraryItem) => {
+    if (!perms.canEditFinancials && !perms.canEditEngineering) return;
     const next = rateLibrary.map((r) => (r.id === item.id ? item : r));
     setRateLibrary(next);
     await saveCachedWorkspaceSnapshot({ rateLibrary: next });
@@ -267,6 +412,7 @@ function BunyanWorkspace() {
   };
 
   const handleAddRate = async (item: RateLibraryItem) => {
+    if (!perms.canEditFinancials && !perms.canEditEngineering) return;
     const next = [...rateLibrary, item];
     setRateLibrary(next);
     await saveCachedWorkspaceSnapshot({ rateLibrary: next });
@@ -276,6 +422,13 @@ function BunyanWorkspace() {
   };
 
   const handleUpdateCompany = (profile: CompanyProfile) => {
+    if (!perms.canManageCompanySettings) {
+      pushToast(
+        lang === 'ar' ? 'تعديل إعدادات الشركة متاح لدور المدير فقط.' : 'Company settings require Admin role.',
+        'error'
+      );
+      return;
+    }
     setCompanyProfile(profile);
     scheduleCompanyProfileSync(profile, cloudUid);
   };
@@ -316,25 +469,84 @@ function BunyanWorkspace() {
   };
 
   const handleImportBackup = (data: BackupData) => {
-    if (data.projects.length > 0) {
-      setProjects(data.projects);
-      setActiveProjectId(data.projects[0].id);
-      void saveCachedWorkspaceSnapshot({ projects: data.projects });
+    if (!perms.canManageProjects) {
+      pushToast(
+        lang === 'ar'
+          ? 'صلاحية الدور الحالي لا تسمح باستيراد النسخ الاحتياطية.'
+          : 'Current role cannot restore backups.',
+        'error'
+      );
+      return;
     }
-    if (Array.isArray(data.transactions)) setTransactions(data.transactions);
-    if (Array.isArray(data.rateLibrary)) setRateLibrary(data.rateLibrary);
-    if (data.companyProfile) handleUpdateCompany(data.companyProfile);
+
+    const nowIso = new Date().toISOString();
+    const stampedProjects = data.projects.map((p) => ({
+      ...p,
+      updatedAt: nowIso,
+    }));
+    const nextTransactions =
+      Array.isArray(data.transactions) && data.transactions.length > 0
+        ? data.transactions
+        : transactions;
+    const nextRates =
+      Array.isArray(data.rateLibrary) && data.rateLibrary.length > 0
+        ? data.rateLibrary
+        : rateLibrary;
+    const nextCompany = data.companyProfile || companyProfile;
+
+    setProjects(stampedProjects);
+    setActiveProjectId(stampedProjects[0].id);
+    setTransactions(nextTransactions);
+    setRateLibrary(nextRates);
+    if (data.companyProfile) {
+      setCompanyProfile(nextCompany);
+    }
+
+    void saveCachedWorkspaceSnapshot({
+      projects: stampedProjects,
+      transactions: nextTransactions,
+      rateLibrary: nextRates,
+      companyProfile: nextCompany,
+      pendingProjectIds: stampedProjects.map((p) => p.id),
+    });
+
+    if (cloudUid && syncState.isOnline) {
+      void syncNowAll({
+        ownerId: cloudUid,
+        projects: stampedProjects,
+        companyProfile: nextCompany,
+        rateLibrary: nextRates,
+        transactions: nextTransactions,
+        onManifestAttached: handleAttachManifestProject,
+      });
+    } else {
+      for (const proj of stampedProjects) {
+        scheduleProjectSync({
+          project: proj,
+          allProjects: stampedProjects,
+          ownerId: cloudUid,
+          onManifestAttached: handleAttachManifestProject,
+        });
+      }
+      if (data.companyProfile) {
+        scheduleCompanyProfileSync(nextCompany, cloudUid);
+      }
+    }
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-[#060D1A] text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen flex bg-[var(--bg-canvas)] text-[var(--text-primary)]">
       <Sidebar
         activeModule={activeModule}
         onSelectModule={setActiveModule}
         lang={lang}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
         companyName={lang === 'ar' ? companyProfile.nameAr : companyProfile.nameEn}
+        projectsCount={projects.length}
+        alertsCount={workspaceAlerts.length}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -354,7 +566,11 @@ function BunyanWorkspace() {
             void handleSyncNow();
           }}
           onOpenMobileNav={() => setMobileNavOpen(true)}
-          onNavigateSettings={() => setActiveModule('settings')}
+          onOpenSearch={() => setSearchOpen(true)}
+          onOpenNotifications={() => setNotificationsOpen(true)}
+          alertsCount={workspaceAlerts.length}
+          onNavigateModule={setActiveModule}
+          onOpenExport={() => setExportModalOpen(true)}
         />
 
         <main className="flex-1 p-4 lg:p-6 max-w-[1440px] w-full mx-auto">
@@ -365,12 +581,16 @@ function BunyanWorkspace() {
               company={companyProfile}
               transactions={transactions}
               lang={lang}
+              currentRole={currentRole}
+              userEmail={firebaseUser?.email}
               syncState={syncState}
               onSyncNow={() => {
                 void handleSyncNow();
               }}
               onNavigate={setActiveModule}
               onSelectProject={setActiveProjectId}
+              onOpenSearch={() => setSearchOpen(true)}
+              onOpenNotifications={() => setNotificationsOpen(true)}
             />
           )}
 
@@ -382,55 +602,94 @@ function BunyanWorkspace() {
               onSaveProject={handleSaveProject}
               onDeleteProject={handleDeleteProject}
               lang={lang}
+              currentRole={currentRole}
               backupData={backupData}
               onImportBackup={handleImportBackup}
               cloudUid={cloudUid}
             />
           )}
 
+          {activeModule === 'financials' && (
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <FinancialSummaryModule
+                projects={projects}
+                activeProject={activeProject}
+                company={companyProfile}
+                lang={lang}
+                currentRole={currentRole}
+                onSelectProject={setActiveProjectId}
+                onSaveProject={handleSaveProject}
+              />
+            </Suspense>
+          )}
+
+          {activeModule === 'documents' && (
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <DocumentsModule
+                projects={projects}
+                activeProject={activeProject}
+                lang={lang}
+                currentRole={currentRole}
+                cloudUid={cloudUid}
+                onSelectProject={setActiveProjectId}
+                onSaveProject={handleEngineeringProjectUpdate}
+              />
+            </Suspense>
+          )}
+
           {activeModule === 'studio' && (
-            <BunyanBimTakeoffStudio
-              project={activeProject}
-              company={companyProfile}
-              rateLibrary={rateLibrary}
-              lang={lang}
-              cloudUid={cloudUid}
-              onUpdateProject={handleSaveProject}
-            />
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <BunyanBimTakeoffStudio
+                project={activeProject}
+                company={companyProfile}
+                rateLibrary={rateLibrary}
+                lang={lang}
+                cloudUid={cloudUid}
+                onUpdateProject={handleEngineeringProjectUpdate}
+              />
+            </Suspense>
           )}
 
           {activeModule === 'bim' && (
-            <BimModule
-              project={activeProject}
-              lang={lang}
-              onUpdateProject={handleSaveProject}
-              onJumpToTakeoff={(measurementId) => {
-                setHighlightedMeasurementId(measurementId);
-                setActiveModule('takeoff');
-              }}
-            />
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <BimModule
+                project={activeProject}
+                lang={lang}
+                onUpdateProject={handleEngineeringProjectUpdate}
+                onJumpToTakeoff={(measurementId) => {
+                  setHighlightedMeasurementId(measurementId);
+                  setActiveModule('takeoff');
+                }}
+              />
+            </Suspense>
           )}
 
           {activeModule === 'takeoff' && (
-            <TakeoffModule
-              project={activeProject}
-              company={companyProfile}
-              rateLibrary={rateLibrary}
-              lang={lang}
-              cloudUid={cloudUid}
-              highlightedMeasurementId={highlightedMeasurementId}
-              onUpdateProject={handleSaveProject}
-              onUpdateRate={handleUpdateRate}
-              onAddRate={handleAddRate}
-            />
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <TakeoffModule
+                project={activeProject}
+                company={companyProfile}
+                rateLibrary={rateLibrary}
+                lang={lang}
+                cloudUid={cloudUid}
+                highlightedMeasurementId={highlightedMeasurementId}
+                onUpdateProject={handleEngineeringProjectUpdate}
+                onUpdateRate={handleUpdateRate}
+                onAddRate={handleAddRate}
+              />
+            </Suspense>
           )}
 
           {activeModule === 'gis' && (
-            <GisPlotExplorer
-              project={activeProject}
-              lang={lang}
-              onUpdateProject={handleSaveProject}
-            />
+            <Suspense fallback={<ModuleLoadingFallback />}>
+              <GisPlotExplorer
+                project={activeProject}
+                projects={projects}
+                lang={lang}
+                onUpdateProject={handleEngineeringProjectUpdate}
+                onSelectProject={setActiveProjectId}
+              />
+            </Suspense>
           )}
 
           {activeModule === 'government' && (
@@ -439,6 +698,7 @@ function BunyanWorkspace() {
               projects={projects}
               activeProjectId={activeProject.id}
               lang={lang}
+              currentRole={currentRole}
               onSaveTransaction={handleSaveTransaction}
               onDeleteTransaction={handleDeleteTransaction}
             />
@@ -460,10 +720,41 @@ function BunyanWorkspace() {
               }}
               onSignOut={signOutFirebase}
               onSyncSeedToCloud={handleSyncNow}
+              backupData={backupData}
+              onImportBackup={handleImportBackup}
             />
           )}
         </main>
       </div>
+
+      <GlobalCommandModal
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        lang={lang}
+        projects={projects}
+        transactions={transactions}
+        onSelectProject={setActiveProjectId}
+        onNavigate={setActiveModule}
+      />
+
+      <NotificationsDrawer
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        alerts={workspaceAlerts}
+        lang={lang}
+        onNavigateAlert={(mod, projectId) => {
+          if (projectId) setActiveProjectId(projectId);
+          setActiveModule(mod);
+        }}
+      />
+
+      <BunyanExportCenter
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        project={activeProject}
+        company={companyProfile}
+        lang={lang}
+      />
     </div>
   );
 }
@@ -471,7 +762,9 @@ function BunyanWorkspace() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <BunyanWorkspace />
+      <ToastProvider>
+        <BunyanWorkspace />
+      </ToastProvider>
     </ErrorBoundary>
   );
 }

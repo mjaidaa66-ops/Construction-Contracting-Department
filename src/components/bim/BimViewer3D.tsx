@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { ChevronDown, ChevronUp, Scissors } from 'lucide-react';
+import { ChevronDown, ChevronUp, RotateCcw, Scissors } from 'lucide-react';
 import type {
   BimCameraPreset,
   BimDiscipline,
@@ -45,18 +45,19 @@ const CATEGORY_COLORS: Record<string, number> = {
   site_grid: 0x1e293b,
 };
 
-const PRESET_VECTORS: Record<BimCameraPreset, [number, number, number]> = {
-  iso: [22, 16, 22],
-  top: [0.01, 30, 0.01],
-  front: [0, 6, 26],
-  back: [0, 6, -26],
-  left: [-26, 6, 0],
-  right: [26, 6, 0],
+const PRESET_DIRECTIONS: Record<BimCameraPreset, [number, number, number]> = {
+  iso: [0.68, 0.52, 0.68],
+  top: [0.001, 1.0, 0.001],
+  front: [0, 0.22, 1.0],
+  back: [0, 0.22, -1.0],
+  left: [-1.0, 0.22, 0],
+  right: [1.0, 0.22, 0],
 };
 
 // Reusable math scratch objects at module scope (zero GC in render loop)
-const _targetCamPos = new THREE.Vector3();
-const _targetLookAt = new THREE.Vector3(0, 4, 0);
+const _scratchBox = new THREE.Box3();
+const _scratchCenter = new THREE.Vector3();
+const _scratchSize = new THREE.Vector3();
 
 export const BimViewer3D: React.FC<BimViewer3DProps> = ({
   elements,
@@ -76,10 +77,20 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
+  const [viewportKey, setViewportKey] = useState(0);
 
   // Refs to keep Three.js instance stable across React prop updates
   const callbacksRef = useRef({ onSelectElement });
   callbacksRef.current = { onSelectElement };
+
+  const selectedIdRef = useRef<string | null>(selectedId);
+  selectedIdRef.current = selectedId;
+
+  const hiddenDisciplinesRef = useRef<Set<BimDiscipline>>(hiddenDisciplines);
+  hiddenDisciplinesRef.current = hiddenDisciplines;
+
+  const cameraPresetRef = useRef<BimCameraPreset>(cameraPreset);
+  cameraPresetRef.current = cameraPreset;
 
   const sceneRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -92,15 +103,17 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     requestRender: () => void;
     transitionActive: boolean;
     targetPos: THREE.Vector3;
+    targetLookAt: THREE.Vector3;
+    modelCenter: THREE.Vector3;
+    modelRadius: number;
     isSoftwareGl: boolean;
   } | null>(null);
 
-  // Initialize Three.js once on mount
+  // Initialize Three.js once per viewportKey
   useEffect(() => {
     const container = canvasMountRef.current;
     if (!container) return;
 
-    // 1. Software WebGL probe
     const isSoftwareGl = (() => {
       try {
         const probe = document.createElement('canvas').getContext('webgl2');
@@ -142,25 +155,29 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1324);
-    scene.fog = new THREE.FogExp2(0x0b1324, 0.012);
+    scene.fog = new THREE.FogExp2(0x0b1324, 0.008);
 
-    // 2. Mandatory Studio RoomEnvironment PMREM
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmremGenerator.dispose();
+    const buildEnvironment = () => {
+      scene.environment?.dispose();
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      const roomEnv = new RoomEnvironment();
+      scene.environment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+      roomEnv.dispose();
+      pmremGenerator.dispose();
+    };
+    buildEnvironment();
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 300);
-    camera.position.set(...PRESET_VECTORS.iso);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 600);
+    camera.position.set(22, 16, 22);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.07;
-    controls.target.copy(_targetLookAt);
-    controls.minDistance = 6;
-    controls.maxDistance = 80;
+    controls.target.set(0, 4, 0);
+    controls.minDistance = 2;
+    controls.maxDistance = 140;
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
-    // 3. 3-Point Warm/Cool Architectural Studio Lighting
     const hemi = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 0.85);
     scene.add(hemi);
 
@@ -168,10 +185,10 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     keyLight.position.set(18, 28, 16);
     keyLight.castShadow = !isSoftwareGl;
     keyLight.shadow.mapSize.set(1024, 1024);
-    keyLight.shadow.camera.left = -22;
-    keyLight.shadow.camera.right = 22;
-    keyLight.shadow.camera.top = 22;
-    keyLight.shadow.camera.bottom = -22;
+    keyLight.shadow.camera.left = -28;
+    keyLight.shadow.camera.right = 28;
+    keyLight.shadow.camera.top = 28;
+    keyLight.shadow.camera.bottom = -28;
     keyLight.shadow.bias = -0.0005;
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
@@ -180,8 +197,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     rimLight.position.set(-16, 12, -18);
     scene.add(rimLight);
 
-    // Ground grid & subtle contact shadow plane
-    const gridHelper = new THREE.GridHelper(44, 44, 0x334155, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(64, 64, 0x334155, 0x1e293b);
     gridHelper.position.y = -0.11;
     scene.add(gridHelper);
 
@@ -193,9 +209,9 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       y: new THREE.Plane(new THREE.Vector3(0, -1, 0), 100),
       z: new THREE.Plane(new THREE.Vector3(0, 0, -1), 100),
       box: [
-        new THREE.Plane(new THREE.Vector3(-1, 0, 0), 12),
-        new THREE.Plane(new THREE.Vector3(1, 0, 0), 12),
-        new THREE.Plane(new THREE.Vector3(0, -1, 0), 10),
+        new THREE.Plane(new THREE.Vector3(-1, 0, 0), 16),
+        new THREE.Plane(new THREE.Vector3(1, 0, 0), 16),
+        new THREE.Plane(new THREE.Vector3(0, -1, 0), 14),
       ],
     };
 
@@ -237,12 +253,16 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
           camera.position.x = THREE.MathUtils.damp(camera.position.x, st.targetPos.x, 7, dt);
           camera.position.y = THREE.MathUtils.damp(camera.position.y, st.targetPos.y, 7, dt);
           camera.position.z = THREE.MathUtils.damp(camera.position.z, st.targetPos.z, 7, dt);
-          controls.target.x = THREE.MathUtils.damp(controls.target.x, _targetLookAt.x, 7, dt);
-          controls.target.y = THREE.MathUtils.damp(controls.target.y, _targetLookAt.y, 7, dt);
-          controls.target.z = THREE.MathUtils.damp(controls.target.z, _targetLookAt.z, 7, dt);
+          controls.target.x = THREE.MathUtils.damp(controls.target.x, st.targetLookAt.x, 7, dt);
+          controls.target.y = THREE.MathUtils.damp(controls.target.y, st.targetLookAt.y, 7, dt);
+          controls.target.z = THREE.MathUtils.damp(controls.target.z, st.targetLookAt.z, 7, dt);
 
-          if (camera.position.distanceTo(st.targetPos) < 0.05) {
+          if (
+            camera.position.distanceTo(st.targetPos) < 0.05 &&
+            controls.target.distanceTo(st.targetLookAt) < 0.05
+          ) {
             camera.position.copy(st.targetPos);
+            controls.target.copy(st.targetLookAt);
             st.transitionActive = false;
           } else {
             keepAnimating = true;
@@ -278,17 +298,18 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       clipPlanes,
       requestRender,
       transitionActive: false,
-      targetPos: new THREE.Vector3(...PRESET_VECTORS.iso),
+      targetPos: new THREE.Vector3(22, 16, 22),
+      targetLookAt: new THREE.Vector3(0, 4, 0),
+      modelCenter: new THREE.Vector3(0, 4, 0),
+      modelRadius: 18,
       isSoftwareGl,
     };
 
-    // Cancel camera transition when user interacts manually
     controls.addEventListener('start', () => {
       if (sceneRef.current) sceneRef.current.transitionActive = false;
     });
     controls.addEventListener('change', requestRender);
 
-    // Raycasting on pointer click (distinguishing click vs orbit drag)
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     let downX = 0;
@@ -322,6 +343,15 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       setWebglError('WebGL context lost');
     };
     const onContextRestored = () => {
+      buildEnvironment();
+      bimGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((m) => {
+            m.needsUpdate = true;
+          });
+        }
+      });
       setWebglError(null);
       requestRender();
     };
@@ -359,12 +389,14 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
           else obj.material.dispose();
         }
       });
+      gridHelper.dispose();
+      scene.environment?.dispose();
       renderer.dispose();
       sceneRef.current = null;
     };
-  }, []);
+  }, [viewportKey]);
 
-  // Sync BIM Elements Geometry & Materials
+  // 1. Rebuild Geometry ONLY when elements, renderMode, or section planes change (NOT on selection click)
   useEffect(() => {
     const st = sceneRef.current;
     if (!st) return;
@@ -395,11 +427,17 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     st.clipPlanes.y.constant = sectionOffset;
     st.clipPlanes.z.constant = sectionOffset;
 
+    const curSelected = selectedIdRef.current;
+    const curHidden = hiddenDisciplinesRef.current;
+
     for (const el of elements) {
-      const geo = new THREE.BoxGeometry(el.dimensions[0], el.dimensions[1], el.dimensions[2]);
+      const w = Math.max(0.04, el.dimensions[0]);
+      const h = Math.max(0.04, el.dimensions[1]);
+      const d = Math.max(0.04, el.dimensions[2]);
+      const geo = new THREE.BoxGeometry(w, h, d);
       const baseColor = CATEGORY_COLORS[el.category] ?? 0x94a3b8;
       const isGlass = el.category === 'glass';
-      const isSelected = el.id === selectedId;
+      const isSelected = el.id === curSelected;
 
       const mat = new THREE.MeshPhysicalMaterial({
         color: isSelected ? 0xd4a853 : baseColor,
@@ -430,45 +468,111 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       if (el.rotation) {
         mesh.rotation.set(el.rotation[0], el.rotation[1], el.rotation[2]);
       }
-      mesh.visible = !hiddenDisciplines.has(el.discipline);
+      mesh.visible = !curHidden.has(el.discipline);
       mesh.castShadow = !isGlass && el.category !== 'site_grid';
       mesh.receiveShadow = true;
       mesh.userData.bimId = el.id;
+      mesh.userData.baseColor = baseColor;
+      mesh.userData.discipline = el.discipline;
 
       st.bimGroup.add(mesh);
       st.meshMap.set(el.id, mesh);
     }
 
-    st.requestRender();
-  }, [elements, selectedId, hiddenDisciplines, renderMode, sectionMode, sectionOffset]);
+    // Auto-compute model bounds so imported IFC/DXF models of any scale fit cleanly in frame
+    if (st.bimGroup.children.length > 0) {
+      _scratchBox.setFromObject(st.bimGroup);
+      if (!_scratchBox.isEmpty()) {
+        _scratchBox.getCenter(_scratchCenter);
+        _scratchBox.getSize(_scratchSize);
+        const radius = Math.max(8, _scratchSize.length() * 0.72);
+        st.modelCenter.copy(_scratchCenter);
+        st.modelRadius = radius;
+        st.controls.maxDistance = Math.max(140, radius * 6);
+        const dir = PRESET_DIRECTIONS[cameraPresetRef.current];
+        const dist = radius * 1.45;
+        st.targetLookAt.copy(_scratchCenter);
+        st.targetPos.set(
+          _scratchCenter.x + dir[0] * dist,
+          _scratchCenter.y + dir[1] * dist,
+          _scratchCenter.z + dir[2] * dist
+        );
+        st.transitionActive = true;
+      }
+    }
 
-  // Trigger smooth camera preset transition
+    st.requestRender();
+  }, [elements, renderMode, sectionMode, sectionOffset, viewportKey]);
+
+  // 2. Lightweight Visibility Toggle (zero GPU buffer rebuild)
   useEffect(() => {
     const st = sceneRef.current;
     if (!st) return;
-    const vec = PRESET_VECTORS[cameraPreset];
-    _targetCamPos.set(vec[0], vec[1], vec[2]);
-    st.targetPos.copy(_targetCamPos);
+    st.meshMap.forEach((mesh) => {
+      const disc = mesh.userData.discipline as BimDiscipline;
+      mesh.visible = !hiddenDisciplines.has(disc);
+    });
+    st.requestRender();
+  }, [hiddenDisciplines, viewportKey]);
+
+  // 3. Lightweight Selection Material Update (zero GPU buffer rebuild)
+  useEffect(() => {
+    const st = sceneRef.current;
+    if (!st) return;
+    st.meshMap.forEach((mesh, id) => {
+      const mat = mesh.material as THREE.MeshPhysicalMaterial;
+      const baseColor = (mesh.userData.baseColor as number) ?? 0x94a3b8;
+      const isSelected = id === selectedId;
+      mat.color.setHex(isSelected ? 0xd4a853 : baseColor);
+      mat.emissive.setHex(isSelected ? 0x9e7330 : 0x000000);
+      mat.emissiveIntensity = isSelected ? 0.45 : 0;
+    });
+    st.requestRender();
+  }, [selectedId, viewportKey]);
+
+  // 4. Trigger smooth camera preset transition relative to model bounds
+  useEffect(() => {
+    const st = sceneRef.current;
+    if (!st) return;
+    const dir = PRESET_DIRECTIONS[cameraPreset];
+    const dist = Math.max(16, st.modelRadius * 1.45);
+    st.targetLookAt.copy(st.modelCenter);
+    st.targetPos.set(
+      st.modelCenter.x + dir[0] * dist,
+      st.modelCenter.y + dir[1] * dist,
+      st.modelCenter.z + dir[2] * dist
+    );
     st.transitionActive = true;
     st.requestRender();
-  }, [cameraPreset]);
+  }, [cameraPreset, viewportKey]);
 
   return (
-    <div className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0B1324] h-[520px] overflow-hidden">
+    <div className="relative rounded-xl border border-[var(--border-hairline)] bg-[#0B1324] h-[600px] overflow-hidden">
       {/* Isolated WebGL mount div */}
       <div ref={canvasMountRef} className="w-full h-full" />
 
       {webglError && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0B1324] text-slate-300 text-xs p-6 text-center">
-          <div>
-            <p className="font-semibold text-amber-400 mb-1">WebGL Viewport Notice</p>
+          <div className="space-y-2">
+            <p className="font-semibold text-amber-400">WebGL Viewport Notice</p>
             <p>{webglError}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setWebglError(null);
+                setViewportKey((k) => k + 1);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4863C] text-white font-semibold hover:bg-[#9E7330]"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{lang === 'ar' ? 'إعادة تشغيل WebGL' : 'Reinitialize 3D Viewport'}</span>
+            </button>
           </div>
         </div>
       )}
 
       {/* Minimal Top-Left Spec Label (No backdrop-blur over WebGL) */}
-      <div className="absolute top-3 start-3 px-3 py-1.5 rounded-lg bg-[#0F172A]/90 border border-slate-700/80 text-[11px] font-mono text-slate-200 pointer-events-none">
+      <div className="absolute top-3 start-3 px-3 py-1.5 rounded-lg bg-[#0E1628]/92 border border-slate-700/80 text-[11px] font-mono text-slate-200 pointer-events-none">
         5D BIM · {elements.length} {lang === 'ar' ? 'عنصر' : 'Elements'} · {renderMode.toUpperCase()}
       </div>
 
@@ -477,14 +581,14 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
         <button
           type="button"
           onClick={() => setDockCollapsed(!dockCollapsed)}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-lg bg-[#0F172A] border border-b-0 border-slate-700 text-[11px] font-medium text-slate-300 hover:text-white"
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-lg bg-[#0E1628] border border-b-0 border-slate-700 text-[11px] font-medium text-slate-300 hover:text-white"
         >
           {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           <span>{dockCollapsed ? (lang === 'ar' ? 'إظهار الأدوات' : 'Show Controls') : (lang === 'ar' ? 'طي الأدوات' : 'Hide Controls')}</span>
         </button>
 
         {!dockCollapsed && (
-          <div className="w-full rounded-xl bg-[#0F172A]/95 border border-slate-700 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="w-full rounded-xl bg-[#0E1628]/96 border border-slate-700 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
             {/* Camera Presets */}
             <div className="flex items-center gap-1">
               {(['iso', 'top', 'front', 'back', 'left', 'right'] as BimCameraPreset[]).map((p) => (
@@ -512,7 +616,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                   onClick={() => onChangeRenderMode(m)}
                   className={`px-2 py-1 rounded font-mono uppercase transition-colors ${
                     renderMode === m
-                      ? 'bg-sky-600 text-white font-semibold'
+                      ? 'bg-[#B4863C]/25 text-[#E5B869] border border-[#B4863C]/60 font-semibold'
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
@@ -523,7 +627,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
 
             {/* Section Plane Controls */}
             <div className="flex items-center gap-1.5 border-s border-slate-700 ps-2">
-              <Scissors className="w-3.5 h-3.5 text-[#D4A853]" />
+              <Scissors className="w-3.5 h-3.5 text-[#C99A49]" />
               {(['none', 'x', 'y', 'z', 'box'] as BimSectionMode[]).map((s) => (
                 <button
                   key={s}
@@ -541,8 +645,8 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
               {sectionMode !== 'none' && sectionMode !== 'box' && (
                 <input
                   type="range"
-                  min={-10}
-                  max={14}
+                  min={-15}
+                  max={25}
                   step={0.5}
                   value={sectionOffset}
                   onChange={(e) => onChangeSectionOffset(Number(e.target.value))}

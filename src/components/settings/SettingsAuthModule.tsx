@@ -1,7 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, Fingerprint, LogIn, LogOut, Shield, UserCheck } from 'lucide-react';
+import {
+  Archive,
+  Building2,
+  CheckCircle2,
+  Fingerprint,
+  LogIn,
+  LogOut,
+  Shield,
+  UserCheck,
+} from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { CompanyProfile, Language, Role } from '../../types/bunyan';
+import type { BackupData, CompanyProfile, Language, Role } from '../../types/bunyan';
+import { getRolePermissions } from '../../utils/rbacPermissions';
+import { BackupSyncModal } from '../projects/BackupSyncModal';
+import { Button, Card, CardHeader, Input, StatusIndicator, useToast } from '../ui';
 
 interface SettingsAuthModuleProps {
   lang: Language;
@@ -16,6 +28,8 @@ interface SettingsAuthModuleProps {
   onSignInGoogle: () => Promise<void>;
   onSignOut: () => Promise<void>;
   onSyncSeedToCloud: () => Promise<void>;
+  backupData?: BackupData;
+  onImportBackup?: (data: BackupData) => void;
 }
 
 export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
@@ -31,10 +45,15 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   onSignInGoogle,
   onSignOut,
   onSyncSeedToCloud,
+  backupData,
+  onImportBackup,
 }) => {
   const [companyForm, setCompanyForm] = useState<CompanyProfile>(companyProfile);
-  const [savedToast, setSavedToast] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const { pushToast } = useToast();
+  const isAr = lang === 'ar';
+  const perms = getRolePermissions(currentRole);
 
   useEffect(() => {
     setCompanyForm(companyProfile);
@@ -42,38 +61,41 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
 
   const handleSaveCompany = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!perms.canManageCompanySettings) {
+      pushToast(
+        isAr ? 'تعديل إعدادات الشركة متاح لدور المدير (Admin) فقط.' : 'Company settings require Admin role.',
+        'error'
+      );
+      return;
+    }
     onUpdateCompany(companyForm);
-    setSavedToast(true);
-    setTimeout(() => setSavedToast(false), 2500);
-  };
-
-  const handleBiometricRegister = async () => {
-    onToggleBiometric(!biometricRegistered);
+    pushToast(isAr ? 'تم حفظ ملف الشركة والرقم الضريبي' : 'Company profile saved', 'success');
   };
 
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Firebase Google Authentication & Cloud Sync */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-6 space-y-4">
-          <div className="flex items-center gap-2">
+        <Card padded className="space-y-4">
+          <div className="flex items-center gap-2.5">
             <Shield className="w-5 h-5 text-[#B4863C]" />
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              {lang === 'ar' ? 'المصادقة السحابية ومزامنة Firestore' : 'Firebase Authentication & Cloud Sync'}
+            <h2 className="text-base font-bold text-[var(--text-primary)]">
+              {isAr ? 'المصادقة السحابية ومزامنة Firestore' : 'Firebase Authentication & Cloud Sync'}
             </h2>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
-            <div className="flex justify-between">
-              <span className="text-slate-500">{lang === 'ar' ? 'حالة الاتصال السحابي:' : 'Firestore Status:'}</span>
-              <span className={`font-semibold ${firestoreConnected ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {firestoreConnected ? (lang === 'ar' ? 'متصل' : 'Connected') : (lang === 'ar' ? 'وضع محلي' : 'Local Mode')}
-              </span>
+          <div className="p-4 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] text-xs space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--text-muted)]">{isAr ? 'حالة الاتصال السحابي:' : 'Firestore Status:'}</span>
+              <StatusIndicator
+                tone={firestoreConnected ? 'success' : 'warning'}
+                label={firestoreConnected ? (isAr ? 'متصل سحابياً' : 'Connected') : (isAr ? 'وضع التخزين المحلي' : 'Local Cache Mode')}
+              />
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">{lang === 'ar' ? 'الحساب المسجل:' : 'Signed-in Account:'}</span>
-              <span className="font-mono text-slate-900 dark:text-white">
-                {firebaseUser?.email || (lang === 'ar' ? 'غير مسجل (معاينة محلية)' : 'Not signed in (Local Preview)')}
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[var(--text-muted)]">{isAr ? 'الحساب المسجل:' : 'Signed-in Account:'}</span>
+              <span className="font-mono text-[var(--text-primary)] truncate">
+                {firebaseUser?.email || (isAr ? 'غير مسجل (معاينة محلية)' : 'Not signed in (Local Preview)')}
               </span>
             </div>
           </div>
@@ -81,56 +103,53 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
           <div className="flex flex-wrap gap-2">
             {firebaseUser ? (
               <>
-                <button
-                  type="button"
-                  disabled={syncing}
+                <Button
+                  loading={syncing}
+                  icon={<CheckCircle2 className="w-4 h-4" />}
                   onClick={async () => {
                     setSyncing(true);
                     try {
                       await onSyncSeedToCloud();
+                      pushToast(isAr ? 'تمت المزامنة السحابية' : 'Workspace synced', 'success');
                     } finally {
                       setSyncing(false);
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] disabled:opacity-60"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{syncing ? (lang === 'ar' ? 'جاري المزامنة...' : 'Syncing...') : (lang === 'ar' ? 'مزامنة المشاريع إلى Firestore' : 'Sync Workspace to Firestore')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onSignOut}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>{lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}</span>
-                </button>
+                  {syncing
+                    ? isAr ? 'جاري المزامنة...' : 'Syncing...'
+                    : isAr ? 'مزامنة المشاريع إلى Firestore' : 'Sync Workspace to Firestore'}
+                </Button>
+                <Button variant="outline" icon={<LogOut className="w-4 h-4" />} onClick={onSignOut}>
+                  {isAr ? 'تسجيل الخروج' : 'Sign Out'}
+                </Button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={onSignInGoogle}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330]"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>{lang === 'ar' ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}</span>
-              </button>
+              <Button icon={<LogIn className="w-4 h-4" />} onClick={onSignInGoogle}>
+                {isAr ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}
+              </Button>
+            )}
+
+            {backupData && onImportBackup && (
+              <Button variant="outline" icon={<Archive className="w-4 h-4 text-[#B4863C]" />} onClick={() => setBackupOpen(true)}>
+                {isAr ? 'النسخ الاحتياطي JSON' : 'JSON Backup & Restore'}
+              </Button>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Role & Biometric Security */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-6 space-y-4">
-          <div className="flex items-center gap-2">
+        <Card padded className="space-y-4">
+          <div className="flex items-center gap-2.5">
             <UserCheck className="w-5 h-5 text-[#B4863C]" />
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              {lang === 'ar' ? 'الصلاحيات والتحقق الحيوي' : 'Role Access & Biometric Flag'}
+            <h2 className="text-base font-bold text-[var(--text-primary)]">
+              {isAr ? 'الصلاحيات والتحقق الحيوي' : 'Role Access & Biometric Flag'}
             </h2>
           </div>
 
           <div className="space-y-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
-              {lang === 'ar' ? 'الدور الهندسي النشط (RBAC):' : 'Active Workspace Role:'}
+            <div className="text-xs font-medium text-[var(--text-secondary)]">
+              {isAr ? 'الدور الهندسي النشط (RBAC):' : 'Active Workspace Role:'}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {(['admin', 'engineer', 'accountant'] as Role[]).map((r) => (
@@ -138,10 +157,10 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                   key={r}
                   type="button"
                   onClick={() => onChangeRole(r)}
-                  className={`py-2 px-3 rounded-lg border text-xs font-semibold capitalize transition-colors ${
+                  className={`py-2 px-3 rounded-lg border text-xs font-semibold capitalize bunyan-transition cursor-pointer ${
                     currentRole === r
                       ? 'border-[#B4863C] bg-[#B4863C] text-white'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[#B4863C]'
                   }`}
                 >
                   {r}
@@ -150,98 +169,83 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+          <div className="pt-3 border-t border-[var(--border-hairline)] flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs">
-              <Fingerprint className={`w-5 h-5 ${biometricRegistered ? 'text-emerald-500' : 'text-slate-400'}`} />
+              <Fingerprint className={`w-5 h-5 ${biometricRegistered ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`} />
               <div>
-                <div className="font-semibold text-slate-900 dark:text-slate-100">
-                  {lang === 'ar' ? 'توثيق البصمة / Passkey' : 'Biometric Verification'}
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {isAr ? 'توثيق البصمة / Passkey' : 'Biometric Verification'}
                 </div>
-                <div className="text-slate-500">
+                <div className="text-[var(--text-muted)]">
                   {biometricRegistered
-                    ? lang === 'ar' ? 'مفعل وموثق للموافقات المالية' : 'Registered for approvals'
-                    : lang === 'ar' ? 'غير مفعل' : 'Not registered'}
+                    ? isAr ? 'مفعل وموثق للموافقات المالية' : 'Registered for financial approvals'
+                    : isAr ? 'غير مفعل' : 'Not registered'}
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleBiometricRegister}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                biometricRegistered
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
-              }`}
+            <Button
+              variant={biometricRegistered ? 'outline' : 'secondary'}
+              size="sm"
+              onClick={() => onToggleBiometric(!biometricRegistered)}
             >
-              {biometricRegistered ? (lang === 'ar' ? 'مفعل' : 'Enabled') : (lang === 'ar' ? 'تفعيل الآن' : 'Register')}
-            </button>
+              {biometricRegistered ? (isAr ? 'مفعل' : 'Enabled') : (isAr ? 'تفعيل الآن' : 'Register')}
+            </Button>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* UAE Company Profile Form */}
-      <form
-        onSubmit={handleSaveCompany}
-        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-6 space-y-4 text-xs"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-[#B4863C]" />
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              {lang === 'ar' ? 'ملف المنشأة الهندسية والتراخيص' : 'UAE Company & Licensing Profile'}
-            </h2>
-          </div>
-          {savedToast && (
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-              {lang === 'ar' ? 'تم حفظ ملف الشركة' : 'Profile Saved'}
-            </span>
-          )}
-        </div>
+      <Card>
+        <CardHeader
+          icon={<Building2 className="w-5 h-5" />}
+          title={isAr ? 'ملف المنشأة الهندسية والتراخيص' : 'UAE Company & Licensing Profile'}
+          subtitle={isAr ? 'ترويسة التقارير الرسمية والرقم الضريبي UAE TRN' : 'Official PDF/Excel Report Header & Tax Registration'}
+        />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="space-y-1">
-            <span className="font-medium text-slate-600 dark:text-slate-300">{lang === 'ar' ? 'اسم الشركة (عربي)' : 'Company Name (AR)'}</span>
-            <input
+        <form onSubmit={handleSaveCompany} className="p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label={isAr ? 'اسم الشركة (عربي)' : 'Company Name (AR)'}
               value={companyForm.nameAr}
               onChange={(e) => setCompanyForm({ ...companyForm, nameAr: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
             />
-          </label>
-          <label className="space-y-1">
-            <span className="font-medium text-slate-600 dark:text-slate-300">{lang === 'ar' ? 'اسم الشركة (إنجليزي)' : 'Company Name (EN)'}</span>
-            <input
+            <Input
+              label={isAr ? 'اسم الشركة (إنجليزي)' : 'Company Name (EN)'}
               value={companyForm.nameEn}
               onChange={(e) => setCompanyForm({ ...companyForm, nameEn: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
             />
-          </label>
-          <label className="space-y-1">
-            <span className="font-medium text-slate-600 dark:text-slate-300">{lang === 'ar' ? 'رقم الرخصة التجارية' : 'Trade License No.'}</span>
-            <input
+            <Input
+              label={isAr ? 'رقم الرخصة التجارية' : 'Trade License No.'}
               value={companyForm.licenseNumber}
               onChange={(e) => setCompanyForm({ ...companyForm, licenseNumber: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono"
+              className="font-mono"
             />
-          </label>
-          <label className="space-y-1">
-            <span className="font-medium text-slate-600 dark:text-slate-300">{lang === 'ar' ? 'الرقم الضريبي UAE TRN' : 'UAE VAT TRN'}</span>
-            <input
+            <Input
+              label={isAr ? 'الرقم الضريبي UAE TRN' : 'UAE VAT TRN'}
               value={companyForm.trnNumber}
               onChange={(e) => setCompanyForm({ ...companyForm, trnNumber: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono"
+              className="font-mono"
             />
-          </label>
-        </div>
+          </div>
 
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            className="px-5 py-2 rounded-lg bg-[#B4863C] text-white font-semibold hover:bg-[#9E7330]"
-          >
-            {lang === 'ar' ? 'حفظ ملف المنشأة' : 'Save Company Profile'}
-          </button>
-        </div>
-      </form>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={!perms.canManageCompanySettings}>
+              {isAr ? 'حفظ ملف المنشأة' : 'Save Company Profile'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {backupData && onImportBackup && (
+        <BackupSyncModal
+          isOpen={backupOpen}
+          onClose={() => setBackupOpen(false)}
+          lang={lang}
+          backupData={backupData}
+          onImportBackup={onImportBackup}
+          canImport={perms.canManageProjects}
+        />
+      )}
     </div>
   );
 };

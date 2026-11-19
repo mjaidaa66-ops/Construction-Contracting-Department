@@ -9,6 +9,8 @@ import {
   Hand,
   Hexagon,
   Loader2,
+  Maximize2,
+  Minimize2,
   Minus,
   MousePointer,
   PenTool,
@@ -19,6 +21,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react';
+import { Button, Card, SegmentedTabs, useToast } from '../ui';
 import type {
   CompanyProfile,
   Language,
@@ -40,6 +43,7 @@ import {
 import {
   calculateTakeoffMeasurementValues,
   computeTakeoffSummary,
+  evaluateTakeoffVerificationState,
 } from '../../utils/takeoffCalculations';
 import { uploadSheetBinaryToCloud } from '../../services/cloudSyncService';
 import { parseUploadedDrawingFile } from '../../utils/takeoffSheetLoader';
@@ -106,8 +110,6 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
   const [viewMode, setViewMode] = useState<'svg_sheets' | 'pdf_engine' | 'print_summary'>('svg_sheets');
   const [activeSheetId, setActiveSheetId] = useState<string>(sheets[0]?.id || 'sheet-a101');
   const [pdfPageNum, setPdfPageNum] = useState<number>(1);
-  const [pdfPointsPerMeter, setPdfPointsPerMeter] = useState<number>(DEFAULT_POINTS_PER_METER);
-  const [pdfScaleLabel, setPdfScaleLabel] = useState<string>('1:100');
 
   const [activeTool, setActiveTool] = useState<TakeoffTool>('polygon');
   const [activeCategory, setActiveCategory] = useState<TakeoffCategory>('concrete');
@@ -119,6 +121,7 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
     highlightedMeasurementId || null
   );
 
+  const { pushToast } = useToast();
   const [scaleModalOpen, setScaleModalOpen] = useState(false);
   const [calibrationSpanUnits, setCalibrationSpanUnits] = useState<number | null>(null);
   const [calibrationPts, setCalibrationPts] = useState<[PdfPoint, PdfPoint] | null>(null);
@@ -126,16 +129,40 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
   const [boqModalOpen, setBoqModalOpen] = useState(false);
   const [printerOpen, setPrinterOpen] = useState(false);
   const [uploadingSheet, setUploadingSheet] = useState(false);
+  const [expandCanvas, setExpandCanvas] = useState(false);
   const sheetUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeSheet = sheets.find((s) => s.id === activeSheetId) || sheets[0];
+  const uploadedMasterPdfSheet = useMemo(
+    () => sheets.find((s) => s.sheetType === 'pdf_document' && (s.pdfDataUrl || s.pdfManifestId)) || null,
+    [sheets]
+  );
+  const activePdfPageSheet = useMemo(
+    () =>
+      sheets.find((s) => s.id === `pdf-page-${pdfPageNum}`) ||
+      (uploadedMasterPdfSheet && (uploadedMasterPdfSheet.pageNumber || 1) === pdfPageNum
+        ? uploadedMasterPdfSheet
+        : undefined),
+    [sheets, pdfPageNum, uploadedMasterPdfSheet]
+  );
+
   const currentSheetId =
-    viewMode === 'pdf_engine' ? `pdf-page-${pdfPageNum}` : activeSheet?.id || 'sheet-a101';
+    viewMode === 'pdf_engine'
+      ? activePdfPageSheet?.id || `pdf-page-${pdfPageNum}`
+      : activeSheet?.id || 'sheet-a101';
 
   const currentPpm =
-    viewMode === 'pdf_engine' ? pdfPointsPerMeter : activeSheet?.pixelsPerMeter || 40;
+    viewMode === 'pdf_engine'
+      ? activePdfPageSheet?.pixelsPerMeter ?? DEFAULT_POINTS_PER_METER
+      : activeSheet?.pixelsPerMeter || 40;
   const currentScaleLabel =
-    viewMode === 'pdf_engine' ? pdfScaleLabel : activeSheet?.scaleLabel || '1:100';
+    viewMode === 'pdf_engine'
+      ? activePdfPageSheet?.scaleLabel || '1:100 (Uncalibrated)'
+      : activeSheet?.scaleLabel || '1:100';
+  const currentIsCalibrated =
+    viewMode === 'pdf_engine'
+      ? Boolean(activePdfPageSheet?.calibrated)
+      : Boolean(activeSheet?.calibrated);
 
   const sheetMeasurements = useMemo(
     () => measurements.filter((m) => m.sheetId === currentSheetId),
@@ -152,6 +179,11 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
         summaryConfig.vatPercent
       ),
     [project.id, measurements, summaryConfig]
+  );
+
+  const verification = useMemo(
+    () => evaluateTakeoffVerificationState(sheets, measurements, project.bimElements),
+    [sheets, measurements, project.bimElements]
   );
 
   const matchingRate =
@@ -223,16 +255,55 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
     setScaleModalOpen(true);
   };
 
+  const persistPdfPageCalibration = (nextPpm: number, nextLabel: string) => {
+    const targetId = activePdfPageSheet?.id || `pdf-page-${pdfPageNum}`;
+    const exists = sheets.some((s) => s.id === targetId);
+    const updatedSheets = exists
+      ? sheets.map((s) =>
+          s.id === targetId
+            ? { ...s, pixelsPerMeter: nextPpm, scaleLabel: nextLabel, calibrated: true }
+            : s
+        )
+      : [
+          ...sheets,
+          {
+            id: targetId,
+            projectId: project.id,
+            code: `PDF-P${pdfPageNum}`,
+            title: uploadedMasterPdfSheet
+              ? `${uploadedMasterPdfSheet.title} (P.${pdfPageNum})`
+              : `Engineering PDF · Page ${pdfPageNum}`,
+            titleAr: uploadedMasterPdfSheet
+              ? `${uploadedMasterPdfSheet.titleAr} (ص ${pdfPageNum})`
+              : `مخطط PDF · صفحة ${pdfPageNum}`,
+            sheetType: 'pdf_document' as const,
+            pageNumber: pdfPageNum,
+            pixelsPerMeter: nextPpm,
+            scaleLabel: nextLabel,
+            calibrated: true,
+            width: uploadedMasterPdfSheet?.width || 1191,
+            height: uploadedMasterPdfSheet?.height || 842,
+            pdfDataUrl: uploadedMasterPdfSheet?.pdfDataUrl,
+            pdfManifestId: uploadedMasterPdfSheet?.pdfManifestId,
+          },
+        ];
+    onUpdateProject({ ...project, takeoffSheets: updatedSheets });
+  };
+
   const handleConfirmTwoPointDistance = (knownMeters: number) => {
     if (!calibrationPts) return;
     const newPpm = calibratePointsPerMeter(calibrationPts[0], calibrationPts[1], knownMeters);
     if (viewMode === 'pdf_engine') {
-      setPdfPointsPerMeter(newPpm);
-      setPdfScaleLabel(`Calibrated`);
+      persistPdfPageCalibration(newPpm, `Calibrated (${knownMeters.toFixed(2)}m Ref)`);
     } else if (activeSheet) {
       const updatedSheets = sheets.map((s) =>
         s.id === activeSheet.id
-          ? { ...s, pixelsPerMeter: newPpm, scaleLabel: 'Calibrated', calibrated: true }
+          ? {
+              ...s,
+              pixelsPerMeter: newPpm,
+              scaleLabel: `Calibrated (${knownMeters.toFixed(2)}m Ref)`,
+              calibrated: true,
+            }
           : s
       );
       onUpdateProject({ ...project, takeoffSheets: updatedSheets });
@@ -243,8 +314,7 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
 
   const handleApplyPresetScale = (label: string, ppm: number) => {
     if (viewMode === 'pdf_engine') {
-      setPdfPointsPerMeter(ppm);
-      setPdfScaleLabel(label);
+      persistPdfPageCalibration(ppm, label);
     } else if (activeSheet) {
       // Scale SVG sheets relative to 40 px/m baseline for 1:100
       const svgPpm = (ppm / DEFAULT_POINTS_PER_METER) * 40;
@@ -277,109 +347,140 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
       setViewMode('svg_sheets');
       setDraftPoints([]);
       setSelectedMeasurementId(null);
+      pushToast(
+        lang === 'ar'
+          ? `تم تحميل المخطط "${newSheet.titleAr}" بنجاح`
+          : `Loaded blueprint "${newSheet.title}"`,
+        'success'
+      );
     } catch (err) {
       console.error('Upload blueprint error:', err);
+      pushToast(
+        lang === 'ar' ? 'تعذر قراءة ملف المخطط المرفوع' : 'Failed to load blueprint file',
+        'error'
+      );
     } finally {
       setUploadingSheet(false);
     }
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Top Engine Mode & BOQ Summary Bar */}
-      <div className="no-print rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <Card className="no-print p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('svg_sheets');
-                setDraftPoints([]);
-              }}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                viewMode === 'svg_sheets'
-                  ? 'bg-[#B4863C] text-white'
-                  : 'text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              {lang === 'ar'
-                ? `لوحات المخططات المعايرة (${sheets.length})`
-                : `Calibrated Blueprint Sheets (${sheets.length})`}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('pdf_engine');
-                setDraftPoints([]);
-              }}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                viewMode === 'pdf_engine'
-                  ? 'bg-[#B4863C] text-white'
-                  : 'text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              {lang === 'ar' ? 'عارض PDF الهندسي (pdfjs-dist)' : 'Multi-Page PDF Engine'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('print_summary');
-                setDraftPoints([]);
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                viewMode === 'print_summary'
-                  ? 'bg-[#B4863C] text-white'
-                  : 'text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>{lang === 'ar' ? 'ملخص للطباعة' : 'Print Summary'}</span>
-            </button>
-          </div>
+          <SegmentedTabs<'svg_sheets' | 'pdf_engine' | 'print_summary'>
+            value={viewMode}
+            onChange={(next) => {
+              setViewMode(next);
+              setDraftPoints([]);
+            }}
+            items={[
+              {
+                id: 'svg_sheets',
+                label:
+                  lang === 'ar'
+                    ? `لوحات المخططات (${sheets.length})`
+                    : `Blueprint Sheets (${sheets.length})`,
+              },
+              {
+                id: 'pdf_engine',
+                label: lang === 'ar' ? 'عارض PDF (pdfjs-dist)' : 'Multi-Page PDF Engine',
+              },
+              {
+                id: 'print_summary',
+                label: lang === 'ar' ? 'ملخص للطباعة' : 'Print Summary',
+                icon: <Printer className="w-3.5 h-3.5" />,
+              },
+            ]}
+          />
 
-          <div className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono tabular-nums text-[var(--text-secondary)]">
             <span>{lang === 'ar' ? 'المقياس:' : 'Scale:'}</span>{' '}
             <strong className="text-[#B4863C]">{currentScaleLabel}</strong>{' '}
-            <span className="text-slate-400">({currentPpm.toFixed(2)} u/m)</span>
+            <span className="text-[var(--text-muted)]">({currentPpm.toFixed(2)} u/m)</span>
+            <span
+              className={`px-2 py-0.5 rounded font-sans text-[10px] font-semibold ${
+                currentIsCalibrated
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+              }`}
+            >
+              {currentIsCalibrated
+                ? lang === 'ar'
+                  ? 'معايرة معتمدة'
+                  : 'Calibrated'
+                : lang === 'ar'
+                ? 'غير معاير (مسودة)'
+                : 'Uncalibrated Draft'}
+            </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-xs font-mono tabular-nums">
-            <span className="text-slate-500">{lang === 'ar' ? 'الإجمالي + ضريبة 5%:' : 'Total + 5% VAT:'}</span>{' '}
-            <strong className="text-[#B4863C] dark:text-[#D4A853]">
+          <div className="px-3 py-1.5 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] text-xs font-mono tabular-nums">
+            <span className="font-sans text-[var(--text-muted)]">
+              {lang === 'ar' ? 'الإجمالي + ضريبة 5%:' : 'Total + 5% VAT:'}
+            </span>{' '}
+            <strong className="text-[#B4863C] dark:text-[#C99A49]">
               {formatAED(summary.grandTotalAed, lang)}
             </strong>
           </div>
 
-          <button
-            type="button"
+          {viewMode !== 'print_summary' && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={expandCanvas ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              onClick={() => setExpandCanvas((v) => !v)}
+            >
+              {expandCanvas
+                ? lang === 'ar'
+                  ? 'إظهار السجل'
+                  : 'Show Ledger'
+                : lang === 'ar'
+                ? 'تكبير اللوحة'
+                : 'Expand Canvas'}
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Ruler className="w-3.5 h-3.5 text-[#B4863C]" />}
             onClick={() => setScaleModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <Ruler className="w-3.5 h-3.5 text-[#B4863C]" />
-            <span>{lang === 'ar' ? 'معايرة المقياس' : 'Scale'}</span>
-          </button>
+            {lang === 'ar' ? 'معايرة المقياس' : 'Scale'}
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<BookOpen className="w-3.5 h-3.5 text-[#B4863C]" />}
             onClick={() => setRateModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <BookOpen className="w-3.5 h-3.5 text-[#B4863C]" />
-            <span>{lang === 'ar' ? `دليل الأسعار (${rateLibrary.length})` : `Rates (${rateLibrary.length})`}</span>
-          </button>
+            {lang === 'ar' ? `دليل الأسعار (${rateLibrary.length})` : `Rates (${rateLibrary.length})`}
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<FileSpreadsheet className="w-3.5 h-3.5" />}
             onClick={() => setBoqModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330]"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>{lang === 'ar' ? 'المقايسة BOQ والتصدير' : 'BOQ & Export'}</span>
-          </button>
+            {lang === 'ar' ? 'المقايسة BOQ والتصدير' : 'BOQ & Export'}
+          </Button>
         </div>
-      </div>
+      </Card>
+
+      {verification.status === 'uncalibrated_draft' && (
+        <div className="no-print px-4 py-2.5 rounded-xl border border-amber-500/35 bg-amber-500/10 text-xs text-amber-800 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+          <span>{lang === 'ar' ? verification.noticeAr : verification.noticeEn}</span>
+          <span className="font-mono font-bold text-[11px]">
+            {lang === 'ar' ? verification.badgeAr : verification.badgeEn}
+          </span>
+        </div>
+      )}
 
       {viewMode === 'print_summary' ? (
         <div className={printerOpen ? 'no-print' : undefined}>
@@ -406,288 +507,313 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
           />
         </div>
       ) : (
-        <div className="no-print space-y-5">
-      {/* 12 Takeoff Tools & Category Parameters Bar */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {TOOL_ITEMS.map((tool) => {
-            const Icon = tool.icon;
-            const active = activeTool === tool.id;
-            return (
-              <button
-                key={tool.id}
-                type="button"
-                onClick={() => {
-                  setActiveTool(tool.id);
-                  setDraftPoints([]);
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                  active
-                    ? 'bg-[#B4863C] text-white'
-                    : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{lang === 'ar' ? tool.ar : tool.en}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-          <label className="flex items-center gap-2">
-            <span className="text-slate-500">{lang === 'ar' ? 'التخصص:' : 'Category:'}</span>
-            <select
-              value={activeCategory}
-              onChange={(e) => setActiveCategory(e.target.value as TakeoffCategory)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium"
-            >
-              {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {lang === 'ar' ? v.ar : v.en}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">{lang === 'ar' ? 'الارتفاع/العمق (م):' : 'Height/Depth (m):'}</span>
-            <input
-              type="number"
-              step="0.05"
-              min={0}
-              value={heightOrDepth}
-              onChange={(e) => setHeightOrDepth(Number(e.target.value) || 0)}
-              className="w-20 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono tabular-nums"
-            />
-          </label>
-
-          <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">{lang === 'ar' ? 'المعامل:' : 'Mult:'}</span>
-            <input
-              type="number"
-              min={1}
-              value={multiplier}
-              onChange={(e) => setMultiplier(Math.max(1, Number(e.target.value) || 1))}
-              className="w-16 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono tabular-nums"
-            />
-          </label>
-
-          <input
-            value={customLabel}
-            onChange={(e) => setCustomLabel(e.target.value)}
-            placeholder={lang === 'ar' ? 'وصف البند (اختياري)...' : 'Custom measurement label...'}
-            className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
-          />
-
-          {draftPoints.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCommitShape}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>
-                  {lang === 'ar'
-                    ? `اعتماد الشكل (${draftPoints.length})`
-                    : `Commit (${draftPoints.length} pts)`}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraftPoints([])}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-              >
-                {lang === 'ar' ? 'مسح' : 'Clear'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Takeoff Canvas + Measurements Ledger */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div className="xl:col-span-8 space-y-3">
-          {viewMode === 'svg_sheets' ? (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] overflow-hidden">
-              {/* Sheet Tabs + Upload Button */}
-              <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {sheets.map((sh) => (
-                    <button
-                      key={sh.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveSheetId(sh.id);
-                        setDraftPoints([]);
-                      }}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                        activeSheet?.id === sh.id
-                          ? 'bg-[#B4863C] text-white'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className="font-mono font-bold me-1.5">{sh.code}</span>
-                      <span>{lang === 'ar' ? sh.titleAr : sh.title}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <input
-                  ref={sheetUploadInputRef}
-                  type="file"
-                  accept=".pdf,application/pdf,image/*"
-                  onChange={handleUploadBlueprintSheet}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => sheetUploadInputRef.current?.click()}
-                  disabled={uploadingSheet}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-[#B4863C]/45 bg-[#B4863C]/10 text-[#B4863C] dark:text-[#D4A853] hover:bg-[#B4863C]/20 text-xs font-semibold whitespace-nowrap disabled:opacity-60"
-                >
-                  {uploadingSheet ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <FileUp className="w-3.5 h-3.5" />
-                  )}
-                  <span>{lang === 'ar' ? 'رفع مخطط (PDF/صورة)' : 'Upload PDF / Image'}</span>
-                </button>
-              </div>
-
-              {activeSheet && (
-                <div className="relative bg-[#0B1324] overflow-auto">
-                  <div
-                    className="relative mx-auto"
-                    style={{
-                      width: '100%',
-                      maxWidth: `${activeSheet.width}px`,
-                      aspectRatio: `${activeSheet.width} / ${activeSheet.height}`,
+        <div className="no-print space-y-4">
+          {/* 12 Takeoff Tools & Category Parameters Bar */}
+          <Card className="p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {TOOL_ITEMS.map((tool) => {
+                const Icon = tool.icon;
+                const active = activeTool === tool.id;
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTool(tool.id);
+                      setDraftPoints([]);
                     }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                      active
+                        ? 'bg-[#B4863C] text-white'
+                        : 'bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-hairline)] hover:border-[#B4863C]/50 hover:text-[var(--text-primary)]'
+                    }`}
                   >
-                    <SheetBackdropRenderer sheet={activeSheet} lang={lang} />
-                    <PdfCanvasSheet
-                      width={activeSheet.width}
-                      height={activeSheet.height}
-                      activeTool={activeTool}
-                      activeColor={CATEGORY_LABELS[activeCategory].color}
-                      measurements={sheetMeasurements}
-                      selectedMeasurementId={selectedMeasurementId}
-                      draftPoints={draftPoints}
-                      onAddPoint={handleAddDraftPoint}
-                      onFinishShape={handleCommitShape}
-                      onSelectMeasurement={setSelectedMeasurementId}
-                      onCalibrateTwoPoints={handleTwoPointCalibrate}
-                    />
-                  </div>
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{lang === 'ar' ? tool.ar : tool.en}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-[var(--border-hairline)] text-xs">
+              <label className="flex items-center gap-2">
+                <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'التخصص:' : 'Category:'}</span>
+                <select
+                  value={activeCategory}
+                  onChange={(e) => setActiveCategory(e.target.value as TakeoffCategory)}
+                  className="px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-medium text-[var(--text-primary)]"
+                >
+                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {lang === 'ar' ? v.ar : v.en}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-1.5">
+                <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'الارتفاع/العمق (م):' : 'Height/Depth (m):'}</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  min={0}
+                  value={heightOrDepth}
+                  onChange={(e) => setHeightOrDepth(Number(e.target.value) || 0)}
+                  className="w-20 px-2 py-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-mono tabular-nums text-[var(--text-primary)]"
+                />
+              </label>
+
+              <label className="flex items-center gap-1.5">
+                <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'المعامل:' : 'Mult:'}</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={multiplier}
+                  onChange={(e) => setMultiplier(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 px-2 py-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-mono tabular-nums text-[var(--text-primary)]"
+                />
+              </label>
+
+              <input
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                placeholder={lang === 'ar' ? 'وصف البند (اختياري)...' : 'Custom measurement label...'}
+                className="flex-1 min-w-[160px] px-3 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+              />
+
+              {draftPoints.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<Check className="w-3.5 h-3.5" />}
+                    onClick={handleCommitShape}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {lang === 'ar'
+                      ? `اعتماد الشكل (${draftPoints.length})`
+                      : `Commit (${draftPoints.length} pts)`}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setDraftPoints([])}>
+                    {lang === 'ar' ? 'مسح' : 'Clear'}
+                  </Button>
                 </div>
               )}
             </div>
-          ) : (
-            <EngineeringPdfViewer
-              lang={lang}
-              activeTool={activeTool}
-              activeColor={CATEGORY_LABELS[activeCategory].color}
-              measurements={sheetMeasurements}
-              selectedMeasurementId={selectedMeasurementId}
-              draftPoints={draftPoints}
-              onAddPoint={handleAddDraftPoint}
-              onFinishShape={handleCommitShape}
-              onSelectMeasurement={setSelectedMeasurementId}
-              onCalibrateTwoPoints={handleTwoPointCalibrate}
-              onPageChanged={(p) => {
-                setPdfPageNum(p);
-                setDraftPoints([]);
-              }}
-            />
-          )}
-        </div>
+          </Card>
 
-        {/* Measurements Ledger Panel */}
-        <div className="xl:col-span-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] flex flex-col h-[560px] overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-[#B4863C]" />
-              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                {lang === 'ar' ? 'سجل القياسات والكميات' : 'Takeoff Measurements'}
-              </span>
-            </div>
-            <span className="text-xs font-mono tabular-nums text-slate-500">
-              {measurements.length} {lang === 'ar' ? 'بند' : 'items'}
-            </span>
-          </div>
+          {/* Main Takeoff Canvas + Measurements Ledger */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className={`${expandCanvas ? 'xl:col-span-12' : 'xl:col-span-8'} space-y-3`}>
+              {viewMode === 'svg_sheets' ? (
+                <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] overflow-hidden">
+                  {/* Sheet Tabs + Upload Button */}
+                  <div className="px-3 py-2 border-b border-[var(--border-hairline)] flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-surface-subtle)]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {sheets.map((sh) => (
+                        <button
+                          key={sh.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveSheetId(sh.id);
+                            setDraftPoints([]);
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                            activeSheet?.id === sh.id
+                              ? 'bg-[#B4863C] text-white'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]'
+                          }`}
+                        >
+                          <span className="font-mono font-bold me-1.5">{sh.code}</span>
+                          <span>{lang === 'ar' ? sh.titleAr : sh.title}</span>
+                        </button>
+                      ))}
+                    </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
-            {measurements.map((m) => (
-              <div
-                key={m.id}
-                onClick={() => {
-                  setSelectedMeasurementId(m.id);
-                  const targetSheet = sheets.find((s) => s.id === m.sheetId);
-                  if (targetSheet) {
-                    setViewMode('svg_sheets');
-                    setActiveSheetId(targetSheet.id);
-                  }
-                }}
-                className={`p-3.5 cursor-pointer transition-colors space-y-1.5 ${
-                  selectedMeasurementId === m.id
-                    ? 'bg-[#B4863C]/10'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                      <span
-                        className="w-2.5 h-2.5 rounded-sm shrink-0"
-                        style={{ backgroundColor: m.color }}
-                      />
-                      <span className="text-slate-500">
-                        {lang === 'ar' ? CATEGORY_LABELS[m.category].ar : CATEGORY_LABELS[m.category].en}
-                      </span>
-                      <span className="font-mono text-slate-400">· {m.sheetId}</span>
-                    </div>
-                    <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
-                      {lang === 'ar' ? m.labelAr : m.label}
-                    </div>
+                    <input
+                      ref={sheetUploadInputRef}
+                      type="file"
+                      accept=".pdf,.dxf,application/pdf,image/*"
+                      onChange={handleUploadBlueprintSheet}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      loading={uploadingSheet}
+                      icon={!uploadingSheet ? <FileUp className="w-3.5 h-3.5 text-[#B4863C]" /> : undefined}
+                      onClick={() => sheetUploadInputRef.current?.click()}
+                    >
+                      {lang === 'ar' ? 'رفع مخطط (PDF/DXF/صورة)' : 'Upload PDF / DXF / Image'}
+                    </Button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteMeasurement(m.id);
-                    }}
-                    className="p-1 rounded text-rose-500 hover:bg-rose-500/10 shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+
+                  {activeSheet && (
+                    <div className="relative bg-[#0B1324] overflow-auto min-h-[560px]">
+                      <div
+                        className="relative mx-auto"
+                        style={{
+                          width: '100%',
+                          maxWidth: `${activeSheet.width}px`,
+                          aspectRatio: `${activeSheet.width} / ${activeSheet.height}`,
+                        }}
+                      >
+                        <SheetBackdropRenderer sheet={activeSheet} lang={lang} />
+                        <PdfCanvasSheet
+                          width={activeSheet.width}
+                          height={activeSheet.height}
+                          activeTool={activeTool}
+                          activeColor={CATEGORY_LABELS[activeCategory].color}
+                          measurements={sheetMeasurements}
+                          selectedMeasurementId={selectedMeasurementId}
+                          draftPoints={draftPoints}
+                          onAddPoint={handleAddDraftPoint}
+                          onFinishShape={handleCommitShape}
+                          onSelectMeasurement={setSelectedMeasurementId}
+                          onCalibrateTwoPoints={handleTwoPointCalibrate}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <EngineeringPdfViewer
+                  lang={lang}
+                  activeTool={activeTool}
+                  activeColor={CATEGORY_LABELS[activeCategory].color}
+                  measurements={sheetMeasurements}
+                  selectedMeasurementId={selectedMeasurementId}
+                  draftPoints={draftPoints}
+                  uploadedPdfSheet={uploadedMasterPdfSheet}
+                  currentScaleLabel={currentScaleLabel}
+                  currentPpm={currentPpm}
+                  isCalibrated={currentIsCalibrated}
+                  onAddPoint={handleAddDraftPoint}
+                  onFinishShape={handleCommitShape}
+                  onSelectMeasurement={setSelectedMeasurementId}
+                  onCalibrateTwoPoints={handleTwoPointCalibrate}
+                  onPageChanged={(p) => {
+                    setPdfPageNum(p);
+                    setDraftPoints([]);
+                  }}
+                  onPdfUploadedSheet={async (file) => {
+                    try {
+                      const { sheet: parsedSheet } = await parseUploadedDrawingFile(
+                        file,
+                        project.id,
+                        sheets
+                      );
+                      const { sheet: savedSheet } = await uploadSheetBinaryToCloud({
+                        project,
+                        sheet: { ...parsedSheet, id: 'pdf-page-1', pageNumber: 1 },
+                        ownerId: cloudUid,
+                      });
+                      const otherSheets = sheets.filter((s) => s.id !== savedSheet.id);
+                      onUpdateProject({
+                        ...project,
+                        takeoffSheets: [...otherSheets, savedSheet],
+                      });
+                      setPdfPageNum(1);
+                      pushToast(
+                        lang === 'ar'
+                          ? `تم حفظ ملف PDF "${savedSheet.titleAr}" في المشروع`
+                          : `Saved PDF "${savedSheet.title}" to project`,
+                        'success'
+                      );
+                    } catch (err) {
+                      console.error('Failed persisting PDF upload:', err);
+                    }
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Measurements Ledger Panel */}
+            {!expandCanvas && (
+              <div className="xl:col-span-4 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] flex flex-col h-[620px] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[var(--border-hairline)] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-[#B4863C]" />
+                    <span className="text-xs font-bold text-[var(--text-primary)]">
+                      {lang === 'ar' ? 'سجل القياسات والكميات' : 'Takeoff Measurements'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
+                    {measurements.length} {lang === 'ar' ? 'بند' : 'items'}
+                  </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1">
-                  <span className="text-slate-600 dark:text-slate-300 font-semibold">
-                    {m.computedQuantity.toFixed(2)} {m.unit} × {m.unitRateAed} AED
-                  </span>
-                  <span className="font-bold text-[#B4863C] dark:text-[#D4A853]">
-                    {formatAED(m.totalCostAed, lang)}
-                  </span>
+                <div className="flex-1 overflow-y-auto divide-y divide-[var(--border-hairline)]">
+                  {measurements.map((m) => (
+                    <div
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedMeasurementId(m.id);
+                        const targetSheet = sheets.find((s) => s.id === m.sheetId);
+                        if (targetSheet) {
+                          setViewMode('svg_sheets');
+                          setActiveSheetId(targetSheet.id);
+                        }
+                      }}
+                      className={`p-3.5 cursor-pointer transition-colors space-y-1.5 ${
+                        selectedMeasurementId === m.id
+                          ? 'bg-[#B4863C]/12'
+                          : 'hover:bg-[var(--bg-surface-subtle)]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                            <span
+                              className="w-2.5 h-2.5 rounded-sm shrink-0"
+                              style={{ backgroundColor: m.color }}
+                            />
+                            <span className="text-[var(--text-muted)]">
+                              {lang === 'ar' ? CATEGORY_LABELS[m.category].ar : CATEGORY_LABELS[m.category].en}
+                            </span>
+                            <span className="font-mono text-[var(--text-muted)]">· {m.sheetId}</span>
+                          </div>
+                          <div className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">
+                            {lang === 'ar' ? m.labelAr : m.label}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMeasurement(m.id);
+                          }}
+                          className="p-1 rounded text-rose-500 hover:bg-rose-500/10 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1">
+                        <span className="text-[var(--text-secondary)] font-semibold">
+                          {m.computedQuantity.toFixed(2)} {m.unit} × {m.unitRateAed} AED
+                        </span>
+                        <span className="font-bold text-[#B4863C] dark:text-[#C99A49]">
+                          {formatAED(m.totalCostAed, lang)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-4 border-t border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] space-y-1 text-xs font-mono tabular-nums">
+                  <div className="flex justify-between">
+                    <span className="font-sans text-[var(--text-muted)]">{lang === 'ar' ? 'التكلفة المباشرة' : 'Direct Cost'}</span>
+                    <span className="text-[var(--text-primary)]">{formatAED(summary.directCostAed, lang)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-[var(--text-primary)]">
+                    <span className="font-sans">{lang === 'ar' ? 'الإجمالي مع 5% VAT' : 'Grand Total (incl. 5% VAT)'}</span>
+                    <span className="text-[#B4863C]">{formatAED(summary.grandTotalAed, lang)}</span>
+                  </div>
                 </div>
               </div>
-            ))}
+            )}
           </div>
-
-          <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 space-y-1 text-xs font-mono tabular-nums">
-            <div className="flex justify-between">
-              <span className="font-sans text-slate-500">{lang === 'ar' ? 'التكلفة المباشرة' : 'Direct Cost'}</span>
-              <span>{formatAED(summary.directCostAed, lang)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-slate-900 dark:text-white">
-              <span className="font-sans">{lang === 'ar' ? 'الإجمالي مع 5% VAT' : 'Grand Total (incl. 5% VAT)'}</span>
-              <span className="text-[#B4863C]">{formatAED(summary.grandTotalAed, lang)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
         </div>
       )}
 

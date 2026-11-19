@@ -452,7 +452,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
   return (
     <div className="space-y-3">
       {/* PlanSwift Tool & Assembly Parameters Ribbon */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-3 space-y-3">
+      <div className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             {PLAN_SWIFT_TOOLS.map((tool) => {
@@ -473,8 +473,8 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                         ? 'bg-rose-600 text-white'
                         : 'bg-[#B4863C] text-white'
                       : tool.emphasize
-                      ? 'bg-[#B4863C]/10 text-[#B4863C] dark:text-[#D4A853] border border-[#B4863C]/35 hover:bg-[#B4863C]/20'
-                      : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'bg-[#B4863C]/10 text-[#B4863C] dark:text-[#C99A49] border border-[#B4863C]/35 hover:bg-[#B4863C]/20'
+                      : 'bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-hairline)] hover:border-[#B4863C]/45 hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -485,22 +485,22 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
           </div>
 
           {/* Zoom & Pan Reset Controls */}
-          <div className="flex items-center gap-1 border-s border-slate-200 dark:border-slate-800 ps-2">
+          <div className="flex items-center gap-1 border-s border-[var(--border-hairline)] ps-2">
             <button
               type="button"
               onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1.5 rounded-lg border border-[var(--border-hairline)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]"
               aria-label="Zoom out"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs font-mono tabular-nums px-1.5 text-slate-700 dark:text-slate-200">
+            <span className="text-xs font-mono tabular-nums px-1.5 text-[var(--text-primary)]">
               {Math.round(zoom * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1.5 rounded-lg border border-[var(--border-hairline)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]"
               aria-label="Zoom in"
             >
               <ZoomIn className="w-3.5 h-3.5" />
@@ -511,7 +511,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 setZoom(1);
                 setPanOffset({ x: 0, y: 0 });
               }}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1.5 rounded-lg border border-[var(--border-hairline)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]"
               aria-label="Reset view"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -520,9 +520,9 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
         </div>
 
         {/* Assembly, Rate Library & Geometric Parameters Row */}
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--border-hairline)] text-xs">
           <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">{lang === 'ar' ? 'الطبقة:' : 'Category:'}</span>
+            <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'الطبقة:' : 'Category:'}</span>
             <select
               value={activeCategory}
               onChange={(e) => {
@@ -531,7 +531,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 const firstRate = rateLibrary.find((r) => r.category === cat);
                 if (firstRate) setSelectedRateId(firstRate.id);
               }}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-900 dark:text-slate-100"
+              className="px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-medium text-[var(--text-primary)]"
             >
               {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -543,11 +543,11 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
 
           <label className="flex items-center gap-1.5 min-w-0">
             <BookOpen className="w-3.5 h-3.5 text-[#B4863C] shrink-0" />
-            <span className="text-slate-500 shrink-0">{lang === 'ar' ? 'بند التسعير:' : 'Rate Item:'}</span>
+            <span className="text-[var(--text-muted)] shrink-0">{lang === 'ar' ? 'بند التسعير:' : 'Rate Item:'}</span>
             <select
               value={activeRateItem?.id || ''}
               onChange={(e) => setSelectedRateId(e.target.value)}
-              className="max-w-[240px] truncate px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              className="max-w-[240px] truncate px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)]"
             >
               {(activeCategoryRates.length > 0 ? activeCategoryRates : rateLibrary).map((r) => (
                 <option key={r.id} value={r.id}>
@@ -558,25 +558,25 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
           </label>
 
           <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">{lang === 'ar' ? 'العمق/الارتفاع (م):' : 'Height/Depth (m):'}</span>
+            <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'العمق/الارتفاع (م):' : 'Height/Depth (m):'}</span>
             <input
               type="number"
               step="0.05"
               min={0}
               value={heightOrDepth}
               onChange={(e) => setHeightOrDepth(Number(e.target.value) || 0)}
-              className="w-20 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono tabular-nums text-slate-900 dark:text-white"
+              className="w-20 px-2 py-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-mono tabular-nums text-[var(--text-primary)]"
             />
           </label>
 
           <label className="flex items-center gap-1.5">
-            <span className="text-slate-500">{lang === 'ar' ? 'المعامل:' : 'Mult:'}</span>
+            <span className="text-[var(--text-muted)]">{lang === 'ar' ? 'المعامل:' : 'Mult:'}</span>
             <input
               type="number"
               min={1}
               value={multiplier}
               onChange={(e) => setMultiplier(Math.max(1, Number(e.target.value) || 1))}
-              className="w-16 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono tabular-nums text-slate-900 dark:text-white"
+              className="w-16 px-2 py-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] font-mono tabular-nums text-[var(--text-primary)]"
             />
           </label>
 
@@ -584,13 +584,13 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
             value={customLabel}
             onChange={(e) => setCustomLabel(e.target.value)}
             placeholder={lang === 'ar' ? 'تسمية القياس (اختياري)...' : 'Custom assembly label...'}
-            className="flex-1 min-w-[150px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+            className="flex-1 min-w-[150px] px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
           />
 
           {draftPoints.length > 0 && (
             <div className="flex items-center gap-2">
               {liveDraftPreview && (
-                <span className="text-xs font-mono tabular-nums text-[#B4863C] dark:text-[#D4A853] font-semibold">
+                <span className="text-xs font-mono tabular-nums text-[#B4863C] dark:text-[#C99A49] font-semibold">
                   {liveDraftPreview.computedQuantity.toFixed(2)} {liveDraftPreview.unit}
                 </span>
               )}
@@ -607,7 +607,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
               <button
                 type="button"
                 onClick={() => setDraftPoints([])}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                className="px-2.5 py-1.5 rounded-lg border border-[var(--border-hairline)] text-[var(--text-secondary)]"
               >
                 {lang === 'ar' ? 'إلغاء' : 'Clear'}
               </button>
@@ -657,9 +657,9 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
       {/* Main Split: Blueprint Canvas + Layers/Assemblies Tree */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Blueprint Overlay Sheet Canvas */}
-        <div className="lg:col-span-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] overflow-hidden flex flex-col">
+        <div className="lg:col-span-8 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] overflow-hidden flex flex-col">
           {/* Sheet Tabs + Upload Control + Active Scale & Page Metadata */}
-          <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60">
+          <div className="px-3 py-2 border-b border-[var(--border-hairline)] flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-surface-subtle)]">
             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
               {effectiveSheets.map((sh) => {
                 const isActive = activeSheet?.id === sh.id;
@@ -670,7 +670,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                     className={`inline-flex items-center rounded-md text-xs font-medium transition-colors ${
                       isActive
                         ? 'bg-[#B4863C] text-white'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800'
+                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]'
                     }`}
                   >
                     <button
@@ -708,7 +708,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,application/pdf,image/*"
+                accept=".pdf,.dxf,application/pdf,image/*"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -729,7 +729,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 ) : (
                   <FileUp className="w-3.5 h-3.5" />
                 )}
-                <span>{lang === 'ar' ? 'رفع مخطط (PDF/صورة)' : 'Upload PDF / Image'}</span>
+                <span>{lang === 'ar' ? 'رفع مخطط (PDF/DXF/صورة)' : 'Upload PDF / DXF / Image'}</span>
               </button>
             </div>
 
@@ -773,6 +773,21 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 <span>
                   {activeSheet.scaleLabel} · {activeSheet.pixelsPerMeter.toFixed(1)} px/m
                 </span>
+                <span
+                  className={`px-2 py-0.5 rounded font-sans text-[10px] font-semibold ${
+                    activeSheet.calibrated
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                  }`}
+                >
+                  {activeSheet.calibrated
+                    ? lang === 'ar'
+                      ? 'معايرة معتمدة'
+                      : 'Calibrated'
+                    : lang === 'ar'
+                    ? 'غير معايرة (مسودة)'
+                    : 'Uncalibrated Draft'}
+                </span>
               </div>
             )}
           </div>
@@ -794,7 +809,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
           {activeSheet ? (
             <div
               ref={viewportRef}
-              className="relative bg-[#0B1324] overflow-hidden h-[500px] select-none flex items-center justify-center"
+              className="relative bg-[#0B1324] overflow-hidden h-[580px] select-none flex items-center justify-center"
               onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1063,8 +1078,8 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                   <UploadCloud className="w-9 h-9 text-[#B4863C]" />
                   <p className="text-sm font-bold text-white">
                     {lang === 'ar'
-                      ? 'أفلت ملف المخطط (PDF أو صورة) لعرضه وبدء الحصر فوراً'
-                      : 'Drop PDF or Image blueprint to load & start takeoff'}
+                      ? 'أفلت ملف المخطط (PDF أو DXF أو صورة) لعرضه وبدء الحصر فوراً'
+                      : 'Drop PDF, DXF, or Image blueprint to load & start takeoff'}
                   </p>
                 </div>
               )}
@@ -1082,13 +1097,13 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 const file = e.dataTransfer?.files?.[0];
                 if (file) void handleUploadDrawingFile(file);
               }}
-              className="h-[500px] flex flex-col items-center justify-center gap-3 text-xs text-slate-400 p-6 text-center"
+              className="h-[580px] flex flex-col items-center justify-center gap-3 text-xs text-[var(--text-muted)] p-6 text-center"
             >
               <UploadCloud className="w-8 h-8 text-[#B4863C]" />
               <span>
                 {lang === 'ar'
-                  ? 'لا توجد لوحات مخططات متاحة — ارفع ملف PDF أو صورة هندسية للبدء.'
-                  : 'No takeoff sheets loaded — upload a PDF or image blueprint to begin.'}
+                  ? 'لا توجد لوحات مخططات متاحة — ارفع ملف PDF أو DXF أو صورة هندسية للبدء.'
+                  : 'No takeoff sheets loaded — upload a PDF, DXF, or image blueprint to begin.'}
               </span>
               <button
                 type="button"
@@ -1102,27 +1117,27 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
         </div>
 
         {/* Assemblies, Category Layers & Rate Linkage Tree */}
-        <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] flex flex-col h-[542px] overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="lg:col-span-4 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] flex flex-col h-[620px] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-hairline)] space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#B4863C]" />
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                <span className="text-xs font-bold text-[var(--text-primary)]">
                   {lang === 'ar' ? 'شجرة الطبقات والتسعير' : 'Layers & Assemblies Tree'}
                 </span>
               </div>
-              <span className="text-xs font-mono tabular-nums text-slate-500">
+              <span className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
                 {treeMeasurements.length} {lang === 'ar' ? 'بند' : 'items'}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-semibold">
+            <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] text-[11px] font-semibold">
               <button
                 type="button"
                 onClick={() => setTreeScope('active_sheet')}
                 className={`py-1 rounded-md transition-colors ${
                   treeScope === 'active_sheet'
                     ? 'bg-[#B4863C] text-white'
-                    : 'text-slate-600 dark:text-slate-300'
+                    : 'text-[var(--text-secondary)]'
                 }`}
               >
                 {lang === 'ar'
@@ -1135,7 +1150,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
                 className={`py-1 rounded-md transition-colors ${
                   treeScope === 'all_sheets'
                     ? 'bg-[#B4863C] text-white'
-                    : 'text-slate-600 dark:text-slate-300'
+                    : 'text-[var(--text-secondary)]'
                 }`}
               >
                 {lang === 'ar'
@@ -1145,7 +1160,7 @@ export const PlanSwiftCanvasWorkspace: React.FC<PlanSwiftCanvasWorkspaceProps> =
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+          <div className="flex-1 overflow-y-auto divide-y divide-[var(--border-hairline)]">
             {treeMeasurements.length === 0 && (
               <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 space-y-2">
                 <p className="font-semibold text-slate-700 dark:text-slate-200">
