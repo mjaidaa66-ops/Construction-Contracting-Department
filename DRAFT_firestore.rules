@@ -1,0 +1,332 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Pillar 1 / Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pillar 3: Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email == 'mjaidaa66@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(ownerId) {
+      return isEmailVerified() && request.auth.uid == ownerId;
+    }
+
+    // Connectivity probe document
+    match /test/connection {
+      allow get: if isSignedIn();
+    }
+
+    // Admins registry (read-only by admins, managed externally or by existing admin)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isAdmin();
+      allow list: if false;
+      allow create, update, delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // Users Collection (PII isolated to owner or admin)
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'biometricRegistered', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'companyName', 'licenseNumber', 'biometricRegistered', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.role in ['admin', 'engineer', 'accountant']
+        && data.biometricRegistered is bool
+        && (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 160))
+        && (!('licenseNumber' in data) || (data.licenseNumber is string && data.licenseNumber.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isEmailVerified()
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().role in ['engineer', 'accountant'] || isAdmin());
+      allow update: if isValidId(userId)
+        && isEmailVerified()
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'companyName', 'licenseNumber', 'biometricRegistered', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Projects Collection
+    function isValidProject(data, projectId) {
+      return data.keys().hasAll(['id', 'ownerId', 'code', 'name', 'nameEn', 'projectType', 'status', 'approvedBudget', 'invoicedAmount', 'paidAmount', 'retentionPercentage', 'actualProgress', 'plannedProgress', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'code', 'name', 'nameEn', 'category', 'projectType', 'status',
+          'ownerName', 'ownerPhone', 'ownerEmail', 'ownerNationalId',
+          'consultantOffice', 'consultantEngineer', 'consultantPhone', 'consultantLicenseNo',
+          'residentEngineer', 'contractorBranch',
+          'permitNumber', 'permitDate', 'permitExpiryDate', 'licensingAuthority',
+          'approvedBudget', 'invoicedAmount', 'paidAmount', 'retentionPercentage',
+          'actualProgress', 'plannedProgress',
+          'phases', 'paymentMilestones', 'documents', 'gisData',
+          'bimElements', 'takeoffSheets', 'takeoffMeasurements', 'takeoffSummaryConfig',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == projectId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 40
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 200
+        && data.projectType in ['villa', 'commercial_tower', 'residential_complex', 'warehouse', 'infrastructure', 'institutional']
+        && data.status in ['permitting', 'under_construction', 'suspended', 'completed']
+        && data.approvedBudget is number && data.approvedBudget >= 0
+        && data.invoicedAmount is number && data.invoicedAmount >= 0
+        && data.paidAmount is number && data.paidAmount >= 0
+        && data.retentionPercentage is number && data.retentionPercentage >= 0 && data.retentionPercentage <= 50
+        && data.actualProgress is number && data.actualProgress >= 0 && data.actualProgress <= 100
+        && data.plannedProgress is number && data.plannedProgress >= 0 && data.plannedProgress <= 100
+        && (!('phases' in data) || (data.phases is list && data.phases.size() <= 50))
+        && (!('paymentMilestones' in data) || (data.paymentMilestones is list && data.paymentMilestones.size() <= 50))
+        && (!('documents' in data) || (data.documents is list && data.documents.size() <= 100))
+        && (!('bimElements' in data) || (data.bimElements is list && data.bimElements.size() <= 500))
+        && (!('takeoffSheets' in data) || (data.takeoffSheets is list && data.takeoffSheets.size() <= 50))
+        && (!('takeoffMeasurements' in data) || (data.takeoffMeasurements is list && data.takeoffMeasurements.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(projectId)
+        && isEmailVerified()
+        && isValidProject(incoming(), projectId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(projectId)
+        && isEmailVerified()
+        && isValidProject(incoming(), projectId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && existing().status != 'completed'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'code', 'name', 'nameEn', 'category', 'projectType', 'status',
+              'ownerName', 'ownerPhone', 'ownerEmail', 'ownerNationalId',
+              'consultantOffice', 'consultantEngineer', 'consultantPhone', 'consultantLicenseNo',
+              'residentEngineer', 'contractorBranch',
+              'permitNumber', 'permitDate', 'permitExpiryDate', 'licensingAuthority',
+              'approvedBudget', 'invoicedAmount', 'paidAmount', 'retentionPercentage',
+              'actualProgress', 'plannedProgress',
+              'phases', 'paymentMilestones', 'documents', 'gisData',
+              'bimElements', 'takeoffSheets', 'takeoffMeasurements', 'takeoffSummaryConfig',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(projectId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    // Government Transactions Collection
+    function isValidGovernmentTransaction(data, txId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'authority', 'transactionNumber', 'serviceName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'authority', 'transactionNumber',
+          'serviceName', 'serviceNameEn', 'status', 'submissionDate',
+          'lastUpdatedDate', 'reviewEngineer', 'notes', 'officialPortalUrl',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == txId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.authority in ['sharjah_municipality', 'sewa', 'szhp', 'civil_defense', 'planning_survey', 'municipalities_affairs', 'sharjah_housing']
+        && data.transactionNumber is string && data.transactionNumber.size() >= 1 && data.transactionNumber.size() <= 80
+        && data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 200
+        && (!('serviceNameEn' in data) || (data.serviceNameEn is string && data.serviceNameEn.size() <= 200))
+        && data.status in ['approved', 'in_review', 'action_required', 'pending_inspection']
+        && (!('reviewEngineer' in data) || (data.reviewEngineer is string && data.reviewEngineer.size() <= 120))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && (!('officialPortalUrl' in data) || (data.officialPortalUrl is string && data.officialPortalUrl.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /government_transactions/{transactionId} {
+      allow get: if isValidId(transactionId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(transactionId)
+        && isEmailVerified()
+        && isValidGovernmentTransaction(incoming(), transactionId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/projects/$(incoming().projectId))
+        && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin());
+      allow update: if isValidId(transactionId)
+        && isEmailVerified()
+        && isValidGovernmentTransaction(incoming(), transactionId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().projectId == existing().projectId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && existing().status != 'approved'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'authority', 'transactionNumber', 'serviceName', 'serviceNameEn',
+              'status', 'submissionDate', 'lastUpdatedDate', 'reviewEngineer',
+              'notes', 'officialPortalUrl', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(transactionId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    // Document Manifests & Chunked Binary Storage (800KB base64 chunks)
+    function isValidDocumentManifest(data, manifestId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'fileName', 'mimeType', 'totalSize', 'totalChunks', 'chunkSizeBytes', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'projectId', 'fileName', 'mimeType', 'totalSize', 'totalChunks', 'chunkSizeBytes', 'createdAt'])
+        && data.id is string && data.id == manifestId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 255
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 120
+        && data.totalSize is number && data.totalSize >= 0 && data.totalSize <= 52428800
+        && data.totalChunks is number && data.totalChunks >= 1 && data.totalChunks <= 100
+        && data.chunkSizeBytes is number && data.chunkSizeBytes > 0 && data.chunkSizeBytes <= 900000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDocumentChunk(data, manifestId, chunkId) {
+      return data.keys().hasAll(['id', 'manifestId', 'ownerId', 'index', 'data', 'createdAt'])
+        && data.keys().hasOnly(['id', 'manifestId', 'ownerId', 'index', 'data', 'createdAt'])
+        && data.id is string && data.id == chunkId && data.id.size() <= 128
+        && data.manifestId is string && data.manifestId == manifestId
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.index is number && data.index >= 0 && data.index < 100
+        && data.data is string && data.data.size() >= 1 && data.data.size() <= 900000
+        && data.createdAt is timestamp;
+    }
+
+    match /document_manifests/{manifestId} {
+      allow get: if isValidId(manifestId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(manifestId)
+        && isEmailVerified()
+        && isValidDocumentManifest(incoming(), manifestId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/projects/$(incoming().projectId))
+        && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin());
+      allow update: if false;
+      allow delete: if isValidId(manifestId) && (isOwner(existing().ownerId) || isAdmin());
+
+      // Pillar 1 Master Gate: Chunk access derives from parent DocumentManifest
+      match /chunks/{chunkId} {
+        allow get: if isValidId(manifestId) && isValidId(chunkId)
+          && isEmailVerified()
+          && (get(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid || isAdmin());
+        allow list: if isValidId(manifestId)
+          && isEmailVerified()
+          && (resource.data.ownerId == request.auth.uid || isAdmin());
+        allow create: if isValidId(manifestId) && isValidId(chunkId)
+          && isEmailVerified()
+          && isValidDocumentChunk(incoming(), manifestId, chunkId)
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/document_manifests/$(manifestId))
+          && get(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid;
+        allow update: if false;
+        allow delete: if isValidId(manifestId) && isValidId(chunkId)
+          && isEmailVerified()
+          && (get(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // Rate Library Collection
+    function isValidRateLibraryItem(data, rateId) {
+      return data.keys().hasAll(['id', 'ownerId', 'code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'materialSpec', 'updatedAt'])
+        && data.id is string && data.id == rateId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 20
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 40
+        && data.nameAr is string && data.nameAr.size() >= 1 && data.nameAr.size() <= 200
+        && data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 200
+        && data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 20
+        && data.rateAed is number && data.rateAed >= 0
+        && (!('materialSpec' in data) || (data.materialSpec is string && data.materialSpec.size() <= 200))
+        && data.updatedAt is timestamp;
+    }
+
+    match /rate_library/{rateId} {
+      allow get: if isValidId(rateId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(rateId)
+        && isEmailVerified()
+        && isValidRateLibraryItem(incoming(), rateId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(rateId)
+        && isEmailVerified()
+        && isValidRateLibraryItem(incoming(), rateId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'materialSpec', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(rateId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Engineering platform user profile and role assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["admin", "engineer", "accountant"] },
+        "companyName": { "type": "string", "maxLength": 160 },
+        "licenseNumber": { "type": "string", "maxLength": 80 },
+        "biometricRegistered": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "biometricRegistered", "createdAt", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "UAE construction project record including permit, financial, GIS, BIM, and takeoff data.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "projectType": { "type": "string", "enum": ["villa", "commercial_tower", "residential_complex", "warehouse", "infrastructure", "institutional"] },
+        "status": { "type": "string", "enum": ["permitting", "under_construction", "suspended", "completed"] },
+        "approvedBudget": { "type": "number" },
+        "invoicedAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "retentionPercentage": { "type": "number" },
+        "actualProgress": { "type": "number" },
+        "plannedProgress": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "code", "name", "nameEn", "projectType", "status", "approvedBudget", "createdAt", "updatedAt"]
+    },
+    "GovernmentTransaction": {
+      "title": "GovernmentTransaction",
+      "description": "UAE/Sharjah municipal authority permit and inspection transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authority": { "type": "string", "enum": ["sharjah_municipality", "sewa", "szhp", "civil_defense", "planning_survey", "municipalities_affairs", "sharjah_housing"] },
+        "transactionNumber": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "serviceName": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "status": { "type": "string", "enum": ["approved", "in_review", "action_required", "pending_inspection"] },
+        "reviewEngineer": { "type": "string", "maxLength": 120 },
+        "officialPortalUrl": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "authority", "transactionNumber", "serviceName", "status", "createdAt", "updatedAt"]
+    },
+    "DocumentManifest": {
+      "title": "DocumentManifest",
+      "description": "Metadata manifest for chunked engineering PDFs and blueprint images stored across 800KB Firestore chunks.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "mimeType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "totalSize": { "type": "number" },
+        "totalChunks": { "type": "number" },
+        "chunkSizeBytes": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "fileName", "mimeType", "totalSize", "totalChunks", "createdAt"]
+    },
+    "DocumentChunk": {
+      "title": "DocumentChunk",
+      "description": "800KB max base64 slice of an engineering document.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "manifestId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "index": { "type": "number" },
+        "data": { "type": "string", "maxLength": 900000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "manifestId", "ownerId", "index", "data", "createdAt"]
+    },
+    "RateLibraryItem": {
+      "title": "RateLibraryItem",
+      "description": "UAE AED construction unit rate item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 2, "maxLength": 20 },
+        "category": { "type": "string", "maxLength": 40 },
+        "nameAr": { "type": "string", "maxLength": 200 },
+        "nameEn": { "type": "string", "maxLength": 200 },
+        "unit": { "type": "string", "maxLength": 20 },
+        "rateAed": { "type": "number" },
+        "materialSpec": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "code", "category", "nameAr", "nameEn", "unit", "rateAed", "updatedAt"]
+    },
+    "CompanyProfile": {
+      "title": "CompanyProfile",
+      "description": "UAE engineering firm license, TRN, and contact profile synced across devices.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nameAr": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "licenseNumber": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "municipalityClass": { "type": "string", "maxLength": 120 },
+        "trnNumber": { "type": "string", "maxLength": 40 },
+        "addressAr": { "type": "string", "maxLength": 300 },
+        "addressEn": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 160 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "nameAr", "nameEn", "licenseNumber", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile and role configuration."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Construction projects with financials, GIS, BIM, and takeoff metadata."
+    },
+    "/government_transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/GovernmentTransaction" },
+      "description": "Sharjah and UAE municipal permitting transactions."
+    },
+    "/document_manifests/{manifestId}": {
+      "schema": { "$ref": "#/entities/DocumentManifest" },
+      "description": "Manifest documents for chunked binary storage."
+    },
+    "/document_manifests/{manifestId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/DocumentChunk" },
+      "description": "Individual 800KB base64 document chunks."
+    },
+    "/rate_library/{rateId}": {
+      "schema": { "$ref": "#/entities/RateLibraryItem" },
+      "description": "UAE AED engineering unit rate library items."
+    },
+    "/company_profiles/{profileId}": {
+      "schema": { "$ref": "#/entities/CompanyProfile" },
+      "description": "UAE contracting company and UAE VAT TRN profile settings."
+    }
+  }
+}

@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: "Plus Jakarta Sans", "IBM Plex Sans Arabic", system-ui, sans-serif;
+    --font-arabic: "IBM Plex Sans Arabic", "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+  }
+
+  html[dir="rtl"] {
+    font-family: var(--font-arabic);
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom architectural scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 134, 60, 0.65);
+}
+
+@keyframes bunyan-radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bunyan-radar-spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes bunyan-hud-breathe {
+  0%,
+  100% {
+    border-color: rgba(56, 189, 248, 0.28);
+    box-shadow: 0 10px 26px -10px rgba(2, 132, 199, 0.18), 0 0 12px rgba(56, 189, 248, 0.1);
+  }
+  50% {
+    border-color: rgba(56, 189, 248, 0.62);
+    box-shadow: 0 12px 32px -8px rgba(56, 189, 248, 0.34), 0 0 22px rgba(56, 189, 248, 0.24);
+  }
+}
+
+.animate-radar-slow {
+  animation: bunyan-radar-spin 42s linear infinite;
+}
+
+.animate-radar-reverse {
+  animation: bunyan-radar-spin-reverse 28s linear infinite;
+}
+
+.animate-hud-breathe {
+  animation: bunyan-hud-breathe 4.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-radar-slow,
+  .animate-radar-reverse,
+  .animate-hud-breathe {
+    animation: none;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Isolated direct print mode for BunyanExportCenter (#bunyan-official-pdf-sheet) */
+  body.bunyan-printing-official * {
+    visibility: hidden !important;
+  }
+
+  body.bunyan-printing-official .print-modal-root {
+    display: none !important;
+  }
+
+  body.bunyan-printing-official #bunyan-official-pdf-sheet,
+  body.bunyan-printing-official #bunyan-official-pdf-sheet * {
+    visibility: visible !important;
+  }
+
+  body.bunyan-printing-official #bunyan-official-pdf-sheet {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 8mm 10mm !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    z-index: 99999 !important;
+    box-shadow: none !important;
+  }
+
+  .print-modal-root {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .print-modal-card {
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .print-scroll-area {
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .print-report-paper {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .print-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
