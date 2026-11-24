@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "Bunyan Core System | منصة بنيان",
+  "short_name": "منصة بنيان",
+  "description": "Enterprise Engineering, Construction Management, 5D BIM, PDF Quantity Takeoff, and GIS Plot Platform tailored for UAE & Sharjah Municipality standards.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F1F5F9",
+  "theme_color": "#CBD5E1",
+  "icons": [
+    {
+      "src": "/assets/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

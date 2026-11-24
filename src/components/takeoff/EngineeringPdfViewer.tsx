@@ -15,6 +15,7 @@ import type {
   TakeoffSheet,
   TakeoffTool,
 } from '../../types/bunyan';
+import { resolveSheetBinaryUrl } from '../../services/cloudSyncService';
 import { disposePdfDocumentProxy, ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
 import { generateSampleEngineeringPdfBytes } from '../../utils/samplePdfGenerator';
 import { dataUrlOrBlobToUint8Array } from '../../utils/takeoffSheetLoader';
@@ -86,8 +87,16 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
         const pdfjs = ensurePdfWorkerConfigured();
         let bytes: Uint8Array;
         let nextTitle = 'BNY-2026-001_Engineering_Set.pdf';
-        if (uploadedPdfSheet?.pdfDataUrl) {
-          bytes = await dataUrlOrBlobToUint8Array(uploadedPdfSheet.pdfDataUrl);
+        if (uploadedPdfSheet) {
+          const resolvedPdfUrl = uploadedPdfSheet.pdfDataUrl || (await resolveSheetBinaryUrl(uploadedPdfSheet));
+          if (!resolvedPdfUrl) {
+            throw new Error(
+              lang === 'ar'
+                ? 'بيانات ملف PDF السحابية غير متوفرة حالياً — يرجى إعادة المزامنة أو فتح الملف مجدداً.'
+                : 'Synced PDF binary is unavailable — please sync or reload the PDF file.'
+            );
+          }
+          bytes = await dataUrlOrBlobToUint8Array(resolvedPdfUrl);
           nextTitle = `${uploadedPdfSheet.title || 'Uploaded_Drawing'}.pdf`;
         } else {
           bytes = generateSampleEngineeringPdfBytes();
@@ -124,7 +133,7 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
         pdfDocRef.current = null;
       }
     };
-  }, [uploadedPdfSheet?.id, uploadedPdfSheet?.pdfDataUrl]);
+  }, [uploadedPdfSheet?.id, uploadedPdfSheet?.pdfDataUrl, uploadedPdfSheet?.pdfManifestId, lang]);
 
   const handleUploadPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

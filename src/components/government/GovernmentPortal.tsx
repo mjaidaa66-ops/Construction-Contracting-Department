@@ -10,6 +10,7 @@ import type {
 } from '../../types/bunyan';
 import { AUTHORITY_LABELS, TX_STATUS_LABELS } from '../../utils/i18n';
 import { getRolePermissions } from '../../utils/rbacPermissions';
+import { sanitizeSafeHttpUrl } from '../../utils/sanitize';
 import {
   Button,
   Card,
@@ -265,9 +266,9 @@ export const GovernmentPortal: React.FC<GovernmentPortalProps> = ({
                     <td className="px-4 py-3 text-end whitespace-nowrap">
                       <div className="inline-flex items-center gap-2">
                         <a
-                          href={tx.officialPortalUrl}
+                          href={sanitizeSafeHttpUrl(tx.officialPortalUrl)}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-[var(--border-hairline)] text-[var(--text-primary)] hover:border-[#B4863C]"
                         >
                           <ExternalLink className="w-3 h-3 text-[#B4863C]" />

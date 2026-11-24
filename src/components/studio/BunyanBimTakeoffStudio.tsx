@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertOctagon,
   AlertTriangle,
@@ -37,11 +37,16 @@ import { formatAED } from '../../utils/i18n';
 import { computeTakeoffSummary } from '../../utils/takeoffCalculations';
 import { uploadSheetBinaryToCloud } from '../../services/cloudSyncService';
 import { parseUploadedDrawingFile } from '../../utils/takeoffSheetLoader';
-import { Button, Card, SegmentedTabs } from '../ui';
+import { Button, Card, SegmentedTabs, SkeletonBlock } from '../ui';
 import { BimAuditModal } from '../bim/BimAuditModal';
-import { Bim3DViewport } from '../bim/Bim3DViewport';
-import { BunyanExportCenter } from '../export/BunyanExportCenter';
 import { PlanSwiftCanvasWorkspace } from '../takeoff/PlanSwiftCanvasWorkspace';
+
+const Bim3DViewport = lazy(() =>
+  import('../bim/Bim3DViewport').then((m) => ({ default: m.Bim3DViewport }))
+);
+const BunyanExportCenter = lazy(() =>
+  import('../export/BunyanExportCenter').then((m) => ({ default: m.BunyanExportCenter }))
+);
 import type {
   ComplianceViolation,
   SharjahComplianceReport,
@@ -670,16 +675,27 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
                 onJumpToBimElement={(bimId) => setSelectedBimElementId(bimId)}
               />
 
-              <Bim3DViewport
-                elements={bimElements}
-                selectedId={selectedBimElementId}
-                highlightedElementIds={highlightedBimIds}
-                onSelectElement={handleSelectBimSynced}
-                onJumpToTakeoff={(measId) => handleSelectMeasurementSynced(measId)}
-                gisData={project.gisData}
-                projectCode={project.code}
-                lang={lang}
-              />
+              <Suspense
+                fallback={
+                  <Card className="p-6 h-[560px] flex flex-col items-center justify-center gap-3">
+                    <SkeletonBlock className="h-full w-full rounded-lg" />
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {lang === 'ar' ? 'جاري تحميل العارض ثلاثي الأبعاد...' : 'Loading 3D BIM Viewport...'}
+                    </span>
+                  </Card>
+                }
+              >
+                <Bim3DViewport
+                  elements={bimElements}
+                  selectedId={selectedBimElementId}
+                  highlightedElementIds={highlightedBimIds}
+                  onSelectElement={handleSelectBimSynced}
+                  onJumpToTakeoff={(measId) => handleSelectMeasurementSynced(measId)}
+                  gisData={project.gisData}
+                  projectCode={project.code}
+                  lang={lang}
+                />
+              </Suspense>
             </div>
           ) : viewMode === '2d' ? (
             <PlanSwiftCanvasWorkspace
@@ -723,19 +739,30 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
               }}
             />
           ) : (
-            <Bim3DViewport
-              elements={bimElements}
-              selectedId={selectedBimElementId}
-              highlightedElementIds={highlightedBimIds}
-              onSelectElement={handleSelectBimSynced}
-              onJumpToTakeoff={(measId) => {
-                handleSelectMeasurementSynced(measId);
-                setViewMode('split');
-              }}
-              gisData={project.gisData}
-              projectCode={project.code}
-              lang={lang}
-            />
+            <Suspense
+              fallback={
+                <Card className="p-6 h-[580px] flex flex-col items-center justify-center gap-3">
+                  <SkeletonBlock className="h-full w-full rounded-lg" />
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {lang === 'ar' ? 'جاري تحميل العارض ثلاثي الأبعاد...' : 'Loading 3D BIM Viewport...'}
+                  </span>
+                </Card>
+              }
+            >
+              <Bim3DViewport
+                elements={bimElements}
+                selectedId={selectedBimElementId}
+                highlightedElementIds={highlightedBimIds}
+                onSelectElement={handleSelectBimSynced}
+                onJumpToTakeoff={(measId) => {
+                  handleSelectMeasurementSynced(measId);
+                  setViewMode('split');
+                }}
+                gisData={project.gisData}
+                projectCode={project.code}
+                lang={lang}
+              />
+            </Suspense>
           )}
         </div>
 
@@ -970,13 +997,17 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
         onConfirmCalibrationLock={handleConfirmCalibrationLock}
       />
 
-      <BunyanExportCenter
-        isOpen={exportOpen}
-        onClose={() => setExportOpen(false)}
-        project={project}
-        company={company}
-        lang={lang}
-      />
+      {exportOpen && (
+        <Suspense fallback={null}>
+          <BunyanExportCenter
+            isOpen={exportOpen}
+            onClose={() => setExportOpen(false)}
+            project={project}
+            company={company}
+            lang={lang}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

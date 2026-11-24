@@ -335,6 +335,7 @@ export interface RateLibraryItem {
   nameEn: string;
   unit: 'm' | 'm2' | 'm3' | 'ton' | 'unit';
   rateAed: number;
+  equipmentRate?: number;
   materialSpec: string;
 }
 

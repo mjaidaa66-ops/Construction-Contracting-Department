@@ -11,7 +11,6 @@ import type {
 } from '../../types/bunyan';
 import { CATEGORY_LABELS, formatAED } from '../../utils/i18n';
 import { evaluateTakeoffVerificationState } from '../../utils/takeoffCalculations';
-import { exportTakeoffToExcel } from '../../utils/takeoffExportEngine';
 import { Button, Input, Modal } from '../ui';
 
 interface PdfTakeoffBoqModalProps {
@@ -66,15 +65,16 @@ export const PdfTakeoffBoqModal: React.FC<PdfTakeoffBoqModalProps> = ({
             variant="outline"
             size="sm"
             icon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />}
-            onClick={() =>
+            onClick={async () => {
+              const { exportTakeoffToExcel } = await import('../../utils/takeoffExportEngine');
               exportTakeoffToExcel({
                 project,
                 company,
                 measurements,
                 summary,
                 rateLibrary,
-              })
-            }
+              });
+            }}
           >
             {lang === 'ar' ? 'تصدير Excel (.xlsx)' : 'Export Excel (.xlsx)'}
           </Button>

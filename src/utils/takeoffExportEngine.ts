@@ -6,7 +6,7 @@ import type {
   TakeoffMeasurement,
   TakeoffProjectSummary,
 } from '../types/bunyan';
-import { CATEGORY_LABELS, formatAED } from './i18n';
+import { CATEGORY_LABELS } from './i18n';
 import { evaluateTakeoffVerificationState } from './takeoffCalculations';
 
 export function buildTakeoffWorkbook(params: {
@@ -125,14 +125,4 @@ export function exportTakeoffToExcel(params: {
   const wb = buildTakeoffWorkbook(params);
   const safeCode = params.project.code.replace(/[^a-zA-Z0-9_-]/g, '_');
   XLSX.writeFile(wb, `${safeCode}_BOQ_5D_Takeoff.xlsx`);
-}
-
-export function formatSummaryLines(summary: TakeoffProjectSummary): string[] {
-  return [
-    `Direct Cost: ${formatAED(summary.directCostAed, 'en')}`,
-    `Overhead (${summary.overheadPercent}%): ${formatAED(summary.overheadAed, 'en')}`,
-    `Profit (${summary.profitPercent}%): ${formatAED(summary.profitAed, 'en')}`,
-    `UAE VAT (${summary.vatPercent}%): ${formatAED(summary.vatAed, 'en')}`,
-    `Grand Total: ${formatAED(summary.grandTotalAed, 'en')}`,
-  ];
 }

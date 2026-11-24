@@ -3,7 +3,7 @@ import { AlertOctagon, AlertTriangle, ArrowUpRight, Bell, CheckCircle2, Info } f
 import type { Language } from '../../types/bunyan';
 import type { WorkspaceAlert } from '../../utils/workspaceAlerts';
 import type { ActiveModule } from './Sidebar';
-import { Drawer } from '../ui';
+import { Drawer, EmptyState } from '../ui';
 
 interface NotificationsDrawerProps {
   isOpen: boolean;
@@ -33,17 +33,15 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
       }
     >
       {alerts.length === 0 ? (
-        <div className="p-8 text-center space-y-2">
-          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-          <div className="text-xs font-semibold text-[var(--text-primary)]">
-            {lang === 'ar' ? 'جميع المشاريع والمعاملات منتظمة' : 'All Projects & Clearances Nominal'}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)]">
-            {lang === 'ar'
+        <EmptyState
+          icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+          title={lang === 'ar' ? 'جميع المشاريع والمعاملات منتظمة' : 'All Projects & Clearances Nominal'}
+          description={
+            lang === 'ar'
               ? 'لا توجد تأخيرات زمنية أو معاملات بلدية معلقة حالياً.'
-              : 'No schedule variances, expiring permits, or pending municipal actions.'}
-          </p>
-        </div>
+              : 'No schedule variances, expiring permits, or pending municipal actions.'
+          }
+        />
       ) : (
         <div className="divide-y divide-[var(--border-hairline)]">
           {alerts.map((alert) => (

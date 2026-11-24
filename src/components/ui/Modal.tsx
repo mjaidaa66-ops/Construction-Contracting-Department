@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button } from './Button';
 
@@ -25,13 +25,25 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
 }) => {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.focus();
+    }, 0);
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKey);
+      previousFocusRef.current?.focus?.();
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -46,7 +58,9 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
     >
       <div
-        className={`w-full ${maxWidthClass} max-h-[90vh] flex flex-col rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] shadow-xl overflow-hidden`}
+        ref={dialogRef}
+        tabIndex={-1}
+        className={`w-full ${maxWidthClass} max-h-[90vh] flex flex-col rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] shadow-xl overflow-hidden focus:outline-none`}
       >
         <div className="px-5 py-4 border-b border-[var(--border-hairline)] flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -102,13 +116,25 @@ export const Drawer: React.FC<DrawerProps> = ({
   icon,
   children,
 }) => {
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusTimer = window.setTimeout(() => {
+      drawerRef.current?.focus();
+    }, 0);
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKey);
+      previousFocusRef.current?.focus?.();
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -122,7 +148,11 @@ export const Drawer: React.FC<DrawerProps> = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md h-full bg-[var(--bg-surface)] border-s border-[var(--border-hairline)] shadow-2xl flex flex-col">
+      <div
+        ref={drawerRef}
+        tabIndex={-1}
+        className="w-full max-w-md h-full bg-[var(--bg-surface)] border-s border-[var(--border-hairline)] shadow-2xl flex flex-col focus:outline-none"
+      >
         <div className="px-5 py-4 border-b border-[var(--border-hairline)] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {icon && <span className="text-[#B4863C] shrink-0">{icon}</span>}

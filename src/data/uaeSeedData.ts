@@ -14,7 +14,6 @@ import type {
 import { generateSharjahVillaBimElements } from '../utils/bimModelGenerator';
 import {
   generateGisPlotTakeoffSheet,
-  generateProjectBimElements,
   normalizeBoundaryPoints,
 } from '../utils/gisTakeoffGenerator';
 import sharjahProjectsRaw from './sharjahProjects56.json';
@@ -615,18 +614,19 @@ function normalizeSharjahProject(raw: RawFirestoreProject, index: number): Proje
     updatedAt: raw.updatedAt,
   };
 
-  const autoGisSheet = generateGisPlotTakeoffSheet(baseProject);
-  const bimElements =
-    raw.id === 'proj-01'
-      ? generateSharjahVillaBimElements()
-      : generateProjectBimElements(baseProject);
+  if (raw.id === 'proj-01') {
+    const autoGisSheet = generateGisPlotTakeoffSheet(baseProject);
+    return {
+      ...baseProject,
+      bimElements: generateSharjahVillaBimElements(),
+      takeoffSheets: [autoGisSheet, ...INITIAL_TAKEOFF_SHEETS],
+      takeoffMeasurements: INITIAL_TAKEOFF_MEASUREMENTS,
+    };
+  }
 
   return {
     ...baseProject,
-    bimElements,
-    takeoffSheets:
-      raw.id === 'proj-01' ? [autoGisSheet, ...INITIAL_TAKEOFF_SHEETS] : [autoGisSheet],
-    takeoffMeasurements: raw.id === 'proj-01' ? INITIAL_TAKEOFF_MEASUREMENTS : [],
+    takeoffMeasurements: [],
   };
 }
 

@@ -26,7 +26,7 @@ import {
   type TakeoffVerificationSummary,
 } from '../../utils/takeoffCalculations';
 import { generateProjectBimElements } from '../../utils/gisTakeoffGenerator';
-import { BunyanLogo } from '../common/BunyanLogo';
+import { BUNYAN_OFFICIAL_LOGO_SRC, BunyanLogo } from '../common/BunyanLogo';
 
 export interface BunyanExportCenterProps {
   isOpen: boolean;
@@ -34,6 +34,7 @@ export interface BunyanExportCenterProps {
   project: Project;
   company: CompanyProfile;
   lang: Language;
+  onLogExport?: (action: 'pdf' | 'xlsx' | 'print', project: Project, rowCount: number) => void;
 }
 
 interface ExportBoqLine {
@@ -178,7 +179,7 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
           : "'Plus Jakarta Sans', system-ui, sans-serif",
       }}
     >
-      {/* 1. Official Header with Isolated Inline SVG Logo, Company Profile & UAE TRN */}
+      {/* 1. Official Header with Official Silver Chrome Logo, Company Profile & UAE TRN */}
       <header
         style={{
           display: 'flex',
@@ -187,50 +188,35 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
           gap: '16px',
           paddingBottom: '18px',
           marginBottom: '18px',
-          borderBottom: '2px solid #B4863C',
+          borderBottom: '2px solid #94A3B8',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                backgroundColor: '#0B1120',
-                border: '1px solid #B4863C',
+                width: '52px',
+                height: '52px',
+                borderRadius: '12px',
+                backgroundColor: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                overflow: 'hidden',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <svg width="34" height="34" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <polygon
-                  points="32,5 55,18 55,46 32,59 9,46 9,18"
-                  stroke="#38BDF8"
-                  strokeOpacity="0.6"
-                  strokeWidth="1.6"
-                  strokeDasharray="3 2"
-                />
-                <path
-                  d="M17 50 V27 C17 19 25 14 32 10 C39 14 47 19 47 27 V50"
-                  stroke="#D4AF37"
-                  strokeWidth="2.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M23 50 V31 C23 25 27.5 21.5 32 19 C36.5 21.5 41 25 41 31 V50"
-                  stroke="#B4863C"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <line x1="12" y1="50" x2="52" y2="50" stroke="#D4AF37" strokeWidth="2.4" strokeLinecap="round" />
-                <circle cx="32" cy="10" r="2.2" fill="#38BDF8" />
-                <circle cx="32" cy="39" r="2" fill="#D4AF37" />
-              </svg>
+              <img
+                src={BUNYAN_OFFICIAL_LOGO_SRC}
+                alt="شعار منصة بنيان الرسمي"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  display: 'block',
+                }}
+              />
             </div>
             <div>
               <div style={{ fontSize: '16px', fontWeight: 700, color: '#020617', lineHeight: 1.25 }}>
@@ -241,11 +227,11 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
                 style={{
                   fontSize: '10px',
                   fontFamily: "'JetBrains Mono', monospace",
-                  color: '#9E7330',
+                  color: '#475569',
                   letterSpacing: '0.06em',
                 }}
               >
-                {isAr ? 'BUNYAN CORE · 5D BIM' : 'منصة بنيان · 5D BIM'}
+                {isAr ? 'BUNYAN · 5D BIM' : 'بنيان · 5D BIM'}
               </div>
             </div>
           </div>
@@ -723,6 +709,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
   project,
   company,
   lang,
+  onLogExport,
 }) => {
   const [reportLang, setReportLang] = useState<Language>(lang);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -753,7 +740,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
   };
 
   // Build unified BOQ lines: prefer explicit 2D PlanSwift measurements, fallback cleanly to 5D BIM elements
-  const { boqLines, summary, dataOrigin, verification } = useMemo(() => {
+  const { boqLines, summary, verification } = useMemo(() => {
     const meas = project.takeoffMeasurements || [];
     if (meas.length > 0) {
       const lines: ExportBoqLine[] = meas.map((m) => ({
@@ -781,7 +768,6 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
           summaryConfig.profitPercent,
           summaryConfig.vatPercent
         ),
-        dataOrigin: '2d_takeoff' as const,
         verification: ver,
       };
     }
@@ -841,7 +827,6 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
         summaryConfig.profitPercent,
         summaryConfig.vatPercent
       ),
-      dataOrigin: '5d_bim' as const,
       verification: evaluateTakeoffVerificationState(
         project.takeoffSheets || [],
         [],
@@ -991,6 +976,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
     ];
     XLSX.utils.book_append_sheet(wb, ws2, '5D BOQ by Category');
     XLSX.writeFile(wb, `Bunyan_5D_BOQ_${safeCode}.xlsx`);
+    onLogExport?.('xlsx', project, boqLines.length);
   };
 
   const handleDownloadPdf = async () => {
@@ -1086,6 +1072,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
 
       const safeCode = (project.code || project.id).replace(/[^a-zA-Z0-9_-]/g, '_');
       pdf.save(`Bunyan_5D_BOQ_${safeCode}.pdf`);
+      onLogExport?.('pdf', project, boqLines.length);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setPdfError(
@@ -1101,6 +1088,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
   const handleDirectPrint = () => {
     setPdfError(null);
     document.body.classList.add('bunyan-printing-official');
+    onLogExport?.('print', project, boqLines.length);
     window.print();
   };
 
@@ -1118,7 +1106,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
           {/* Action Toolbar */}
           <div className="px-5 py-3.5 border-b border-slate-800 bg-[#0B1222] flex flex-wrap items-center justify-between gap-3 no-print">
             <div className="flex items-center gap-3">
-              <BunyanLogo iconOnly size="sm" />
+              <BunyanLogo iconOnly size="sm" lang={lang} />
               <div>
                 <h3 className="text-sm font-bold text-white">
                   {lang === 'ar'

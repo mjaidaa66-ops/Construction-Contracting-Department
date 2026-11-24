@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   Box,
@@ -8,7 +8,6 @@ import {
   FileUp,
   Hand,
   Hexagon,
-  Loader2,
   Maximize2,
   Minimize2,
   Minus,
@@ -21,7 +20,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react';
-import { Button, Card, SegmentedTabs, useToast } from '../ui';
+import { Button, Card, EmptyState, SegmentedTabs, SkeletonBlock, useToast } from '../ui';
 import type {
   CompanyProfile,
   Language,
@@ -35,6 +34,7 @@ import type {
   TakeoffTool,
 } from '../../types/bunyan';
 import { CATEGORY_LABELS, formatAED } from '../../utils/i18n';
+import { generateGisPlotTakeoffSheet } from '../../utils/gisTakeoffGenerator';
 import {
   calibratePointsPerMeter,
   DEFAULT_POINTS_PER_METER,
@@ -47,14 +47,27 @@ import {
 } from '../../utils/takeoffCalculations';
 import { uploadSheetBinaryToCloud } from '../../services/cloudSyncService';
 import { parseUploadedDrawingFile } from '../../utils/takeoffSheetLoader';
-import { ComprehensiveReportPrinter } from './ComprehensiveReportPrinter';
-import { EngineeringPdfViewer } from './EngineeringPdfViewer';
 import { PdfCanvasSheet } from './PdfCanvasSheet';
 import { PdfScaleModal } from './PdfScaleModal';
 import { PdfTakeoffBoqModal } from './PdfTakeoffBoqModal';
 import { RateLibraryModal } from './RateLibraryModal';
 import { SheetBackdropRenderer } from './SheetBackdropRenderer';
-import { TakeoffPrintSummaryView } from './TakeoffPrintSummaryView';
+
+const ComprehensiveReportPrinter = lazy(() =>
+  import('./ComprehensiveReportPrinter').then((m) => ({
+    default: m.ComprehensiveReportPrinter,
+  }))
+);
+const EngineeringPdfViewer = lazy(() =>
+  import('./EngineeringPdfViewer').then((m) => ({
+    default: m.EngineeringPdfViewer,
+  }))
+);
+const TakeoffPrintSummaryView = lazy(() =>
+  import('./TakeoffPrintSummaryView').then((m) => ({
+    default: m.TakeoffPrintSummaryView,
+  }))
+);
 
 interface TakeoffModuleProps {
   project: Project;
@@ -99,7 +112,12 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
   onUpdateRate,
   onAddRate,
 }) => {
-  const sheets: TakeoffSheet[] = project.takeoffSheets || [];
+  const sheets: TakeoffSheet[] = useMemo(() => {
+    if (project.takeoffSheets && project.takeoffSheets.length > 0) {
+      return project.takeoffSheets;
+    }
+    return [generateGisPlotTakeoffSheet(project)];
+  }, [project]);
   const measurements: TakeoffMeasurement[] = project.takeoffMeasurements || [];
   const summaryConfig: TakeoffSummaryConfig = project.takeoffSummaryConfig || {
     overheadPercent: 10,
@@ -131,6 +149,17 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
   const [uploadingSheet, setUploadingSheet] = useState(false);
   const [expandCanvas, setExpandCanvas] = useState(false);
   const sheetUploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (sheets.length > 0 && !sheets.some((s) => s.id === activeSheetId)) {
+      setActiveSheetId(sheets[0].id);
+    }
+  }, [project.id, sheets, activeSheetId]);
+
+  useEffect(() => {
+    setDraftPoints([]);
+    setSelectedMeasurementId(highlightedMeasurementId || measurements[0]?.id || null);
+  }, [project.id]);
 
   const activeSheet = sheets.find((s) => s.id === activeSheetId) || sheets[0];
   const uploadedMasterPdfSheet = useMemo(
@@ -484,27 +513,36 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
 
       {viewMode === 'print_summary' ? (
         <div className={printerOpen ? 'no-print' : undefined}>
-          <TakeoffPrintSummaryView
-            lang={lang}
-            project={project}
-            company={company}
-            sheets={sheets}
-            measurements={measurements}
-            summary={summary}
-            rateLibrary={rateLibrary}
-            onJumpToMeasurement={(m) => {
-              setSelectedMeasurementId(m.id);
-              const targetSheet = sheets.find((s) => s.id === m.sheetId);
-              if (targetSheet) {
-                setViewMode('svg_sheets');
-                setActiveSheetId(targetSheet.id);
-              } else if (m.sheetId.startsWith('pdf-page-')) {
-                const pNum = Number(m.sheetId.replace('pdf-page-', '')) || 1;
-                setPdfPageNum(pNum);
-                setViewMode('pdf_engine');
-              }
-            }}
-          />
+          <Suspense
+            fallback={
+              <Card className="p-6 space-y-3">
+                <SkeletonBlock className="h-8 w-64" />
+                <SkeletonBlock className="h-80 w-full" />
+              </Card>
+            }
+          >
+            <TakeoffPrintSummaryView
+              lang={lang}
+              project={project}
+              company={company}
+              sheets={sheets}
+              measurements={measurements}
+              summary={summary}
+              rateLibrary={rateLibrary}
+              onJumpToMeasurement={(m) => {
+                setSelectedMeasurementId(m.id);
+                const targetSheet = sheets.find((s) => s.id === m.sheetId);
+                if (targetSheet) {
+                  setViewMode('svg_sheets');
+                  setActiveSheetId(targetSheet.id);
+                } else if (m.sheetId.startsWith('pdf-page-')) {
+                  const pNum = Number(m.sheetId.replace('pdf-page-', '')) || 1;
+                  setPdfPageNum(pNum);
+                  setViewMode('pdf_engine');
+                }
+              }}
+            />
+          </Suspense>
         </div>
       ) : (
         <div className="no-print space-y-4">
@@ -677,54 +715,71 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
                   )}
                 </div>
               ) : (
-                <EngineeringPdfViewer
-                  lang={lang}
-                  activeTool={activeTool}
-                  activeColor={CATEGORY_LABELS[activeCategory].color}
-                  measurements={sheetMeasurements}
-                  selectedMeasurementId={selectedMeasurementId}
-                  draftPoints={draftPoints}
-                  uploadedPdfSheet={uploadedMasterPdfSheet}
-                  currentScaleLabel={currentScaleLabel}
-                  currentPpm={currentPpm}
-                  isCalibrated={currentIsCalibrated}
-                  onAddPoint={handleAddDraftPoint}
-                  onFinishShape={handleCommitShape}
-                  onSelectMeasurement={setSelectedMeasurementId}
-                  onCalibrateTwoPoints={handleTwoPointCalibrate}
-                  onPageChanged={(p) => {
-                    setPdfPageNum(p);
-                    setDraftPoints([]);
-                  }}
-                  onPdfUploadedSheet={async (file) => {
-                    try {
-                      const { sheet: parsedSheet } = await parseUploadedDrawingFile(
-                        file,
-                        project.id,
-                        sheets
-                      );
-                      const { sheet: savedSheet } = await uploadSheetBinaryToCloud({
-                        project,
-                        sheet: { ...parsedSheet, id: 'pdf-page-1', pageNumber: 1 },
-                        ownerId: cloudUid,
-                      });
-                      const otherSheets = sheets.filter((s) => s.id !== savedSheet.id);
-                      onUpdateProject({
-                        ...project,
-                        takeoffSheets: [...otherSheets, savedSheet],
-                      });
-                      setPdfPageNum(1);
-                      pushToast(
-                        lang === 'ar'
-                          ? `تم حفظ ملف PDF "${savedSheet.titleAr}" في المشروع`
-                          : `Saved PDF "${savedSheet.title}" to project`,
-                        'success'
-                      );
-                    } catch (err) {
-                      console.error('Failed persisting PDF upload:', err);
-                    }
-                  }}
-                />
+                <Suspense
+                  fallback={
+                    <Card className="p-6 h-[560px] flex flex-col items-center justify-center gap-3">
+                      <SkeletonBlock className="h-full w-full rounded-lg" />
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {lang === 'ar' ? 'جاري تحميل محرك عرض PDF الهندسي...' : 'Loading Engineering PDF Engine...'}
+                      </span>
+                    </Card>
+                  }
+                >
+                  <EngineeringPdfViewer
+                    lang={lang}
+                    activeTool={activeTool}
+                    activeColor={CATEGORY_LABELS[activeCategory].color}
+                    measurements={sheetMeasurements}
+                    selectedMeasurementId={selectedMeasurementId}
+                    draftPoints={draftPoints}
+                    uploadedPdfSheet={uploadedMasterPdfSheet}
+                    currentScaleLabel={currentScaleLabel}
+                    currentPpm={currentPpm}
+                    isCalibrated={currentIsCalibrated}
+                    onAddPoint={handleAddDraftPoint}
+                    onFinishShape={handleCommitShape}
+                    onSelectMeasurement={setSelectedMeasurementId}
+                    onCalibrateTwoPoints={handleTwoPointCalibrate}
+                    onPageChanged={(p) => {
+                      setPdfPageNum(p);
+                      setDraftPoints([]);
+                    }}
+                    onPdfUploadedSheet={async (file) => {
+                      try {
+                        const { sheet: parsedSheet } = await parseUploadedDrawingFile(
+                          file,
+                          project.id,
+                          sheets
+                        );
+                        const { sheet: savedSheet } = await uploadSheetBinaryToCloud({
+                          project,
+                          sheet: { ...parsedSheet, id: 'pdf-page-1', pageNumber: 1 },
+                          ownerId: cloudUid,
+                        });
+                        const otherSheets = sheets.filter((s) => s.id !== savedSheet.id);
+                        onUpdateProject({
+                          ...project,
+                          takeoffSheets: [...otherSheets, savedSheet],
+                        });
+                        setPdfPageNum(1);
+                        pushToast(
+                          lang === 'ar'
+                            ? `تم حفظ ملف PDF "${savedSheet.titleAr}" في المشروع`
+                            : `Saved PDF "${savedSheet.title}" to project`,
+                          'success'
+                        );
+                      } catch (err) {
+                        console.error('Failed persisting PDF upload:', err);
+                        pushToast(
+                          lang === 'ar'
+                            ? 'تعذر حفظ ملف PDF المرفوع في المشروع'
+                            : 'Failed to save uploaded PDF to project',
+                          'error'
+                        );
+                      }
+                    }}
+                  />
+                </Suspense>
               )}
             </div>
 
@@ -744,61 +799,73 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-y-auto divide-y divide-[var(--border-hairline)]">
-                  {measurements.map((m) => (
-                    <div
-                      key={m.id}
-                      onClick={() => {
-                        setSelectedMeasurementId(m.id);
-                        const targetSheet = sheets.find((s) => s.id === m.sheetId);
-                        if (targetSheet) {
-                          setViewMode('svg_sheets');
-                          setActiveSheetId(targetSheet.id);
-                        }
-                      }}
-                      className={`p-3.5 cursor-pointer transition-colors space-y-1.5 ${
-                        selectedMeasurementId === m.id
-                          ? 'bg-[#B4863C]/12'
-                          : 'hover:bg-[var(--bg-surface-subtle)]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 text-[11px] font-medium">
-                            <span
-                              className="w-2.5 h-2.5 rounded-sm shrink-0"
-                              style={{ backgroundColor: m.color }}
-                            />
-                            <span className="text-[var(--text-muted)]">
-                              {lang === 'ar' ? CATEGORY_LABELS[m.category].ar : CATEGORY_LABELS[m.category].en}
-                            </span>
-                            <span className="font-mono text-[var(--text-muted)]">· {m.sheetId}</span>
+                  {measurements.length === 0 ? (
+                    <EmptyState
+                      title={lang === 'ar' ? 'لا توجد قياسات حصر بعد' : 'No Measurements Recorded'}
+                      description={
+                        lang === 'ar'
+                          ? 'اختر أداة قياس من الشريط العلوي وارسم على المخطط لحساب الكميات والتكلفة فوراً.'
+                          : 'Pick a measurement tool above and draw on the blueprint sheet to compute quantities & costs.'
+                      }
+                    />
+                  ) : (
+                    measurements.map((m) => (
+                      <div
+                        key={m.id}
+                        onClick={() => {
+                          setSelectedMeasurementId(m.id);
+                          const targetSheet = sheets.find((s) => s.id === m.sheetId);
+                          if (targetSheet) {
+                            setViewMode('svg_sheets');
+                            setActiveSheetId(targetSheet.id);
+                          }
+                        }}
+                        className={`p-3.5 cursor-pointer transition-colors space-y-1.5 ${
+                          selectedMeasurementId === m.id
+                            ? 'bg-[#B4863C]/12'
+                            : 'hover:bg-[var(--bg-surface-subtle)]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-[11px] font-medium">
+                              <span
+                                className="w-2.5 h-2.5 rounded-sm shrink-0"
+                                style={{ backgroundColor: m.color }}
+                              />
+                              <span className="text-[var(--text-muted)]">
+                                {lang === 'ar' ? CATEGORY_LABELS[m.category].ar : CATEGORY_LABELS[m.category].en}
+                              </span>
+                              <span className="font-mono text-[var(--text-muted)]">· {m.sheetId}</span>
+                            </div>
+                            <div className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">
+                              {lang === 'ar' ? m.labelAr : m.label}
+                            </div>
                           </div>
-                          <div className="text-xs font-semibold text-[var(--text-primary)] mt-0.5 truncate">
-                            {lang === 'ar' ? m.labelAr : m.label}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMeasurement(m.id);
+                            }}
+                            className="p-1 rounded text-rose-500 hover:bg-rose-500/10 shrink-0"
+                            aria-label={lang === 'ar' ? 'حذف القياس' : 'Delete measurement'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteMeasurement(m.id);
-                          }}
-                          className="p-1 rounded text-rose-500 hover:bg-rose-500/10 shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
 
-                      <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1">
-                        <span className="text-[var(--text-secondary)] font-semibold">
-                          {m.computedQuantity.toFixed(2)} {m.unit} × {m.unitRateAed} AED
-                        </span>
-                        <span className="font-bold text-[#B4863C] dark:text-[#C99A49]">
-                          {formatAED(m.totalCostAed, lang)}
-                        </span>
+                        <div className="flex items-center justify-between text-xs font-mono tabular-nums pt-1">
+                          <span className="text-[var(--text-secondary)] font-semibold">
+                            {m.computedQuantity.toFixed(2)} {m.unit} × {m.unitRateAed} AED
+                          </span>
+                          <span className="font-bold text-[#B4863C] dark:text-[#C99A49]">
+                            {formatAED(m.totalCostAed, lang)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="p-4 border-t border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] space-y-1 text-xs font-mono tabular-nums">
@@ -860,17 +927,21 @@ export const TakeoffModule: React.FC<TakeoffModuleProps> = ({
         }}
       />
 
-      <ComprehensiveReportPrinter
-        isOpen={printerOpen}
-        onClose={() => setPrinterOpen(false)}
-        lang={lang}
-        project={project}
-        company={company}
-        sheets={sheets}
-        measurements={measurements}
-        summary={summary}
-        rateLibrary={rateLibrary}
-      />
+      {printerOpen && (
+        <Suspense fallback={null}>
+          <ComprehensiveReportPrinter
+            isOpen={printerOpen}
+            onClose={() => setPrinterOpen(false)}
+            lang={lang}
+            project={project}
+            company={company}
+            sheets={sheets}
+            measurements={measurements}
+            summary={summary}
+            rateLibrary={rateLibrary}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

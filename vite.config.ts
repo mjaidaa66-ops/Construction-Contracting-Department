@@ -19,8 +19,8 @@ export default defineConfig(() => {
           if (error) {
             return;
           }
-          const distDir = path.resolve(__dirname, 'dist');
-          const srcAssets = path.resolve(__dirname, 'src/assets');
+          const distDir = path.resolve(import.meta.dirname, 'dist');
+          const srcAssets = path.resolve(import.meta.dirname, 'src/assets');
           const distAssets = path.resolve(distDir, 'src/assets');
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
@@ -30,7 +30,42 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 650,
+      rolldownOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) {
+              return undefined;
+            }
+            if (id.includes('/three/')) {
+              return 'vendor-three';
+            }
+            if (id.includes('/pdfjs-dist/')) {
+              return 'vendor-pdfjs';
+            }
+            if (id.includes('/xlsx/')) {
+              return 'vendor-xlsx';
+            }
+            if (id.includes('/jspdf/') || id.includes('/html2canvas/')) {
+              return 'vendor-export';
+            }
+            if (id.includes('/firebase/') || id.includes('/@firebase/')) {
+              return 'vendor-firebase';
+            }
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/lucide-react/')
+            ) {
+              return 'vendor-react';
+            }
+            return undefined;
+          },
+        },
       },
     },
     server: {

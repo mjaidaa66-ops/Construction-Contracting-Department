@@ -122,6 +122,23 @@ service cloud.firestore {
         && data.retentionPercentage is number && data.retentionPercentage >= 0 && data.retentionPercentage <= 50
         && data.actualProgress is number && data.actualProgress >= 0 && data.actualProgress <= 100
         && data.plannedProgress is number && data.plannedProgress >= 0 && data.plannedProgress <= 100
+        && (!('category' in data) || (data.category is string && data.category.size() <= 100))
+        && (!('ownerName' in data) || (data.ownerName is string && data.ownerName.size() <= 200))
+        && (!('ownerPhone' in data) || (data.ownerPhone is string && data.ownerPhone.size() <= 60))
+        && (!('ownerEmail' in data) || (data.ownerEmail is string && data.ownerEmail.size() <= 160))
+        && (!('ownerNationalId' in data) || (data.ownerNationalId is string && data.ownerNationalId.size() <= 60))
+        && (!('consultantOffice' in data) || (data.consultantOffice is string && data.consultantOffice.size() <= 200))
+        && (!('consultantEngineer' in data) || (data.consultantEngineer is string && data.consultantEngineer.size() <= 160))
+        && (!('consultantPhone' in data) || (data.consultantPhone is string && data.consultantPhone.size() <= 60))
+        && (!('consultantLicenseNo' in data) || (data.consultantLicenseNo is string && data.consultantLicenseNo.size() <= 80))
+        && (!('residentEngineer' in data) || (data.residentEngineer is string && data.residentEngineer.size() <= 160))
+        && (!('contractorBranch' in data) || (data.contractorBranch is string && data.contractorBranch.size() <= 160))
+        && (!('permitNumber' in data) || (data.permitNumber is string && data.permitNumber.size() <= 80))
+        && (!('permitDate' in data) || (data.permitDate is string && data.permitDate.size() <= 40))
+        && (!('permitExpiryDate' in data) || (data.permitExpiryDate is string && data.permitExpiryDate.size() <= 40))
+        && (!('licensingAuthority' in data) || (data.licensingAuthority is string && data.licensingAuthority.size() <= 160))
+        && (!('gisData' in data) || data.gisData is map)
+        && (!('takeoffSummaryConfig' in data) || data.takeoffSummaryConfig is map)
         && (!('phases' in data) || (data.phases is list && data.phases.size() <= 50))
         && (!('paymentMilestones' in data) || (data.paymentMilestones is list && data.paymentMilestones.size() <= 50))
         && (!('documents' in data) || (data.documents is list && data.documents.size() <= 100))
@@ -187,6 +204,8 @@ service cloud.firestore {
         && data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 200
         && (!('serviceNameEn' in data) || (data.serviceNameEn is string && data.serviceNameEn.size() <= 200))
         && data.status in ['approved', 'in_review', 'action_required', 'pending_inspection']
+        && (!('submissionDate' in data) || (data.submissionDate is string && data.submissionDate.size() <= 40))
+        && (!('lastUpdatedDate' in data) || (data.lastUpdatedDate is string && data.lastUpdatedDate.size() <= 40))
         && (!('reviewEngineer' in data) || (data.reviewEngineer is string && data.reviewEngineer.size() <= 120))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && (!('officialPortalUrl' in data) || (data.officialPortalUrl is string && data.officialPortalUrl.size() <= 500))
@@ -292,7 +311,7 @@ service cloud.firestore {
     // Rate Library Collection
     function isValidRateLibraryItem(data, rateId) {
       return data.keys().hasAll(['id', 'ownerId', 'code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'ownerId', 'code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'materialSpec', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'equipmentRate', 'materialSpec', 'updatedAt'])
         && data.id is string && data.id == rateId && data.id.size() <= 128
         && data.ownerId is string && isValidId(data.ownerId)
         && data.code is string && data.code.size() >= 2 && data.code.size() <= 20
@@ -301,6 +320,7 @@ service cloud.firestore {
         && data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 200
         && data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 20
         && data.rateAed is number && data.rateAed >= 0
+        && (!('equipmentRate' in data) || (data.equipmentRate is number && data.equipmentRate >= 0))
         && (!('materialSpec' in data) || (data.materialSpec is string && data.materialSpec.size() <= 200))
         && data.updatedAt is timestamp;
     }
@@ -323,7 +343,7 @@ service cloud.firestore {
           isAdmin() ||
           (
             isOwner(existing().ownerId)
-            && incoming().diff(existing()).affectedKeys().hasOnly(['code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'materialSpec', 'updatedAt'])
+            && incoming().diff(existing()).affectedKeys().hasOnly(['code', 'category', 'nameAr', 'nameEn', 'unit', 'rateAed', 'equipmentRate', 'materialSpec', 'updatedAt'])
           )
         );
       allow delete: if isValidId(rateId) && (isOwner(existing().ownerId) || isAdmin());

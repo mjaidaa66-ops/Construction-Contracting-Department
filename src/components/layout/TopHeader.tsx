@@ -9,6 +9,7 @@ import {
   Menu,
   Moon,
   Plus,
+  Printer,
   RefreshCw,
   Search,
   Sun,
@@ -18,6 +19,7 @@ import type { CloudSyncState } from '../../services/cloudSyncService';
 import type { Language, Project, Role, ThemeMode } from '../../types/bunyan';
 import { UI_TEXT } from '../../utils/i18n';
 import type { ActiveModule } from './Sidebar';
+import { BunyanLogo } from '../common/BunyanLogo';
 import { CloudSyncStatusBadge } from './CloudSyncStatusBadge';
 
 interface TopHeaderProps {
@@ -46,6 +48,7 @@ const MODULE_GROUP_MAP: Record<ActiveModule, keyof typeof UI_TEXT.ar.navGroups> 
   projects: 'portfolio',
   financials: 'portfolio',
   documents: 'portfolio',
+  reports: 'portfolio',
   studio: 'engineering',
   bim: 'engineering',
   takeoff: 'engineering',
@@ -90,6 +93,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        <BunyanLogo iconOnly size="xs" lang={lang} />
 
         {/* Contextual Breadcrumbs */}
         <nav
@@ -188,6 +193,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                 >
                   <Columns2 className="w-3.5 h-3.5 text-[#B4863C]" />
                   <span>{lang === 'ar' ? 'فتح استوديو 2D + 3D BIM' : 'Open 2D+3D BIM Studio'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigateModule('reports');
+                    setQuickMenuOpen(false);
+                  }}
+                  className="w-full px-3.5 py-2 flex items-center gap-2.5 text-start text-[var(--text-primary)] hover:bg-[var(--bg-surface-subtle)] cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#B4863C]" />
+                  <span>{lang === 'ar' ? 'فتح مركز التقارير والطباعة' : 'Open Reports & Print Center'}</span>
                 </button>
                 <button
                   type="button"

@@ -27,6 +27,7 @@ import {
   evaluateTakeoffVerificationState,
 } from '../../utils/takeoffCalculations';
 import { exportTakeoffToExcel } from '../../utils/takeoffExportEngine';
+import { BunyanLogo } from '../common/BunyanLogo';
 
 interface TakeoffPrintSummaryViewProps {
   lang: Language;
@@ -339,29 +340,32 @@ export const TakeoffPrintSummaryView: React.FC<TakeoffPrintSummaryViewProps> = (
           className="print-report-paper bg-white text-slate-900 max-w-[820px] mx-auto p-6 sm:p-10 rounded-lg border border-slate-300 shadow-sm space-y-6 text-xs"
         >
           {/* Letterhead */}
-          <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-[#B4863C] pb-4">
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold tracking-wide text-[#B4863C]">
-                {verification.status === 'certified_calibrated'
-                  ? lang === 'ar'
-                    ? 'تقرير ملخص الكميات والمقايسة الهندسية المعتمد'
-                    : 'VERIFIED QUANTITIES & 5D BOQ TAKEOFF SUMMARY'
-                  : lang === 'ar'
-                  ? `تقرير حصر كميات — ${verification.badgeAr}`
-                  : `QUANTITIES REPORT — ${verification.badgeEn.toUpperCase()}`}
-              </div>
-              <h1 className="text-lg font-bold text-slate-900">
-                {lang === 'ar' ? company.nameAr : company.nameEn}
-              </h1>
-              <div className="text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span>{company.municipalityClass}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">TRN: {company.trnNumber}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">{company.licenseNumber}</span>
-              </div>
-              <div className="text-slate-500">
-                {lang === 'ar' ? company.addressAr : company.addressEn} · {company.phone}
+          <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-slate-400 pb-4">
+            <div className="flex items-start gap-3.5">
+              <BunyanLogo iconOnly size="lg" variant="print" lang={lang} />
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold tracking-wide text-slate-600">
+                  {verification.status === 'certified_calibrated'
+                    ? lang === 'ar'
+                      ? 'تقرير ملخص الكميات والمقايسة الهندسية المعتمد'
+                      : 'VERIFIED QUANTITIES & 5D BOQ TAKEOFF SUMMARY'
+                    : lang === 'ar'
+                    ? `تقرير حصر كميات — ${verification.badgeAr}`
+                    : `QUANTITIES REPORT — ${verification.badgeEn.toUpperCase()}`}
+                </div>
+                <h1 className="text-lg font-bold text-slate-900">
+                  {lang === 'ar' ? company.nameAr : company.nameEn}
+                </h1>
+                <div className="text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span>{company.municipalityClass}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums">TRN: {company.trnNumber}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums">{company.licenseNumber}</span>
+                </div>
+                <div className="text-slate-500">
+                  {lang === 'ar' ? company.addressAr : company.addressEn} · {company.phone}
+                </div>
               </div>
             </div>
 

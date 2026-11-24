@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertOctagon,
   CheckCircle2,
@@ -22,11 +22,14 @@ import { formatAED } from '../../utils/i18n';
 import { parseIfcFile } from '../../utils/ifcParser';
 import { parseCadOrPdfDrawing } from '../../utils/cadPdfParser';
 import { generateProjectBimElements } from '../../utils/gisTakeoffGenerator';
-import { Button, Card, StatusIndicator, useToast } from '../ui';
+import { Button, Card, SkeletonBlock, StatusIndicator, useToast } from '../ui';
 import { BimAuditModal } from './BimAuditModal';
 import { BimModelTree } from './BimModelTree';
 import { BimPropertiesPanel } from './BimPropertiesPanel';
-import { BimViewer3D } from './BimViewer3D';
+
+const BimViewer3D = lazy(() =>
+  import('./BimViewer3D').then((m) => ({ default: m.BimViewer3D }))
+);
 
 interface BimModuleProps {
   project: Project;
@@ -379,21 +382,32 @@ export const BimModule: React.FC<BimModuleProps> = ({
         )}
 
         <div className={focus3d ? 'xl:col-span-9' : 'xl:col-span-6'}>
-          <BimViewer3D
-            elements={elements}
-            selectedId={selectedId}
-            hiddenDisciplines={hiddenDisciplines}
-            cameraPreset={cameraPreset}
-            renderMode={renderMode}
-            sectionMode={sectionMode}
-            sectionOffset={sectionOffset}
-            onSelectElement={setSelectedId}
-            onChangeCameraPreset={setCameraPreset}
-            onChangeRenderMode={setRenderMode}
-            onChangeSectionMode={setSectionMode}
-            onChangeSectionOffset={setSectionOffset}
-            lang={lang}
-          />
+          <Suspense
+            fallback={
+              <Card className="p-6 h-[560px] flex flex-col items-center justify-center gap-3">
+                <SkeletonBlock className="h-full w-full rounded-lg" />
+                <span className="text-xs text-[var(--text-muted)]">
+                  {lang === 'ar' ? 'جاري تهيئة عارض 3D BIM (Three.js)...' : 'Loading 3D BIM Engine...'}
+                </span>
+              </Card>
+            }
+          >
+            <BimViewer3D
+              elements={elements}
+              selectedId={selectedId}
+              hiddenDisciplines={hiddenDisciplines}
+              cameraPreset={cameraPreset}
+              renderMode={renderMode}
+              sectionMode={sectionMode}
+              sectionOffset={sectionOffset}
+              onSelectElement={setSelectedId}
+              onChangeCameraPreset={setCameraPreset}
+              onChangeRenderMode={setRenderMode}
+              onChangeSectionMode={setSectionMode}
+              onChangeSectionOffset={setSectionOffset}
+              lang={lang}
+            />
+          </Suspense>
         </div>
 
         <div className="xl:col-span-3">

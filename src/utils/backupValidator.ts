@@ -10,6 +10,7 @@ import type {
   TakeoffCategory,
   TransactionStatus,
 } from '../types/bunyan';
+import { sanitizeSafeHttpUrl, sanitizeSvgMarkup } from './sanitize';
 
 const VALID_PROJECT_TYPES = new Set<ProjectType>([
   'villa',
@@ -197,7 +198,11 @@ function validateProject(raw: unknown): { ok: true; project: Project } | { ok: f
       ? (raw.bimElements.slice(0, 500) as Project['bimElements'])
       : undefined,
     takeoffSheets: Array.isArray(raw.takeoffSheets)
-      ? (raw.takeoffSheets.slice(0, 50) as Project['takeoffSheets'])
+      ? (raw.takeoffSheets.slice(0, 50) as NonNullable<Project['takeoffSheets']>).map((sheet) =>
+          sheet && typeof sheet.svgContent === 'string'
+            ? { ...sheet, svgContent: sanitizeSvgMarkup(sheet.svgContent) }
+            : sheet
+        )
       : [],
     takeoffMeasurements: Array.isArray(raw.takeoffMeasurements)
       ? (raw.takeoffMeasurements.slice(0, 500) as Project['takeoffMeasurements'])
@@ -285,10 +290,7 @@ export function validateAndSanitizeBackupData(raw: unknown): BackupValidationRes
         reviewEngineer:
           typeof item.reviewEngineer === 'string' ? item.reviewEngineer.slice(0, 120) : '',
         notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
-        officialPortalUrl:
-          typeof item.officialPortalUrl === 'string'
-            ? item.officialPortalUrl.slice(0, 500)
-            : 'https://portal.shjmun.gov.ae',
+        officialPortalUrl: sanitizeSafeHttpUrl(item.officialPortalUrl),
       });
     }
   }
@@ -324,6 +326,9 @@ export function validateAndSanitizeBackupData(raw: unknown): BackupValidationRes
         nameEn: (nonEmptyStr(item.nameEn) || nameAr).slice(0, 200),
         unit,
         rateAed: finiteNonNegative(item.rateAed, 0),
+        ...(item.equipmentRate !== undefined
+          ? { equipmentRate: finiteNonNegative(item.equipmentRate, 0) }
+          : {}),
         materialSpec: typeof item.materialSpec === 'string' ? item.materialSpec.slice(0, 200) : '',
       });
     }

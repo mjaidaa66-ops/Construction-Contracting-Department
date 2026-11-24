@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { AlertCircle, CloudDownload, FileWarning, Loader2 } from 'lucide-react';
 import { resolveSheetBinaryUrl } from '../../services/cloudSyncService';
 import type { Language, TakeoffSheet } from '../../types/bunyan';
 import { disposePdfDocumentProxy, ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
+import { sanitizeSvgMarkup } from '../../utils/sanitize';
 import { dataUrlOrBlobToUint8Array } from '../../utils/takeoffSheetLoader';
 
 interface SheetBackdropRendererProps {
@@ -25,6 +26,10 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
   const [renderError, setRenderError] = useState<string | null>(null);
   const onPdfLoadedRef = useRef(onPdfLoaded);
   onPdfLoadedRef.current = onPdfLoaded;
+  const sanitizedSvg = useMemo(
+    () => (sheet.svgContent ? sanitizeSvgMarkup(sheet.svgContent) : ''),
+    [sheet.svgContent]
+  );
 
   // Resolve sheet binary from local cache or reassemble from Firestore DocumentManifest + DocumentChunk
   useEffect(() => {
@@ -196,11 +201,11 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
   }, [pdfDoc, sheet.sheetType, sheet.pageNumber, sheet.width, lang]);
 
   // 1. Default Built-in Blueprint SVG
-  if (sheet.sheetType === 'blueprint_svg' && sheet.svgContent) {
+  if (sheet.sheetType === 'blueprint_svg' && sanitizedSvg) {
     return (
       <div
         className="w-full h-full pointer-events-none select-none"
-        dangerouslySetInnerHTML={{ __html: sheet.svgContent }}
+        dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
       />
     );
   }
@@ -280,11 +285,11 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
   }
 
   // Fallback for legacy sheets containing svgContent
-  if (sheet.svgContent) {
+  if (sanitizedSvg) {
     return (
       <div
         className="w-full h-full pointer-events-none select-none"
-        dangerouslySetInnerHTML={{ __html: sheet.svgContent }}
+        dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
       />
     );
   }

@@ -72,6 +72,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
     'projects',
     'financials',
     'documents',
+    'reports',
     'studio',
     'bim',
     'takeoff',

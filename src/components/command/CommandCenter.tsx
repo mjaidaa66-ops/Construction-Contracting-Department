@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -29,14 +29,20 @@ import type {
   Role,
 } from '../../types/bunyan';
 import { DEFAULT_COMPANY_PROFILE } from '../../data/uaeSeedData';
-import { computeProjectTelemetry } from '../../utils/gisTakeoffGenerator';
+import { computeProjectTelemetry, generateProjectBimElements } from '../../utils/gisTakeoffGenerator';
 import { formatAED, PROJECT_STATUS_LABELS } from '../../utils/i18n';
 import type { CloudSyncState } from '../../services/cloudSyncService';
 import { deriveWorkspaceAlerts } from '../../utils/workspaceAlerts';
-import { BunyanExportCenter } from '../export/BunyanExportCenter';
+import { BunyanLogo } from '../common/BunyanLogo';
 import { CloudSyncStatusBadge } from '../layout/CloudSyncStatusBadge';
 import type { ActiveModule } from '../layout/Sidebar';
 import { Button, Card, CardHeader, StatusIndicator } from '../ui';
+
+const BunyanExportCenter = lazy(() =>
+  import('../export/BunyanExportCenter').then((m) => ({
+    default: m.BunyanExportCenter,
+  }))
+);
 
 interface CommandCenterProps {
   projects: Project[];
@@ -235,8 +241,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
       id: 'bim',
       titleAr: 'محرك 5D BIM الثلاثي الأبعاد',
       titleEn: '5D BIM Engine',
-      metaAr: `${(activeProject.bimElements || []).length} عنصر`,
-      metaEn: `${(activeProject.bimElements || []).length} elements`,
+      metaAr: `${(activeProject.bimElements !== undefined ? activeProject.bimElements : generateProjectBimElements(activeProject)).length} عنصر`,
+      metaEn: `${(activeProject.bimElements !== undefined ? activeProject.bimElements : generateProjectBimElements(activeProject)).length} elements`,
       icon: Box,
     },
     {
@@ -280,19 +286,22 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
       {/* 1. Executive Welcome Banner & Active Project Switcher */}
       <Card padded className="bg-[var(--bg-surface)]">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          <div className="space-y-2.5 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2.5 text-xs">
-              <span className="font-mono font-semibold text-[#B4863C] dark:text-[#C99A49]">
-                {company.licenseNumber}
-              </span>
-              <span className="text-[var(--text-muted)]">·</span>
-              <span className="text-[var(--text-secondary)]">
-                {isAr ? company.nameAr : company.nameEn}
-              </span>
-              <span className="text-[var(--text-muted)]">·</span>
-              <span className="capitalize text-[var(--text-muted)]">
-                {userEmail || currentRole}
-              </span>
+          <div className="space-y-3 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-3.5">
+              <BunyanLogo size="lg" lang={lang} />
+              <div className="flex flex-wrap items-center gap-2 text-xs border-s border-[var(--border-hairline)] ps-3">
+                <span className="font-mono font-semibold text-[#B4863C] dark:text-[#C99A49]">
+                  {company.licenseNumber}
+                </span>
+                <span className="text-[var(--text-muted)]">·</span>
+                <span className="text-[var(--text-secondary)]">
+                  {isAr ? company.nameAr : company.nameEn}
+                </span>
+                <span className="text-[var(--text-muted)]">·</span>
+                <span className="capitalize text-[var(--text-muted)]">
+                  {userEmail || currentRole}
+                </span>
+              </div>
             </div>
 
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
@@ -843,13 +852,17 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         </section>
       )}
 
-      <BunyanExportCenter
-        isOpen={exportOpen}
-        onClose={() => setExportOpen(false)}
-        project={activeProject}
-        company={company}
-        lang={lang}
-      />
+      {exportOpen && (
+        <Suspense fallback={null}>
+          <BunyanExportCenter
+            isOpen={exportOpen}
+            onClose={() => setExportOpen(false)}
+            project={activeProject}
+            company={company}
+            lang={lang}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

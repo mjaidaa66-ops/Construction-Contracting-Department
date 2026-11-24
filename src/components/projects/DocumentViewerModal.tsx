@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Download, FileText, Loader2 } from 'lucide-react';
 import type { Language, ProjectDocument } from '../../types/bunyan';
 import { downloadChunkedDocument } from '../../services/firestoreStorage';
+import { cacheBinaryLocally, getCachedBinaryLocally } from '../../services/cloudSyncService';
+import { sanitizePreviewBinaryUrl } from '../../utils/sanitize';
 import { Modal } from '../ui';
 
 interface DocumentViewerModalProps {
@@ -25,13 +27,36 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       if (!docItem) return;
       setError(null);
       if (docItem.localDataUrl) {
-        setDataUrl(docItem.localDataUrl);
+        await cacheBinaryLocally(docItem.id, docItem.localDataUrl);
+        if (docItem.manifestId) {
+          await cacheBinaryLocally(docItem.manifestId, docItem.localDataUrl);
+        }
+        if (active) setDataUrl(docItem.localDataUrl);
         return;
       }
+
+      if (docItem.manifestId) {
+        const cachedManifest = await getCachedBinaryLocally(docItem.manifestId);
+        if (cachedManifest) {
+          if (active) setDataUrl(cachedManifest);
+          return;
+        }
+      }
+
+      const cachedDoc = await getCachedBinaryLocally(docItem.id);
+      if (cachedDoc) {
+        if (active) setDataUrl(cachedDoc);
+        return;
+      }
+
       if (docItem.manifestId) {
         setLoading(true);
         try {
           const res = await downloadChunkedDocument(docItem.manifestId);
+          if (res?.dataUrl) {
+            await cacheBinaryLocally(docItem.manifestId, res.dataUrl);
+            await cacheBinaryLocally(docItem.id, res.dataUrl);
+          }
           if (active) {
             setDataUrl(res?.dataUrl || null);
           }
@@ -54,6 +79,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
   if (!docItem) return null;
 
+  const safeDataUrl = sanitizePreviewBinaryUrl(dataUrl);
   const isImage = docItem.mimeType.startsWith('image/');
   const isPdf = docItem.mimeType === 'application/pdf';
 
@@ -66,9 +92,9 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       title={docItem.name}
       subtitle={`${docItem.category} · ${(docItem.sizeBytes / 1024).toFixed(1)} KB · ${docItem.uploadedAt}`}
       headerActions={
-        dataUrl && (
+        safeDataUrl && (
           <a
-            href={dataUrl}
+            href={safeDataUrl}
             download={docItem.name}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330]"
           >
@@ -90,15 +116,15 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
           </div>
         ) : error ? (
           <div className="text-xs text-rose-500 font-mono">{error}</div>
-        ) : dataUrl && isImage ? (
+        ) : safeDataUrl && isImage ? (
           <img
-            src={dataUrl}
+            src={safeDataUrl}
             alt={docItem.name}
             className="max-w-full max-h-[65vh] rounded-lg border border-[var(--border-hairline)] object-contain"
           />
-        ) : dataUrl && isPdf ? (
+        ) : safeDataUrl && isPdf ? (
           <iframe
-            src={dataUrl}
+            src={safeDataUrl}
             title={docItem.name}
             className="w-full h-[65vh] rounded-lg border border-[var(--border-hairline)] bg-white"
           />

@@ -8,6 +8,15 @@ export interface RolePermissions {
   canEditFinancials: boolean;
   canManageGovernment: boolean;
   canManageCompanySettings: boolean;
+  // Reports & Printing Center granular permissions
+  canViewReports: boolean;
+  canCreateReports: boolean;
+  canEditReports: boolean;
+  canDeleteReports: boolean;
+  canPrintReports: boolean;
+  canExportReports: boolean;
+  canManageTemplates: boolean;
+  canViewFinancialReports: boolean;
 }
 
 export function getRolePermissions(role: Role): RolePermissions {
@@ -21,6 +30,14 @@ export function getRolePermissions(role: Role): RolePermissions {
         canEditFinancials: true,
         canManageGovernment: true,
         canManageCompanySettings: true,
+        canViewReports: true,
+        canCreateReports: true,
+        canEditReports: true,
+        canDeleteReports: true,
+        canPrintReports: true,
+        canExportReports: true,
+        canManageTemplates: true,
+        canViewFinancialReports: true,
       };
     case 'engineer':
       return {
@@ -31,6 +48,14 @@ export function getRolePermissions(role: Role): RolePermissions {
         canEditFinancials: false,
         canManageGovernment: true,
         canManageCompanySettings: false,
+        canViewReports: true,
+        canCreateReports: true,
+        canEditReports: true,
+        canDeleteReports: false,
+        canPrintReports: true,
+        canExportReports: true,
+        canManageTemplates: false,
+        canViewFinancialReports: false,
       };
     case 'accountant':
       return {
@@ -41,6 +66,14 @@ export function getRolePermissions(role: Role): RolePermissions {
         canEditFinancials: true,
         canManageGovernment: false,
         canManageCompanySettings: false,
+        canViewReports: true,
+        canCreateReports: true,
+        canEditReports: false,
+        canDeleteReports: false,
+        canPrintReports: true,
+        canExportReports: true,
+        canManageTemplates: false,
+        canViewFinancialReports: true,
       };
   }
 }

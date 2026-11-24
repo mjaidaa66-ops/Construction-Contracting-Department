@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 
 import { parseIfcFile } from '../src/utils/ifcParser';
-import { parseCadOrPdfDrawing, parseDxfContent } from '../src/utils/cadPdfParser';
+import { parseCadOrPdfDrawing } from '../src/utils/cadPdfParser';
 import {
   DEFAULT_POINTS_PER_METER,
   calibratePointsPerMeter,

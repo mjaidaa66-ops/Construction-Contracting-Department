@@ -3,15 +3,19 @@ import {
   Archive,
   Building2,
   CheckCircle2,
+  Download,
   Fingerprint,
   LogIn,
   LogOut,
   Shield,
+  Smartphone,
   UserCheck,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { BackupData, CompanyProfile, Language, Role } from '../../types/bunyan';
 import { getRolePermissions } from '../../utils/rbacPermissions';
+import { usePWAInstall } from '../../utils/usePWAInstall';
+import { BunyanLogo } from '../common/BunyanLogo';
 import { BackupSyncModal } from '../projects/BackupSyncModal';
 import { Button, Card, CardHeader, Input, StatusIndicator, useToast } from '../ui';
 
@@ -29,7 +33,7 @@ interface SettingsAuthModuleProps {
   onSignOut: () => Promise<void>;
   onSyncSeedToCloud: () => Promise<void>;
   backupData?: BackupData;
-  onImportBackup?: (data: BackupData) => void;
+  onImportBackup?: (data: BackupData, mode?: 'merge' | 'replace') => void;
 }
 
 export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
@@ -52,6 +56,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   const [syncing, setSyncing] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const { pushToast } = useToast();
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const isAr = lang === 'ar';
   const perms = getRolePermissions(currentRole);
 
@@ -74,13 +79,22 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
 
   return (
     <div className="space-y-6 max-w-5xl">
+      <Card padded className="flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)]">
+        <BunyanLogo size="lg" lang={lang} />
+        <div className="text-xs text-[var(--text-secondary)] max-w-md">
+          {isAr
+            ? 'إدارة تسجيل الدخول وإنشاء الحساب السحابي، وصلاحيات المستخدمين، وإعدادات المنشأة المعتمدة.'
+            : 'Manage Google account sign-in & registration, workspace RBAC permissions, and verified UAE company profile.'}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Firebase Google Authentication & Cloud Sync */}
         <Card padded className="space-y-4">
           <div className="flex items-center gap-2.5">
             <Shield className="w-5 h-5 text-[#B4863C]" />
             <h2 className="text-base font-bold text-[var(--text-primary)]">
-              {isAr ? 'المصادقة السحابية ومزامنة Firestore' : 'Firebase Authentication & Cloud Sync'}
+              {isAr ? 'تسجيل الدخول وإنشاء الحساب والمزامنة السحابية' : 'Sign In, Account Access & Cloud Sync'}
             </h2>
           </div>
 
@@ -110,7 +124,15 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                     setSyncing(true);
                     try {
                       await onSyncSeedToCloud();
-                      pushToast(isAr ? 'تمت المزامنة السحابية' : 'Workspace synced', 'success');
+                    } catch (err) {
+                      pushToast(
+                        err instanceof Error
+                          ? err.message
+                          : isAr
+                          ? 'تعذر إتمام المزامنة السحابية'
+                          : 'Cloud sync failed',
+                        'error'
+                      );
                     } finally {
                       setSyncing(false);
                     }
@@ -120,19 +142,84 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                     ? isAr ? 'جاري المزامنة...' : 'Syncing...'
                     : isAr ? 'مزامنة المشاريع إلى Firestore' : 'Sync Workspace to Firestore'}
                 </Button>
-                <Button variant="outline" icon={<LogOut className="w-4 h-4" />} onClick={onSignOut}>
+                <Button
+                  variant="outline"
+                  icon={<LogOut className="w-4 h-4" />}
+                  onClick={async () => {
+                    try {
+                      await onSignOut();
+                    } catch (err) {
+                      pushToast(
+                        err instanceof Error
+                          ? err.message
+                          : isAr
+                          ? 'تعذر تسجيل الخروج'
+                          : 'Sign out failed',
+                        'error'
+                      );
+                    }
+                  }}
+                >
                   {isAr ? 'تسجيل الخروج' : 'Sign Out'}
                 </Button>
               </>
             ) : (
-              <Button icon={<LogIn className="w-4 h-4" />} onClick={onSignInGoogle}>
-                {isAr ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}
+              <Button
+                icon={<LogIn className="w-4 h-4" />}
+                onClick={async () => {
+                  try {
+                    await onSignInGoogle();
+                  } catch (err) {
+                    pushToast(
+                      err instanceof Error
+                        ? err.message
+                        : isAr
+                        ? 'تعذر فتح نافذة تسجيل الدخول عبر Google'
+                        : 'Google sign-in failed or was blocked',
+                      'error'
+                    );
+                  }
+                }}
+              >
+                {isAr ? 'تسجيل الدخول / إنشاء حساب عبر Google' : 'Sign In / Create Account with Google'}
               </Button>
             )}
 
             {backupData && onImportBackup && (
               <Button variant="outline" icon={<Archive className="w-4 h-4 text-[#B4863C]" />} onClick={() => setBackupOpen(true)}>
                 {isAr ? 'النسخ الاحتياطي JSON' : 'JSON Backup & Restore'}
+              </Button>
+            )}
+
+            {!isInstalled && isInstallable && (
+              <Button
+                variant="outline"
+                icon={<Download className="w-4 h-4 text-[#B4863C]" />}
+                onClick={async () => {
+                  const ok = await install();
+                  if (ok) {
+                    pushToast(isAr ? 'تم تثبيت تطبيق بنيان بنجاح' : 'Bunyan app installed', 'success');
+                  }
+                }}
+              >
+                {isAr ? 'تثبيت التطبيق (PWA)' : 'Install App (PWA)'}
+              </Button>
+            )}
+
+            {!isInstalled && !isInstallable && isIOS && (
+              <Button
+                variant="outline"
+                icon={<Smartphone className="w-4 h-4 text-[#B4863C]" />}
+                onClick={() =>
+                  pushToast(
+                    isAr
+                      ? 'للتثبيت على iOS: اضغط زر المشاركة في Safari ثم اختر "إضافة إلى الشاشة الرئيسية".'
+                      : 'To install on iOS: tap Share in Safari, then choose "Add to Home Screen".',
+                    'info'
+                  )
+                }
+              >
+                {isAr ? 'تثبيت على iOS' : 'Install on iOS'}
               </Button>
             )}
           </div>
@@ -167,6 +254,11 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+              {isAr
+                ? 'تبديل الدور يتحكم بصلاحيات الواجهة المحلية فقط؛ بينما صلاحيات Firestore السحابية محمية بهوية Google الموثقة وقواعد المالك والمدير.'
+                : 'Role switching controls local workspace UI permissions; cloud Firestore access is enforced server-side via verified Google identity and admin rules.'}
+            </p>
           </div>
 
           <div className="pt-3 border-t border-[var(--border-hairline)] flex items-center justify-between gap-3">

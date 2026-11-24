@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from '@google/genai';
+import { GoogleGenAI, Type, type Schema } from '@google/genai';
 import type {
   GisPlotData,
   BimElement,
@@ -7,14 +7,16 @@ import type {
   Language,
 } from '../../src/types/bunyan';
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+function createGeminiClient(): GoogleGenAI {
+  return new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
 
 export interface ComplianceViolation {
   ruleCode: string;
@@ -181,6 +183,7 @@ Always populate affectedElementIds with exact BimElement 'id' strings from bimMo
     })),
   };
 
+  const ai = createGeminiClient();
   const response = await ai.models.generateContent({
     model: 'gemini-4-hydrogen',
     contents: [

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -11,8 +11,13 @@ import type { CompanyProfile, Language, Project, Role } from '../../types/bunyan
 import { computeTakeoffSummary } from '../../utils/takeoffCalculations';
 import { formatAED } from '../../utils/i18n';
 import { getRolePermissions } from '../../utils/rbacPermissions';
-import { BunyanExportCenter } from '../export/BunyanExportCenter';
-import { Button, Card, CardHeader, Input, StatusIndicator, useToast } from '../ui';
+import { Button, Card, CardHeader, EmptyState, Input, StatusIndicator, useToast } from '../ui';
+
+const BunyanExportCenter = lazy(() =>
+  import('../export/BunyanExportCenter').then((m) => ({
+    default: m.BunyanExportCenter,
+  }))
+);
 
 interface FinancialSummaryModuleProps {
   projects: Project[];
@@ -165,47 +170,58 @@ export const FinancialSummaryModule: React.FC<FinancialSummaryModuleProps> = ({
             }
           />
           <div className="divide-y divide-[var(--border-hairline)]">
-            {activeProject.paymentMilestones.map((m) => (
-              <div key={m.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                    {isAr ? m.titleAr : m.titleEn}
+            {activeProject.paymentMilestones.length === 0 ? (
+              <EmptyState
+                title={isAr ? 'لا توجد دفعات مجدولة' : 'No Payment Milestones'}
+                description={
+                  isAr
+                    ? 'لم يتم تسجيل مراحل دفع لهذا المشروع بعد.'
+                    : 'No payment milestones are registered for this project yet.'
+                }
+              />
+            ) : (
+              activeProject.paymentMilestones.map((m) => (
+                <div key={m.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                      {isAr ? m.titleAr : m.titleEn}
+                    </div>
+                    <div dir="ltr" className="text-[11px] font-mono tabular-nums text-[var(--text-muted)] mt-0.5">
+                      {m.percentage}% · {m.dueDate}
+                    </div>
                   </div>
-                  <div dir="ltr" className="text-[11px] font-mono tabular-nums text-[var(--text-muted)] mt-0.5">
-                    {m.percentage}% · {m.dueDate}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span dir="ltr" className="text-xs font-mono tabular-nums font-bold text-[var(--text-primary)]">
-                    {formatAED(m.amountAed, lang)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!perms.canEditFinancials}
-                    onClick={() => handleCycleMilestone(m.id)}
-                    className={`px-2.5 py-1 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] bunyan-transition ${
-                      perms.canEditFinancials
-                        ? 'hover:border-[#B4863C] cursor-pointer'
-                        : 'opacity-65 cursor-not-allowed'
-                    }`}
-                    title={
-                      perms.canEditFinancials
-                        ? isAr ? 'اضغط لتغيير حالة الدفعة' : 'Click to toggle paid status'
-                        : isAr ? 'للقراءة فقط (دور المهندس)' : 'Read-only for Engineer role'
-                    }
-                  >
-                    <StatusIndicator
-                      tone={m.status === 'paid' ? 'success' : 'neutral'}
-                      label={
-                        m.status === 'paid'
-                          ? isAr ? 'مدفوعة' : 'Paid'
-                          : isAr ? 'مجدولة' : 'Pending'
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span dir="ltr" className="text-xs font-mono tabular-nums font-bold text-[var(--text-primary)]">
+                      {formatAED(m.amountAed, lang)}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!perms.canEditFinancials}
+                      onClick={() => handleCycleMilestone(m.id)}
+                      className={`px-2.5 py-1 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] bunyan-transition ${
+                        perms.canEditFinancials
+                          ? 'hover:border-[#B4863C] cursor-pointer'
+                          : 'opacity-65 cursor-not-allowed'
+                      }`}
+                      title={
+                        perms.canEditFinancials
+                          ? isAr ? 'اضغط لتغيير حالة الدفعة' : 'Click to toggle paid status'
+                          : isAr ? 'للقراءة فقط (دور المهندس)' : 'Read-only for Engineer role'
                       }
-                    />
-                  </button>
+                    >
+                      <StatusIndicator
+                        tone={m.status === 'paid' ? 'success' : 'neutral'}
+                        label={
+                          m.status === 'paid'
+                            ? isAr ? 'مدفوعة' : 'Paid'
+                            : isAr ? 'مجدولة' : 'Pending'
+                        }
+                      />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
@@ -272,56 +288,73 @@ export const FinancialSummaryModule: React.FC<FinancialSummaryModuleProps> = ({
             </div>
           }
         />
-        <div className="overflow-x-auto max-h-[420px]">
-          <table className="w-full text-start text-xs">
-            <thead className="bg-[var(--bg-surface-subtle)] border-b border-[var(--border-hairline)] text-[var(--text-muted)] sticky top-0">
-              <tr>
-                <th className="px-4 py-3 text-start font-semibold">{isAr ? 'المشروع' : 'Project'}</th>
-                <th className="px-4 py-3 text-end font-semibold">{isAr ? 'قيمة المشروع' : 'Project Value'}</th>
-                <th className="px-4 py-3 text-end font-semibold">{isAr ? 'الدفعات المستلمة' : 'Payments Received'}</th>
-                <th className="px-4 py-3 text-end font-semibold">{isAr ? 'المتبقي' : 'Remaining'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-hairline)]">
-              {filteredProjects.map((p) => {
-                const remaining = Math.max(0, p.approvedBudget - p.paidAmount);
-                const selected = p.id === activeProject.id;
-                return (
-                  <tr
-                    key={p.id}
-                    onClick={() => onSelectProject(p.id)}
-                    className={`cursor-pointer bunyan-transition ${
-                      selected ? 'bg-[#B4863C]/8' : 'hover:bg-[var(--bg-surface-subtle)]'
-                    }`}
-                  >
-                    <td className="px-4 py-3 min-w-[220px]">
-                      <div className="font-semibold text-[var(--text-primary)]">{isAr ? p.name : p.nameEn}</div>
-                      <div className="font-mono text-[11px] text-[#B4863C]">{p.code}</div>
-                    </td>
-                    <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums font-semibold">
-                      {formatAED(p.approvedBudget, lang)}
-                    </td>
-                    <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {formatAED(p.paidAmount, lang)}
-                    </td>
-                    <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums text-[var(--text-muted)]">
-                      {formatAED(remaining, lang)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {filteredProjects.length === 0 ? (
+          <EmptyState
+            title={isAr ? 'لا توجد مشاريع مطابقة' : 'No Matching Projects'}
+            description={
+              isAr
+                ? 'لم يتم العثور على مشاريع تطابق عبارة البحث في السجل المالي.'
+                : 'No portfolio projects matched your search query.'
+            }
+            actionLabel={isAr ? 'مسح البحث' : 'Clear Filter'}
+            onAction={() => setSearch('')}
+          />
+        ) : (
+          <div className="overflow-x-auto max-h-[420px]">
+            <table className="w-full text-start text-xs">
+              <thead className="bg-[var(--bg-surface-subtle)] border-b border-[var(--border-hairline)] text-[var(--text-muted)] sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-start font-semibold">{isAr ? 'المشروع' : 'Project'}</th>
+                  <th className="px-4 py-3 text-end font-semibold">{isAr ? 'قيمة المشروع' : 'Project Value'}</th>
+                  <th className="px-4 py-3 text-end font-semibold">{isAr ? 'الدفعات المستلمة' : 'Payments Received'}</th>
+                  <th className="px-4 py-3 text-end font-semibold">{isAr ? 'المتبقي' : 'Remaining'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-hairline)]">
+                {filteredProjects.map((p) => {
+                  const remaining = Math.max(0, p.approvedBudget - p.paidAmount);
+                  const selected = p.id === activeProject.id;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => onSelectProject(p.id)}
+                      className={`cursor-pointer bunyan-transition ${
+                        selected ? 'bg-[#B4863C]/8' : 'hover:bg-[var(--bg-surface-subtle)]'
+                      }`}
+                    >
+                      <td className="px-4 py-3 min-w-[220px]">
+                        <div className="font-semibold text-[var(--text-primary)]">{isAr ? p.name : p.nameEn}</div>
+                        <div className="font-mono text-[11px] text-[#B4863C]">{p.code}</div>
+                      </td>
+                      <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums font-semibold">
+                        {formatAED(p.approvedBudget, lang)}
+                      </td>
+                      <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
+                        {formatAED(p.paidAmount, lang)}
+                      </td>
+                      <td dir="ltr" className="px-4 py-3 text-end font-mono tabular-nums text-[var(--text-muted)]">
+                        {formatAED(remaining, lang)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
-      <BunyanExportCenter
-        isOpen={exportOpen}
-        onClose={() => setExportOpen(false)}
-        project={activeProject}
-        company={company}
-        lang={lang}
-      />
+      {exportOpen && (
+        <Suspense fallback={null}>
+          <BunyanExportCenter
+            isOpen={exportOpen}
+            onClose={() => setExportOpen(false)}
+            project={activeProject}
+            company={company}
+            lang={lang}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

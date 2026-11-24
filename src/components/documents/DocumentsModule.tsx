@@ -3,8 +3,9 @@ import { Eye, FileArchive, FilePlus2, FileText, Search, Upload } from 'lucide-re
 import type { Language, Project, ProjectDocument, Role } from '../../types/bunyan';
 import { getRolePermissions } from '../../utils/rbacPermissions';
 import { ensureProjectExistsInCloud, uploadChunkedDocument } from '../../services/firestoreStorage';
+import { cacheBinaryLocally } from '../../services/cloudSyncService';
 import { DocumentViewerModal } from '../projects/DocumentViewerModal';
-import { Card, CardHeader, EmptyState, Input, Select, useToast } from '../ui';
+import { Card, CardHeader, EmptyState, ErrorState, Input, Select, useToast } from '../ui';
 
 interface DocumentsModuleProps {
   projects: Project[];
@@ -30,6 +31,7 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
   const [scope, setScope] = useState<'active' | 'all'>('all');
   const [viewingDoc, setViewingDoc] = useState<ProjectDocument | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const { pushToast } = useToast();
   const isAr = lang === 'ar';
   const perms = useMemo(() => getRolePermissions(currentRole), [currentRole]);
@@ -57,6 +59,7 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
     e.target.value = '';
     if (!file) return;
     setUploading(true);
+    setUploadError(null);
     try {
       const base64DataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -78,8 +81,14 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
         manifestId = manifest.id;
       }
 
+      const docId = `doc-${Date.now()}`;
+      await cacheBinaryLocally(docId, base64DataUrl);
+      if (manifestId) {
+        await cacheBinaryLocally(manifestId, base64DataUrl);
+      }
+
       const newDoc: ProjectDocument = {
-        id: `doc-${Date.now()}`,
+        id: docId,
         name: file.name,
         category: file.type.includes('pdf') ? 'architectural' : 'permit',
         mimeType: file.type || 'application/pdf',
@@ -98,7 +107,9 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
         'success'
       );
     } catch (err) {
-      pushToast(err instanceof Error ? err.message : 'Upload failed', 'error');
+      const msg = err instanceof Error ? err.message : 'Upload failed';
+      setUploadError(msg);
+      pushToast(msg, 'error');
     } finally {
       setUploading(false);
     }
@@ -174,6 +185,17 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
           </div>
         </div>
 
+        {uploadError && (
+          <div className="p-4 border-b border-[var(--border-hairline)]">
+            <ErrorState
+              title={isAr ? 'فشل رفع المستند' : 'Document Upload Failed'}
+              message={uploadError}
+              retryLabel={isAr ? 'إغلاق' : 'Dismiss'}
+              onRetry={() => setUploadError(null)}
+            />
+          </div>
+        )}
+
         {docs.length === 0 ? (
           <EmptyState
             title={isAr ? 'لا توجد وثائق مطابقة' : 'No Matching Documents'}
@@ -181,6 +203,22 @@ export const DocumentsModule: React.FC<DocumentsModuleProps> = ({
               isAr
                 ? 'ارفع مخططاً هندسياً بصيغة PDF أو صورة ليتم حفظه وعرضه مباشرة.'
                 : 'Upload a PDF drawing or image to store and preview it inline.'
+            }
+            actionLabel={
+              search || categoryFilter !== 'all' || scope === 'active'
+                ? isAr
+                  ? 'إعادة ضبط الفلاتر'
+                  : 'Reset Filters'
+                : undefined
+            }
+            onAction={
+              search || categoryFilter !== 'all' || scope === 'active'
+                ? () => {
+                    setSearch('');
+                    setCategoryFilter('all');
+                    setScope('all');
+                  }
+                : undefined
             }
           />
         ) : (

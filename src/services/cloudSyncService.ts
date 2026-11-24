@@ -7,7 +7,6 @@ import type {
   RateLibraryItem,
   TakeoffSheet,
 } from '../types/bunyan';
-import { generateGisPlotTakeoffSheet } from '../utils/gisTakeoffGenerator';
 import {
   mergeRemoteProjectsWithLocal as mergeRemoteProjectsPure,
   parseSyncTimestampMs,

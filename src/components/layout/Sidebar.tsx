@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
+  Printer,
   Settings,
   Wallet,
   X,
@@ -23,6 +24,7 @@ export type ActiveModule =
   | 'projects'
   | 'financials'
   | 'documents'
+  | 'reports'
   | 'studio'
   | 'bim'
   | 'takeoff'
@@ -62,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'projects', icon: FolderKanban },
       { id: 'financials', icon: Wallet },
       { id: 'documents', icon: FileArchive },
+      { id: 'reports', icon: Printer },
     ],
   },
   {
@@ -108,13 +111,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <BunyanLogo iconOnly size="sm" />
+          <BunyanLogo iconOnly size="sm" lang={lang} />
           {!isCollapsedDesktop && (
             <div className="min-w-0">
               <div className="text-sm font-bold tracking-tight text-[var(--text-primary)] truncate">
                 {t.appName}
               </div>
-              <div className="text-[10.5px] font-mono text-[#B4863C] dark:text-[#C99A49] truncate">
+              <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-300 truncate">
                 {lang === 'ar' ? '5D BIM · بلدية الشارقة' : '5D BIM · SHARJAH'}
               </div>
             </div>
