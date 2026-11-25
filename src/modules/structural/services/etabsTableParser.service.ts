@@ -11,7 +11,7 @@ import type {
   EtabsRawExtractPayload,
   EtabsSectionRaw,
   EtabsStoryRaw,
-} from '../types/etabs.types';
+} from '../types/etabs.types.ts';
 
 export interface ParsedTableFallbackResult {
   payload: EtabsRawExtractPayload;

@@ -1,5 +1,5 @@
-import type { Project } from '../../../types/bunyan';
-import type { StructuralProject } from '../types/structural.types';
+import type { Project } from '../../../types/bunyan.ts';
+import type { StructuralProject } from '../types/structural.types.ts';
 
 export function buildStructuralProjectFromBunyanProject(
   bunyanProject: Project,

@@ -1,7 +1,7 @@
 import type {
   NormalizedStructuralDataset,
   StructuralReportDocument,
-} from '../types/structural-results.types';
+} from '../types/structural-results.types.ts';
 
 export function generateStructuralReport(params: {
   dataset: NormalizedStructuralDataset;

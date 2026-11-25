@@ -13,7 +13,7 @@ import type {
   StructuralStory,
   StructuralValidation,
   StructuralValidationIssue,
-} from '../types/structural.types';
+} from '../types/structural.types.ts';
 
 export interface ValidationInputDataset {
   ownerId: string;

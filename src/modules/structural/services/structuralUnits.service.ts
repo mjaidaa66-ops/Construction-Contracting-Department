@@ -1,4 +1,4 @@
-import type { StructuralValueWithRaw } from '../types/structural.types';
+import type { StructuralValueWithRaw } from '../types/structural.types.ts';
 
 export type SupportedLengthUnit = 'm' | 'mm' | 'cm' | 'ft' | 'in';
 export type SupportedForceUnit = 'kN' | 'N' | 'kgf' | 'tonf' | 'kip' | 'lb';

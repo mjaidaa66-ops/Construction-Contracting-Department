@@ -3,12 +3,12 @@ import type {
   StructuralModelRevision,
   StructuralProject,
   StructuralValidation,
-} from '../types/structural.types';
+} from '../types/structural.types.ts';
 import type {
   NormalizedStructuralDataset,
   StructuralImportPreview,
   StructuralReportDocument,
-} from '../types/structural-results.types';
+} from '../types/structural-results.types.ts';
 
 export interface StagedImportJobRecord {
   job: StructuralImportJob;

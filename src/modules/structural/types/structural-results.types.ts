@@ -15,7 +15,7 @@ import type {
   StructuralSection,
   StructuralStory,
   StructuralValidation,
-} from './structural.types';
+} from './structural.types.ts';
 
 export interface StructuralAnalysisResult {
   id: string;

@@ -1,8 +1,8 @@
-import type { EtabsRawExtractPayload } from '../types/etabs.types';
+import type { EtabsRawExtractPayload } from '../types/etabs.types.ts';
 import {
   getStructuralRolePermissions,
   type StructuralRole,
-} from '../types/structural.types';
+} from '../types/structural.types.ts';
 
 const VALID_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
 

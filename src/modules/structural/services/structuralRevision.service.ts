@@ -1,5 +1,5 @@
-import type { EtabsRawExtractPayload } from '../types/etabs.types';
-import type { StructuralModelRevision } from '../types/structural.types';
+import type { EtabsRawExtractPayload } from '../types/etabs.types.ts';
+import type { StructuralModelRevision } from '../types/structural.types.ts';
 
 export function computeDeterministicSourceHash(raw: EtabsRawExtractPayload): string {
   const canonical = JSON.stringify({

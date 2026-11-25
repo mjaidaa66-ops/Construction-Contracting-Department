@@ -1,17 +1,17 @@
 import type { Request, Response } from 'express';
-import { EtabsAgentAdapter } from '../adapters/etabs.adapter';
-import type { StructuralRepository } from '../repositories/structural.repository';
+import { EtabsAgentAdapter } from '../adapters/etabs.adapter.ts';
+import type { StructuralRepository } from '../repositories/structural.repository.ts';
 import {
   buildImportPreview,
   confirmImportPreview,
-} from '../services/etabsImport.service';
-import type { StructuralProject, StructuralRole } from '../types/structural.types';
+} from '../services/etabsImport.service.ts';
+import type { StructuralProject, StructuralRole } from '../types/structural.types.ts';
 import {
   assertStructuralPermission,
   isValidStructuralId,
   parseStructuralRoleHeader,
   validateRawExtractPayload,
-} from '../validators/structural.validators';
+} from '../validators/structural.validators.ts';
 
 export class StructuralController {
   private readonly adapter: EtabsAgentAdapter;

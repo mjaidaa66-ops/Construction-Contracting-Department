@@ -1,4 +1,4 @@
-import type { EtabsAgentStatus, EtabsRawExtractPayload } from '../types/etabs.types';
+import type { EtabsAgentStatus, EtabsRawExtractPayload } from '../types/etabs.types.ts';
 
 export interface EtabsAdapterConfig {
   agentUrl: string;

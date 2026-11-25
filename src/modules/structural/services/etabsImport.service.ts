@@ -1,21 +1,21 @@
-import type { EtabsAgentStatus, EtabsRawExtractPayload } from '../types/etabs.types';
+import type { EtabsAgentStatus, EtabsRawExtractPayload } from '../types/etabs.types.ts';
 import type {
   ImportStepState,
   NormalizedStructuralDataset,
   StructuralImportPreview,
   StructuralReportDocument,
-} from '../types/structural-results.types';
+} from '../types/structural-results.types.ts';
 import type {
   StructuralImportJob,
   StructuralModelRevision,
-} from '../types/structural.types';
-import { normalizeEtabsExtractToDataset } from '../adapters/structuralData.adapter';
+} from '../types/structural.types.ts';
+import { normalizeEtabsExtractToDataset } from '../adapters/structuralData.adapter.ts';
 import {
   computeDeterministicSourceHash,
   findDuplicateRevision,
   getNextRevisionNumber,
-} from './structuralRevision.service';
-import { generateStructuralReport } from '../reports/structuralReport.service';
+} from './structuralRevision.service.ts';
+import { generateStructuralReport } from '../reports/structuralReport.service.ts';
 
 export function createInitialElevenStepWorkflow(mode: 'ETABS_OAPI_LIVE' | 'ETABS_EXPORTED_TABLES'): ImportStepState[] {
   return [

@@ -1,4 +1,4 @@
-import type { EtabsRawExtractPayload } from '../types/etabs.types';
+import type { EtabsRawExtractPayload } from '../types/etabs.types.ts';
 import type {
   DataReliabilityStatus,
   DerivedCalculationMeta,
@@ -16,18 +16,18 @@ import type {
   StructuralProvenance,
   StructuralSection,
   StructuralStory,
-} from '../types/structural.types';
+} from '../types/structural.types.ts';
 import type {
   NormalizedStructuralDataset,
   StructuralAnalysisResult,
   StructuralDesignResult,
-} from '../types/structural-results.types';
+} from '../types/structural-results.types.ts';
 import {
   convertLengthToMeters,
   convertStressToMPa,
   convertUnitWeightToKNPerM3,
-} from '../services/structuralUnits.service';
-import { validateStructuralDataset } from '../services/structuralValidation.service';
+} from '../services/structuralUnits.service.ts';
+import { validateStructuralDataset } from '../services/structuralValidation.service.ts';
 
 function sanitizeIdPart(raw: string): string {
   return String(raw || 'item')

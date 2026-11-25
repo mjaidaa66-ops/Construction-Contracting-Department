@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { EtabsAgentAdapter } from '../adapters/etabs.adapter';
-import { StructuralController } from '../controllers/structural.controller';
+import { EtabsAgentAdapter } from '../adapters/etabs.adapter.ts';
+import { StructuralController } from '../controllers/structural.controller.ts';
 import {
   defaultStructuralRepository,
   type StructuralRepository,
-} from '../repositories/structural.repository';
+} from '../repositories/structural.repository.ts';
 
 export function createStructuralRouter(options?: {
   adapter?: EtabsAgentAdapter;

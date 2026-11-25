@@ -5,7 +5,7 @@ import type {
   TakeoffMeasurement,
   ProjectType,
   Language,
-} from '../../src/types/bunyan';
+} from '../../src/types/bunyan.ts';
 
 function createGeminiClient(): GoogleGenAI {
   return new GoogleGenAI({
