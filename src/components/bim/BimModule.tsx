@@ -431,7 +431,7 @@ export const BimModule: React.FC<BimModuleProps> = ({
                 {lang === 'ar' ? 'عنصر' : 'EL'})
               </span>
               <span className="text-[var(--text-muted)]">·</span>
-              <span dir="ltr" className="font-mono tabular-nums font-bold text-[#00E5A8]">
+              <span dir="ltr" className="font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                 {formatAED(activeSimCost, lang)}
               </span>
               <Button
@@ -460,7 +460,7 @@ export const BimModule: React.FC<BimModuleProps> = ({
               setSimPlaying(false);
               setSimPct(Number(e.target.value));
             }}
-            className="w-full accent-[#00F0FF] cursor-pointer"
+            className="w-full accent-[var(--accent-blue)] cursor-pointer"
             aria-label={lang === 'ar' ? 'شريط محاكاة مراحل البناء 4D' : '4D Construction Timeline Scrubber'}
           />
 
@@ -479,8 +479,8 @@ export const BimModule: React.FC<BimModuleProps> = ({
                     }}
                     className={`px-2.5 py-1 rounded-xl border bunyan-transition cursor-pointer ${
                       active
-                        ? 'border-[var(--accent-cyan)]/55 bg-[#0284C7]/12 dark:bg-[#00F0FF]/15 text-[var(--accent-cyan)] font-semibold'
-                        : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/40'
+                        ? 'border-[var(--accent-blue)]/50 bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] font-semibold'
+                        : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-blue)]/40'
                     }`}
                   >
                     {lang === 'ar' ? ph.nameAr : ph.nameEn || ph.nameAr} ({ph.progressPercentage}%)

@@ -37,19 +37,19 @@ export interface KPIWidgetProps {
 }
 
 const ACCENT_STROKE: Record<NonNullable<KPIWidgetProps['accent']>, string> = {
-  cyan: '#00F0FF',
-  blue: '#1677FF',
+  cyan: '#0EA5E9',
+  blue: '#2563EB',
   gold: '#D6A64F',
-  green: '#00E5A8',
-  orange: '#FF9D42',
+  green: '#10B981',
+  orange: '#F59E0B',
 };
 
 const ACCENT_BADGE: Record<NonNullable<KPIWidgetProps['accent']>, string> = {
-  cyan: 'text-[#0284C7] dark:text-[#00F0FF] bg-[#0284C7]/10 dark:bg-[#00F0FF]/10 border-[#0284C7]/25 dark:border-[#00F0FF]/30',
-  blue: 'text-[#1677FF] bg-[#1677FF]/10 border-[#1677FF]/30',
+  cyan: 'text-[#0284C7] dark:text-[#38BDF8] bg-[#0284C7]/10 dark:bg-[#38BDF8]/12 border-[#0284C7]/25 dark:border-[#38BDF8]/30',
+  blue: 'text-[#2563EB] dark:text-[#60A5FA] bg-[#2563EB]/10 border-[#2563EB]/25',
   gold: 'text-[#B4863C] dark:text-[#D6A64F] bg-[#B4863C]/10 dark:bg-[#D6A64F]/12 border-[#B4863C]/25 dark:border-[#D6A64F]/30',
-  green: 'text-emerald-600 dark:text-[#00E5A8] bg-emerald-500/10 dark:bg-[#00E5A8]/12 border-emerald-500/25 dark:border-[#00E5A8]/30',
-  orange: 'text-amber-600 dark:text-[#FF9D42] bg-amber-500/10 dark:bg-[#FF9D42]/12 border-amber-500/25 dark:border-[#FF9D42]/30',
+  green: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+  orange: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/25',
 };
 
 export const KPIWidget: React.FC<KPIWidgetProps> = ({
@@ -254,7 +254,7 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({
                 onClick={() => setPeriodFilter(key)}
                 className={`px-2.5 py-1 rounded-lg bunyan-transition cursor-pointer whitespace-nowrap ${
                   periodFilter === key
-                    ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
+                    ? 'bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -422,7 +422,7 @@ export const FinancialChart: React.FC<FinancialChartProps> = ({
                     />
                     {/* Paid Layer */}
                     <div
-                      className="h-full bg-gradient-to-l from-[#00E5A8] to-[#00F0FF] absolute inset-y-0 start-0 rounded-full bunyan-transition"
+                      className="h-full bg-gradient-to-l from-[#10B981] to-[#38BDF8] absolute inset-y-0 start-0 rounded-full bunyan-transition"
                       style={{ width: `${paidPct}%` }}
                     />
                   </div>
@@ -499,7 +499,7 @@ export const ProjectDataTable: React.FC<ProjectDataTableProps> = ({
                 onClick={() => onSelectProject(p.id)}
                 className={`cursor-pointer bunyan-transition ${
                   isSelected
-                    ? 'bg-[#0284C7]/8 dark:bg-[#00F0FF]/8'
+                    ? 'bg-[#2563EB]/8 dark:bg-[#38BDF8]/10'
                     : 'hover:bg-[var(--bg-surface-subtle)]'
                 }`}
               >
@@ -522,7 +522,7 @@ export const ProjectDataTable: React.FC<ProjectDataTableProps> = ({
                   <div className="flex items-center justify-end gap-2">
                     <div className="w-16 h-1.5 rounded-full bg-[var(--bg-surface-subtle)] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-l from-[#00F0FF] to-[#1677FF]"
+                        className="h-full rounded-full bg-gradient-to-l from-[#38BDF8] to-[#2563EB]"
                         style={{ width: `${Math.min(100, Math.max(0, p.actualProgress))}%` }}
                       />
                     </div>

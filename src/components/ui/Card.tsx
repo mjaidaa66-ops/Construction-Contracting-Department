@@ -8,9 +8,9 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const GLOW_CLASSES: Record<NonNullable<CardProps['glow']>, string> = {
   none: '',
-  cyan: 'dark:border-[#00F0FF]/30 dark:shadow-[0_0_24px_-10px_rgba(0,240,255,0.28)]',
-  gold: 'dark:border-[#D6A64F]/35 dark:shadow-[0_0_24px_-10px_rgba(214,166,79,0.25)]',
-  emerald: 'dark:border-[#00E5A8]/30 dark:shadow-[0_0_24px_-10px_rgba(0,229,168,0.25)]',
+  cyan: 'border-[var(--border-hairline)] hover:border-[var(--border-strong)]',
+  gold: 'border-[var(--border-hairline)] hover:border-[var(--accent-gold)]/45',
+  emerald: 'border-[var(--border-hairline)] hover:border-[var(--accent-green)]/45',
 };
 
 export const Card: React.FC<CardProps> = ({
@@ -25,7 +25,7 @@ export const Card: React.FC<CardProps> = ({
     <div
       className={`rounded-2xl border border-[var(--border-hairline)] bunyan-glass bunyan-neon-border bunyan-transition ${
         interactive
-          ? 'hover:border-[#0284C7]/55 dark:hover:border-[#00F0FF]/55 hover:-translate-y-0.5 cursor-pointer'
+          ? 'hover:border-[var(--border-strong)] hover:-translate-y-0.5 hover:shadow-[var(--spatial-card-shadow)] cursor-pointer'
           : ''
       } ${GLOW_CLASSES[glow]} ${padded ? 'p-5' : ''} ${className}`}
       {...props}
@@ -59,19 +59,9 @@ export const HolographicPanel: React.FC<HolographicPanelProps> = ({
 }) => {
   return (
     <Card
-      className={`relative overflow-hidden ${scanline ? 'bunyan-scanline' : ''} ${className}`}
+      className={`relative overflow-hidden bunyan-spatial-card ${scanline ? 'bunyan-scanline' : ''} ${className}`}
       {...props}
     >
-      {/* Subtle Holographic Corner Brackets */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute top-0 start-0 w-3 h-3 border-t-2 border-s-2 border-[var(--accent-cyan)]/45 rounded-ts-xl"
-      />
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 end-0 w-3 h-3 border-b-2 border-e-2 border-[var(--accent-gold)]/45 rounded-be-xl"
-      />
-
       {(title || action) && (
         <CardHeader title={title} subtitle={subtitle} icon={icon} badge={badge} action={action} />
       )}
@@ -94,7 +84,7 @@ export const CardHeader: React.FC<{
     >
       <div className="flex items-center gap-2.5 min-w-0">
         {icon && (
-          <span className="shrink-0 w-8 h-8 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-center text-[var(--accent-cyan)] dark:text-[#00F0FF]">
+          <span className="shrink-0 w-8 h-8 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-center text-[var(--accent-cyan)]">
             {icon}
           </span>
         )}

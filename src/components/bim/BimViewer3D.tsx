@@ -78,6 +78,18 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
   const [viewportKey, setViewportKey] = useState(0);
+  const [isDark, setIsDark] = useState<boolean>(() =>
+    typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : true
+  );
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+    const syncTheme = () => setIsDark(document.documentElement.classList.contains('dark'));
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Refs to keep Three.js instance stable across React prop updates
   const callbacksRef = useRef({ onSelectElement });
@@ -97,6 +109,9 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     controls: OrbitControls;
+    hemi: THREE.HemisphereLight;
+    rimLight: THREE.DirectionalLight;
+    gridHelper: THREE.GridHelper;
     bimGroup: THREE.Group;
     meshMap: Map<string, THREE.Mesh>;
     clipPlanes: { x: THREE.Plane; y: THREE.Plane; z: THREE.Plane; box: THREE.Plane[] };
@@ -153,9 +168,13 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const initialDark =
+      typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : true;
+    const initialBg = initialDark ? 0x090e1a : 0xeaf0f8;
+
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050b18);
-    scene.fog = new THREE.FogExp2(0x050b18, 0.008);
+    scene.background = new THREE.Color(initialBg);
+    scene.fog = new THREE.FogExp2(initialBg, 0.008);
 
     const buildEnvironment = () => {
       scene.environment?.dispose();
@@ -178,7 +197,11 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     controls.maxDistance = 140;
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
-    const hemi = new THREE.HemisphereLight(0xdbeafe, 0x0f172a, 0.9);
+    const hemi = new THREE.HemisphereLight(
+      initialDark ? 0xdbeafe : 0xf8fafc,
+      initialDark ? 0x0f172a : 0x94a3b8,
+      initialDark ? 0.9 : 1.05
+    );
     scene.add(hemi);
 
     const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.85);
@@ -193,20 +216,28 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x00f0ff, 0.72);
+    const rimLight = new THREE.DirectionalLight(
+      initialDark ? 0x38bdf8 : 0x2563eb,
+      initialDark ? 0.7 : 0.52
+    );
     rimLight.position.set(-16, 12, -18);
     scene.add(rimLight);
 
-    const gridHelper = new THREE.GridHelper(64, 64, 0x00f0ff, 0x0e2945);
+    let gridHelper = new THREE.GridHelper(
+      64,
+      64,
+      initialDark ? 0x38bdf8 : 0x2563eb,
+      initialDark ? 0x162945 : 0xcbd5e1
+    );
     gridHelper.position.y = -0.11;
     if (Array.isArray(gridHelper.material)) {
       gridHelper.material.forEach((m) => {
         m.transparent = true;
-        m.opacity = 0.35;
+        m.opacity = initialDark ? 0.35 : 0.42;
       });
     } else {
       gridHelper.material.transparent = true;
-      gridHelper.material.opacity = 0.35;
+      gridHelper.material.opacity = initialDark ? 0.35 : 0.42;
     }
     scene.add(gridHelper);
 
@@ -302,6 +333,9 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       scene,
       camera,
       controls,
+      hemi,
+      rimLight,
+      gridHelper,
       bimGroup,
       meshMap,
       clipPlanes,
@@ -398,12 +432,50 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
           else obj.material.dispose();
         }
       });
-      gridHelper.dispose();
+      scene.remove(sceneRef.current?.gridHelper ?? gridHelper);
+      (sceneRef.current?.gridHelper ?? gridHelper).dispose();
       scene.environment?.dispose();
       renderer.dispose();
       sceneRef.current = null;
     };
   }, [viewportKey]);
+
+  // 0. Sync Three.js Scene Lighting, Background & Grid when switching Light <-> Dark Mode
+  useEffect(() => {
+    const st = sceneRef.current;
+    if (!st) return;
+
+    const bgHex = isDark ? 0x090e1a : 0xeaf0f8;
+    st.scene.background = new THREE.Color(bgHex);
+    st.scene.fog = new THREE.FogExp2(bgHex, 0.008);
+    st.hemi.color.setHex(isDark ? 0xdbeafe : 0xf8fafc);
+    st.hemi.groundColor.setHex(isDark ? 0x0f172a : 0x94a3b8);
+    st.hemi.intensity = isDark ? 0.9 : 1.05;
+    st.rimLight.color.setHex(isDark ? 0x38bdf8 : 0x2563eb);
+    st.rimLight.intensity = isDark ? 0.7 : 0.52;
+
+    st.scene.remove(st.gridHelper);
+    st.gridHelper.dispose();
+    const nextGrid = new THREE.GridHelper(
+      64,
+      64,
+      isDark ? 0x38bdf8 : 0x2563eb,
+      isDark ? 0x162945 : 0xcbd5e1
+    );
+    nextGrid.position.y = -0.11;
+    if (Array.isArray(nextGrid.material)) {
+      nextGrid.material.forEach((m) => {
+        m.transparent = true;
+        m.opacity = isDark ? 0.35 : 0.42;
+      });
+    } else {
+      nextGrid.material.transparent = true;
+      nextGrid.material.opacity = isDark ? 0.35 : 0.42;
+    }
+    st.scene.add(nextGrid);
+    st.gridHelper = nextGrid;
+    st.requestRender();
+  }, [isDark, viewportKey]);
 
   // 1. Rebuild Geometry ONLY when elements, renderMode, or section planes change (NOT on selection click)
   useEffect(() => {
@@ -449,7 +521,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       const isSelected = el.id === curSelected;
 
       const mat = new THREE.MeshPhysicalMaterial({
-        color: isSelected ? 0x00f0ff : baseColor,
+        color: isSelected ? 0x38bdf8 : baseColor,
         roughness: isGlass ? 0.1 : el.discipline === 'mep' ? 0.3 : 0.65,
         metalness: el.discipline === 'mep' ? 0.55 : isGlass ? 0.1 : 0.15,
         wireframe: renderMode === 'wireframe',
@@ -466,7 +538,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
             : 1.0,
         transmission: isGlass && !st.isSoftwareGl && renderMode === 'pbr' ? 0.65 : 0,
         emissive: isSelected ? new THREE.Color(0x0284c7) : new THREE.Color(0x000000),
-        emissiveIntensity: isSelected ? 0.52 : 0,
+        emissiveIntensity: isSelected ? 0.48 : 0,
         clippingPlanes: activeClipPlanes,
         clipShadows: true,
         side: activeClipPlanes.length > 0 ? THREE.DoubleSide : THREE.FrontSide,
@@ -532,9 +604,9 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       const mat = mesh.material as THREE.MeshPhysicalMaterial;
       const baseColor = (mesh.userData.baseColor as number) ?? 0x94a3b8;
       const isSelected = id === selectedId;
-      mat.color.setHex(isSelected ? 0x00f0ff : baseColor);
+      mat.color.setHex(isSelected ? 0x38bdf8 : baseColor);
       mat.emissive.setHex(isSelected ? 0x0284c7 : 0x000000);
-      mat.emissiveIntensity = isSelected ? 0.52 : 0;
+      mat.emissiveIntensity = isSelected ? 0.48 : 0;
     });
     st.requestRender();
   }, [selectedId, viewportKey]);
@@ -556,14 +628,14 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
   }, [cameraPreset, viewportKey]);
 
   return (
-    <div className="relative rounded-2xl border border-[#0284C7]/30 dark:border-[#00F0FF]/25 bg-[#050B18] h-[600px] overflow-hidden">
+    <div className="relative rounded-2xl border border-[var(--border-strong)] bg-[#EAF0F8] dark:bg-[#090E1A] h-[600px] overflow-hidden shadow-[var(--spatial-card-shadow)]">
       {/* Isolated WebGL mount div */}
       <div ref={canvasMountRef} className="w-full h-full" />
 
       {webglError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#050B18] text-slate-300 text-xs p-6 text-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#EAF0F8] dark:bg-[#090E1A] text-[var(--text-secondary)] text-xs p-6 text-center">
           <div className="space-y-2">
-            <p className="font-semibold text-[#FF9D42]">WebGL Viewport Notice</p>
+            <p className="font-semibold text-amber-600 dark:text-amber-400">WebGL Viewport Notice</p>
             <p>{webglError}</p>
             <button
               type="button"
@@ -571,7 +643,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                 setWebglError(null);
                 setViewportKey((k) => k + 1);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00F0FF] text-[#050B18] font-bold hover:brightness-110"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2563EB] dark:bg-[#38BDF8] text-white dark:text-[#090E1A] font-bold hover:brightness-110"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>{lang === 'ar' ? 'إعادة تشغيل WebGL' : 'Reinitialize 3D Viewport'}</span>
@@ -581,7 +653,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
       )}
 
       {/* Minimal Top-Left Spec Label (No backdrop-blur over WebGL) */}
-      <div className="absolute top-3 start-3 px-3 py-1.5 rounded-xl bg-[#080F1F]/92 border border-[#00F0FF]/35 text-[11px] font-mono text-[#00F0FF] pointer-events-none">
+      <div className="absolute top-3 start-3 px-3 py-1.5 rounded-xl bg-white/95 dark:bg-[#0D1424]/95 border border-[var(--border-strong)] text-[11px] font-mono text-[#2563EB] dark:text-[#38BDF8] pointer-events-none shadow-sm">
         5D BIM · {elements.length} {lang === 'ar' ? 'عنصر' : 'Elements'} · {renderMode.toUpperCase()}
       </div>
 
@@ -590,14 +662,14 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
         <button
           type="button"
           onClick={() => setDockCollapsed(!dockCollapsed)}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl bg-[#080F1F] border border-b-0 border-[#00F0FF]/30 text-[11px] font-medium text-slate-300 hover:text-[#00F0FF] cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl bg-white/95 dark:bg-[#0D1424]/95 border border-b-0 border-[var(--border-strong)] text-[11px] font-medium text-[var(--text-secondary)] hover:text-[#2563EB] dark:hover:text-[#38BDF8] cursor-pointer"
         >
           {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           <span>{dockCollapsed ? (lang === 'ar' ? 'إظهار الأدوات' : 'Show Controls') : (lang === 'ar' ? 'طي الأدوات' : 'Hide Controls')}</span>
         </button>
 
         {!dockCollapsed && (
-          <div className="w-full rounded-2xl bg-[#080F1F]/95 border border-[#00F0FF]/30 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div className="w-full rounded-2xl bg-white/95 dark:bg-[#0D1424]/95 border border-[var(--border-strong)] p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] shadow-md">
             {/* Camera Presets */}
             <div className="flex items-center gap-1">
               {(['iso', 'top', 'front', 'back', 'left', 'right'] as BimCameraPreset[]).map((p) => (
@@ -607,8 +679,8 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                   onClick={() => onChangeCameraPreset(p)}
                   className={`px-2 py-1 rounded-lg font-mono uppercase transition-colors cursor-pointer ${
                     cameraPreset === p
-                      ? 'bg-[#00F0FF] text-[#050B18] font-bold'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-[#2563EB] dark:bg-[#38BDF8] text-white dark:text-[#090E1A] font-bold'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]'
                   }`}
                 >
                   {p}
@@ -617,7 +689,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
             </div>
 
             {/* Render Modes */}
-            <div className="flex items-center gap-1 border-s border-slate-700 ps-2">
+            <div className="flex items-center gap-1 border-s border-[var(--border-hairline)] ps-2">
               {(['pbr', 'wireframe', 'xray', 'transparent'] as BimRenderMode[]).map((m) => (
                 <button
                   key={m}
@@ -625,8 +697,8 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                   onClick={() => onChangeRenderMode(m)}
                   className={`px-2 py-1 rounded-lg font-mono uppercase transition-colors cursor-pointer ${
                     renderMode === m
-                      ? 'bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/55 font-semibold'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-[#2563EB]/12 dark:bg-[#38BDF8]/20 text-[#2563EB] dark:text-[#38BDF8] border border-[#2563EB]/35 dark:border-[#38BDF8]/50 font-semibold'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]'
                   }`}
                 >
                   {m}
@@ -635,8 +707,8 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
             </div>
 
             {/* Section Plane Controls */}
-            <div className="flex items-center gap-1.5 border-s border-slate-700 ps-2">
-              <Scissors className="w-3.5 h-3.5 text-[#D6A64F]" />
+            <div className="flex items-center gap-1.5 border-s border-[var(--border-hairline)] ps-2">
+              <Scissors className="w-3.5 h-3.5 text-[var(--accent-gold)]" />
               {(['none', 'x', 'y', 'z', 'box'] as BimSectionMode[]).map((s) => (
                 <button
                   key={s}
@@ -644,8 +716,8 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                   onClick={() => onChangeSectionMode(s)}
                   className={`px-1.5 py-1 rounded-lg font-mono uppercase cursor-pointer ${
                     sectionMode === s
-                      ? 'bg-[#D6A64F] text-[#050B18] font-bold'
-                      : 'text-slate-300 hover:bg-slate-800'
+                      ? 'bg-[var(--accent-gold)] text-white dark:text-[#090E1A] font-bold'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-subtle)]'
                   }`}
                 >
                   {s}
@@ -659,7 +731,7 @@ export const BimViewer3D: React.FC<BimViewer3DProps> = ({
                   step={0.5}
                   value={sectionOffset}
                   onChange={(e) => onChangeSectionOffset(Number(e.target.value))}
-                  className="w-20 accent-[#00F0FF]"
+                  className="w-20 accent-[#2563EB] dark:accent-[#38BDF8]"
                   aria-label="Section offset"
                 />
               )}

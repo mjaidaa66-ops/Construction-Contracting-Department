@@ -32,23 +32,23 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div
           dir="auto"
-          className="min-h-screen flex items-center justify-center bg-[var(--bg-canvas,#050B18)] bunyan-holo-grid p-6 text-[var(--text-primary,#E8F1FF)]"
+          className="min-h-screen flex items-center justify-center bg-[var(--bg-canvas,#090E1A)] bunyan-holo-grid p-6 text-[var(--text-primary,#F1F5F9)]"
         >
-          <div className="max-w-lg w-full rounded-2xl border border-[#0284C7]/35 dark:border-[#00F0FF]/35 bg-[var(--bg-surface,#101B30)] backdrop-blur-xl p-6 space-y-4 shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
-            <div className="flex items-center gap-3 text-[#FF405C]">
+          <div className="max-w-lg w-full rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-surface,#11192B)] backdrop-blur-xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <div>
                 <h2 className="text-base sm:text-lg font-bold">
                   استعادة النظام الهندسي · Application Recovery
                 </h2>
-                <p className="text-xs text-[var(--text-muted,#7E96BA)]">
-                  BUNYAN | 5D BIM Digital Twin Workspace
+                <p className="text-xs text-[var(--text-muted,#8496B0)]">
+                  BUNYAN | 3D Digital Twin & 5D BIM Platform
                 </p>
               </div>
             </div>
             <p
               dir="ltr"
-              className="text-xs text-[var(--text-secondary,#A3B8D8)] bg-[var(--bg-surface-subtle,#0C1628)] border border-[var(--border-hairline,rgba(0,240,255,0.16))] rounded-xl p-3 font-mono break-all"
+              className="text-xs text-[var(--text-secondary,#CBD5E1)] bg-[var(--bg-surface-subtle,#0D1424)] border border-[var(--border-hairline)] rounded-xl p-3 font-mono break-all"
             >
               {this.state.message}
             </p>
@@ -56,7 +56,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <button
                 type="button"
                 onClick={() => this.setState({ hasError: false, message: '' })}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00F0FF] dark:to-[#1677FF] text-white dark:text-[#050B18] hover:brightness-110 transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-gradient-to-l from-[#2563EB] to-[#0284C7] text-white hover:brightness-110 transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>إعادة تحميل مساحة العمل · Reload Workspace</span>

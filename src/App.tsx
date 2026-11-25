@@ -141,13 +141,18 @@ const StructuralWorkspace = lazy(() =>
     default: m.StructuralWorkspace,
   }))
 );
+const DigitalTwinStage3D = lazy(() =>
+  import('./components/bim/DigitalTwinStage3D').then((m) => ({
+    default: m.DigitalTwinStage3D,
+  }))
+);
 
 function ModuleLoadingFallback({ lang = 'ar' }: { lang?: Language }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-center justify-center py-8 gap-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
         <BunyanLogo size="xl" lang={lang} />
-        <div className="text-xs font-medium text-[var(--text-secondary)] animate-pulse">
+        <div className="text-xs font-medium text-[var(--text-secondary)]">
           {lang === 'ar' ? 'جاري تحميل الوحدة الهندسية...' : 'Loading engineering workspace...'}
         </div>
       </div>
@@ -1028,154 +1033,186 @@ function BunyanWorkspace() {
     const isHydrating = Boolean(cloudUid && !isDisconnected && !cloudWorkspaceHydrated);
 
     return (
-      <div className="max-w-3xl mx-auto py-8">
-        <Card padded className="space-y-6 border-[var(--border-hairline)]">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl border border-[#FF405C]/30 bg-[#FF405C]/10 flex items-center justify-center shrink-0">
-                {isHydrating ? (
-                  <Loader2 className="w-6 h-6 text-[var(--accent-cyan)] animate-spin" />
-                ) : isDisconnected ? (
-                  <CloudOff className="w-6 h-6 text-[#FF405C]" />
-                ) : (
-                  <ShieldAlert className="w-6 h-6 text-amber-500" />
-                )}
+      <div className="max-w-5xl mx-auto py-6 lg:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <Card padded className="lg:col-span-7 flex flex-col justify-between space-y-6 border-[var(--border-hairline)]">
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl border border-rose-500/25 bg-rose-500/10 flex items-center justify-center shrink-0">
+                    {isHydrating ? (
+                      <Loader2 className="w-6 h-6 text-[var(--accent-blue)] animate-spin" />
+                    ) : isDisconnected ? (
+                      <CloudOff className="w-6 h-6 text-rose-500 dark:text-rose-400" />
+                    ) : (
+                      <ShieldAlert className="w-6 h-6 text-amber-500" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <h1 className="text-base sm:text-lg font-bold text-[var(--text-primary)]">
+                      {isHydrating
+                        ? isAr
+                          ? 'جاري مزامنة مساحة العمل الحية من Cloud Firestore...'
+                          : 'Hydrating Authoritative Cloud Firestore Workspace...'
+                        : needsAuth
+                        ? isAr
+                          ? 'بوابة الأمان السحابية (Fail-Closed) — يتطلب توثيق Google'
+                          : 'Fail-Closed Cloud Security Gate — Verified Google Sign-In Required'
+                        : isAr
+                        ? 'بوابة الأمان السحابية (Fail-Closed) — تعذر الوصول لخادم Firestore'
+                        : 'Fail-Closed Cloud Gate — Firestore Server Unreachable'}
+                    </h1>
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                      {isAr
+                        ? 'منصة بنيان للتوأم الرقمي والهندسة 5D BIM تعمل حصرياً عبر مسار سحابي إلزامي ومُتحقق منه بدون أي تخزين محلي بديل لمنع تضارب النسخ.'
+                        : 'BUNYAN 3D Digital Twin & 5D BIM operates strictly on a verified Fail-Closed Cloud Firestore path with zero offline local-storage fallback.'}
+                    </p>
+                  </div>
+                </div>
+
+                <StatusIndicator
+                  tone={isHydrating ? 'info' : 'danger'}
+                  label={
+                    isHydrating
+                      ? isAr ? 'جاري التحقق...' : 'Verifying...'
+                      : isAr ? 'مغلق أمنياً (Fail-Closed)' : 'Locked (Fail-Closed)'
+                  }
+                />
               </div>
-              <div className="space-y-1">
-                <h1 className="text-base sm:text-lg font-bold text-[var(--text-primary)]">
-                  {isHydrating
-                    ? isAr
-                      ? 'جاري مزامنة مساحة العمل الحية من Cloud Firestore...'
-                      : 'Hydrating Authoritative Cloud Firestore Workspace...'
-                    : needsAuth
-                    ? isAr
-                      ? 'بوابة الأمان السحابية (Fail-Closed) — يتطلب توثيق Google'
-                      : 'Fail-Closed Cloud Security Gate — Verified Google Sign-In Required'
-                    : isAr
-                    ? 'بوابة الأمان السحابية (Fail-Closed) — تعذر الوصول لخادم Firestore'
-                    : 'Fail-Closed Cloud Gate — Firestore Server Unreachable'}
-                </h1>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                  {isAr
-                    ? 'تطبيق بنيان يعمل حصرياً عبر مسار سحابي إلزامي ومُتحقق منه بدون أي تخزين أو قراءة محلية بديلة لضمان تطابق البيانات ومنع تضارب النسخ.'
-                    : 'BUNYAN operates strictly on a verified Fail-Closed Cloud Firestore path with zero offline local-storage fallback to prevent split-brain drift.'}
-                </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-muted)]">
+                    {isAr ? 'مصادقة Google الموثقة' : 'Verified Google Auth'}
+                  </span>
+                  <StatusIndicator
+                    tone={cloudUid ? 'success' : 'danger'}
+                    label={
+                      cloudUid
+                        ? firebaseUser?.email || (isAr ? 'موثق' : 'Verified')
+                        : !authReady
+                        ? isAr ? 'جاري الفحص...' : 'Checking...'
+                        : isAr ? 'غير موثق' : 'Required'
+                    }
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-muted)]">
+                    {isAr ? 'اتصال خادم Firestore الحي' : 'Live Firestore Server'}
+                  </span>
+                  <StatusIndicator
+                    tone={firestoreConnected && syncState.isOnline ? 'success' : 'danger'}
+                    label={
+                      firestoreConnected && syncState.isOnline
+                        ? `${isAr ? 'متصل' : 'Reachable'}${
+                            reachabilityReport ? ` (${reachabilityReport.latencyMs}ms)` : ''
+                          }`
+                        : isAr
+                        ? 'غير متصل'
+                        : 'Unreachable'
+                    }
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-muted)]">
+                    {isAr ? 'قاعدة البيانات' : 'Database ID'}
+                  </span>
+                  <span dir="ltr" className="font-mono text-[11px] text-[var(--accent-cyan)] truncate">
+                    {FIRESTORE_DATABASE_ID}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-muted)]">
+                    {isAr ? 'حماية App Check' : 'Firebase App Check'}
+                  </span>
+                  <span
+                    className={`font-semibold ${
+                      isAppCheckConfigured
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    {isAppCheckConfigured
+                      ? isAr
+                        ? 'مفعل (reCAPTCHA v3)'
+                        : 'Active (reCAPTCHA v3)'
+                      : isAr
+                      ? 'بانتظار مفتاح الموقع'
+                      : 'Site Key Unconfigured'}
+                  </span>
+                </div>
               </div>
+
+              {cloudBlockingError && (
+                <div className="p-3.5 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400 break-all">
+                  {cloudBlockingError}
+                </div>
+              )}
             </div>
 
-            <StatusIndicator
-              tone={isHydrating ? 'info' : 'danger'}
-              label={
-                isHydrating
-                  ? isAr ? 'جاري التحقق...' : 'Verifying...'
-                  : isAr ? 'مغلق أمنياً (Fail-Closed)' : 'Locked (Fail-Closed)'
-              }
-            />
-          </div>
+            <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-[var(--border-hairline)]">
+              {needsAuth && (
+                <Button
+                  variant="cyan"
+                  icon={<LogIn className="w-4 h-4" />}
+                  onClick={() => void handleSignInGoogle()}
+                >
+                  {isAr ? 'تسجيل الدخول بحساب Google الموثق' : 'Sign In with Verified Google Account'}
+                </Button>
+              )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
-              <span className="text-[var(--text-muted)]">
-                {isAr ? 'مصادقة Google الموثقة' : 'Verified Google Auth'}
-              </span>
-              <StatusIndicator
-                tone={cloudUid ? 'success' : 'danger'}
-                label={
-                  cloudUid
-                    ? firebaseUser?.email || (isAr ? 'موثق' : 'Verified')
-                    : !authReady
-                    ? isAr ? 'جاري الفحص...' : 'Checking...'
-                    : isAr ? 'غير موثق' : 'Required'
-                }
-              />
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
-              <span className="text-[var(--text-muted)]">
-                {isAr ? 'اتصال خادم Firestore الحي' : 'Live Firestore Server'}
-              </span>
-              <StatusIndicator
-                tone={firestoreConnected && syncState.isOnline ? 'success' : 'danger'}
-                label={
-                  firestoreConnected && syncState.isOnline
-                    ? `${isAr ? 'متصل' : 'Reachable'}${
-                        reachabilityReport ? ` (${reachabilityReport.latencyMs}ms)` : ''
-                      }`
-                    : isAr
-                    ? 'غير متصل'
-                    : 'Unreachable'
-                }
-              />
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
-              <span className="text-[var(--text-muted)]">
-                {isAr ? 'قاعدة البيانات' : 'Database ID'}
-              </span>
-              <span dir="ltr" className="font-mono text-[11px] text-[var(--accent-cyan)] truncate">
-                {FIRESTORE_DATABASE_ID}
-              </span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] flex items-center justify-between gap-2">
-              <span className="text-[var(--text-muted)]">
-                {isAr ? 'حماية App Check' : 'Firebase App Check'}
-              </span>
-              <span
-                className={`font-semibold ${
-                  isAppCheckConfigured
-                    ? 'text-emerald-600 dark:text-[#00E5A8]'
-                    : 'text-amber-600 dark:text-[#FF9D42]'
-                }`}
-              >
-                {isAppCheckConfigured
-                  ? isAr
-                    ? 'مفعل (reCAPTCHA v3)'
-                    : 'Active (reCAPTCHA v3)'
-                  : isAr
-                  ? 'بانتظار مفتاح الموقع'
-                  : 'Site Key Unconfigured'}
-              </span>
-            </div>
-          </div>
-
-          {cloudBlockingError && (
-            <div className="p-3.5 rounded-xl border border-[#FF405C]/35 bg-[#FF405C]/10 text-xs text-[#FF405C] break-all">
-              {cloudBlockingError}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            {needsAuth && (
               <Button
-                variant="cyan"
-                icon={<LogIn className="w-4 h-4" />}
-                onClick={() => void handleSignInGoogle()}
+                variant="outline"
+                loading={probingCloud}
+                icon={<RefreshCw className="w-4 h-4" />}
+                onClick={() => void verifyCloudPath()}
               >
-                {isAr ? 'تسجيل الدخول بحساب Google الموثق' : 'Sign In with Verified Google Account'}
+                {isAr ? 'إعادة التحقق من المسار السحابي' : 'Retry Cloud Verification'}
               </Button>
-            )}
 
-            <Button
-              variant="outline"
-              loading={probingCloud}
-              icon={<RefreshCw className="w-4 h-4" />}
-              onClick={() => void verifyCloudPath()}
-            >
-              {isAr ? 'إعادة التحقق من المسار السحابي' : 'Retry Cloud Verification'}
-            </Button>
+              {cloudUid && firestoreConnected && syncState.isOnline && (
+                <Button
+                  variant="primary"
+                  icon={<ShieldCheck className="w-4 h-4" />}
+                  onClick={() => void handleSyncNow()}
+                >
+                  {isAr ? 'مزامنة وفتح مساحة العمل' : 'Verify & Open Cloud Workspace'}
+                </Button>
+              )}
+            </div>
+          </Card>
 
-            {cloudUid && firestoreConnected && syncState.isOnline && (
-              <Button
-                variant="primary"
-                icon={<ShieldCheck className="w-4 h-4" />}
-                onClick={() => void handleSyncNow()}
-              >
-                {isAr ? 'مزامنة وفتح مساحة العمل' : 'Verify & Open Cloud Workspace'}
-              </Button>
-            )}
-          </div>
-        </Card>
+          <Card className="lg:col-span-5 p-4 flex flex-col justify-between gap-3 border-[var(--border-hairline)]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div dir="ltr" className="text-[10.5px] font-mono uppercase tracking-[0.14em] text-[var(--accent-blue)] font-semibold">
+                  GLOBAL 3D AEC ENGINE
+                </div>
+                <div className="text-sm font-bold text-[var(--text-primary)]">
+                  {isAr ? 'بيئة التوأم الرقمي والهندسة 5D BIM' : 'Interactive 3D Digital Twin Stage'}
+                </div>
+              </div>
+              <BunyanLogo size="sm" iconOnly lang={lang} />
+            </div>
+
+            <Suspense fallback={<SkeletonBlock className="h-[300px] lg:h-[320px] w-full rounded-xl" />}>
+              <DigitalTwinStage3D
+                lang={lang}
+                theme={theme}
+                heightClass="h-[300px] lg:h-[320px]"
+                compact
+              />
+            </Suspense>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10.5px] font-mono text-[var(--text-muted)] pt-1 border-t border-[var(--border-hairline)]">
+              <span>IFC / DXF · 5D BOQ · GIS</span>
+              <span>ISO 19650 · SHARJAH DTPS</span>
+            </div>
+          </Card>
+        </div>
       </div>
     );
   };
@@ -1185,21 +1222,21 @@ function BunyanWorkspace() {
       {showSplash && (
         <div
           onClick={() => setShowSplash(false)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-slate-100/95 dark:bg-[#050B18]/96 backdrop-blur-md transition-opacity duration-300 cursor-pointer no-print"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-[#F3F6FA]/96 dark:bg-[#090E1A]/96 backdrop-blur-md transition-opacity duration-300 cursor-pointer no-print"
           role="status"
           aria-label={lang === 'ar' ? 'شاشة الترحيب بمنصة بنيان' : 'Bunyan Splash Screen'}
         >
-          <BunyanLogo size="2xl" iconOnly lang={lang} className="shadow-[0_0_40px_rgba(0,240,255,0.22)] rounded-3xl" />
-          <div className="text-center space-y-1">
-            <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {lang === 'ar' ? 'منصة بنيان · التوأم الرقمي' : 'BUNYAN CORE SYSTEM'}
+          <BunyanLogo size="2xl" iconOnly lang={lang} className="shadow-[var(--spatial-card-shadow)] rounded-3xl" />
+          <div className="text-center space-y-1.5">
+            <div className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+              {lang === 'ar' ? 'منصة بنيان · التوأم الرقمي الهندسي' : 'BUNYAN · 3D DIGITAL TWIN'}
             </div>
-            <div className="text-xs font-mono uppercase tracking-widest text-[#0284C7] dark:text-[#00F0FF]">
-              5D BIM · DIGITAL TWIN · GIS · SHARJAH MUNICIPALITY
+            <div dir="ltr" className="text-[11px] font-mono uppercase tracking-[0.16em] text-[var(--accent-blue)]">
+              5D BIM · OPENBIM IFC · GIS · ISO 19650
             </div>
           </div>
-          <div className="w-44 h-1.5 rounded-full bg-slate-300/70 dark:bg-[#101B30] overflow-hidden border border-[#00F0FF]/25">
-            <div className="h-full w-2/3 bg-gradient-to-r from-[#00F0FF] to-[#1677FF] rounded-full animate-pulse" />
+          <div className="w-44 h-1 rounded-full bg-[var(--bg-surface-subtle)] overflow-hidden border border-[var(--border-hairline)]">
+            <div className="h-full w-3/4 bg-gradient-to-r from-[#2563EB] via-[#0284C7] to-[#B4863C] dark:from-[#38BDF8] dark:via-[#3B82F6] dark:to-[#D6A64F] rounded-full" />
           </div>
         </div>
       )}

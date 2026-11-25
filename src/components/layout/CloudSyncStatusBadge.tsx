@@ -67,11 +67,11 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
           <Loader2 className="w-3.5 h-3.5 text-[var(--accent-cyan)] animate-spin shrink-0" />
         ) : isSynced ? (
           <span
-            className="w-2 h-2 rounded-full bg-[#00E5A8] shadow-[0_0_8px_#00E5A8] shrink-0"
+            className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
             aria-hidden="true"
           />
         ) : (
-          <CloudOff className="w-3.5 h-3.5 text-[#FF405C] shrink-0" />
+          <CloudOff className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
         )}
 
         <span
@@ -79,10 +79,10 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
             isSyncing
               ? 'text-[var(--accent-cyan)]'
               : isSynced
-              ? 'text-emerald-600 dark:text-[#00E5A8]'
+              ? 'text-emerald-700 dark:text-emerald-400'
               : needsAuth
-              ? 'text-amber-600 dark:text-[#FF9D42]'
-              : 'text-[#FF405C]'
+              ? 'text-amber-700 dark:text-amber-400'
+              : 'text-rose-600 dark:text-rose-400'
           }`}
         >
           {statusText}
@@ -112,7 +112,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         onClick={onSyncNow}
         disabled={isSyncing}
         aria-label={isAr ? 'مزامنة يدوية الآن' : 'Sync Now'}
-        className="inline-flex items-center gap-1 rounded-lg bg-[#0284C7] dark:bg-[#00F0FF]/18 dark:border dark:border-[#00F0FF]/35 px-2.5 py-1 text-[11px] font-semibold text-white dark:text-[#00F0FF] hover:brightness-110 disabled:opacity-60 bunyan-transition whitespace-nowrap shrink-0 cursor-pointer"
+        className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent-blue)] dark:bg-[#38BDF8]/16 dark:border dark:border-[#38BDF8]/35 px-2.5 py-1 text-[11px] font-semibold text-white dark:text-[#38BDF8] hover:brightness-110 disabled:opacity-60 bunyan-transition whitespace-nowrap shrink-0 cursor-pointer"
       >
         {isSyncing ? (
           <Cloud className="w-3 h-3 shrink-0" />

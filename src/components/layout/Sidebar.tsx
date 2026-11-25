@@ -131,8 +131,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-sm font-bold tracking-tight text-[var(--text-primary)] truncate">
                 {t.appName}
               </div>
-              <div className="text-[10.5px] font-mono text-[var(--accent-cyan)] truncate">
-                {lang === 'ar' ? '5D BIM · بلدية الشارقة' : '5D BIM · SHARJAH'}
+              <div className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--accent-cyan)] truncate">
+                {lang === 'ar' ? '3D DIGITAL TWIN · 5D BIM' : '3D DIGITAL TWIN · 5D BIM'}
               </div>
             </div>
           )}
@@ -195,20 +195,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           isCollapsedDesktop ? 'justify-center px-2' : 'justify-between px-3'
                         } ${
                           active
-                            ? 'bg-gradient-to-l from-[#0284C7]/18 to-[#1677FF]/12 dark:from-[#00F0FF]/16 dark:to-[#1677FF]/12 text-[#0284C7] dark:text-[#00F0FF] border border-[#0284C7]/35 dark:border-[#00F0FF]/40 shadow-[0_0_18px_rgba(0,240,255,0.14)]'
+                            ? 'bg-gradient-to-l from-[#2563EB]/14 to-[#0284C7]/10 dark:from-[#38BDF8]/14 dark:to-[#3B82F6]/10 text-[#1D4ED8] dark:text-[#38BDF8] border border-[#2563EB]/30 dark:border-[#38BDF8]/35 shadow-xs'
                             : 'text-[var(--text-secondary)] border border-transparent hover:bg-[var(--bg-surface-subtle)] hover:text-[var(--text-primary)] hover:border-[var(--border-hairline)]'
                         }`}
                       >
                         {active && !isCollapsedDesktop && (
                           <span
                             aria-hidden="true"
-                            className="absolute start-0 top-2 bottom-2 w-1 rounded-full bg-[#0284C7] dark:bg-[#00F0FF] shadow-[0_0_10px_#00F0FF]"
+                            className="absolute start-0 top-2 bottom-2 w-1 rounded-full bg-[var(--accent-blue)] dark:bg-[var(--accent-cyan)]"
                           />
                         )}
                         <span className="flex items-center gap-2.5 min-w-0">
                           <Icon
                             className={`w-4 h-4 shrink-0 ${
-                              active ? 'text-[#0284C7] dark:text-[#00F0FF]' : ''
+                              active ? 'text-[var(--accent-blue)] dark:text-[var(--accent-cyan)]' : ''
                             }`}
                           />
                           {!isCollapsedDesktop && (
@@ -220,9 +220,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             dir="ltr"
                             className={`font-mono tabular-nums text-[10.5px] px-1.5 py-0.5 rounded-md ${
                               active
-                                ? 'bg-[#0284C7]/15 dark:bg-[#00F0FF]/18 text-[#0284C7] dark:text-[#00F0FF]'
+                                ? 'bg-[#2563EB]/12 dark:bg-[#38BDF8]/18 text-[#1D4ED8] dark:text-[#38BDF8]'
                                 : item.id === 'government'
-                                ? 'bg-[#FF405C]/15 text-[#FF405C]'
+                                ? 'bg-rose-500/12 text-rose-600 dark:text-rose-400'
                                 : 'text-[var(--text-muted)]'
                             }`}
                           >
@@ -287,7 +287,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex no-print">
           <div
-            className="fixed inset-0 bg-[#050B18]/75 backdrop-blur-xs"
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs"
             onClick={onCloseMobile}
             aria-hidden="true"
           />

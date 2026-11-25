@@ -126,7 +126,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 onClick={() => onSelectProject(p.id)}
                 className={`px-2.5 py-1.5 rounded-xl border font-mono text-[11px] font-semibold cursor-pointer bunyan-transition ${
                   p.id === project.id
-                    ? 'border-[#00F0FF]/60 bg-[#0284C7] dark:bg-[#00F0FF] text-white dark:text-[#050B18]'
+                    ? 'border-[var(--accent-blue)] bg-[var(--accent-blue)] text-white'
                     : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/50'
                 }`}
               >
@@ -169,7 +169,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                     onClick={btn.toggle}
                     className={`px-2.5 py-1 rounded-xl border text-[11px] font-semibold cursor-pointer bunyan-transition ${
                       btn.active
-                        ? 'border-[var(--accent-cyan)]/55 bg-[#0284C7]/12 dark:bg-[#00F0FF]/15 text-[var(--accent-cyan)]'
+                        ? 'border-[var(--accent-cyan)]/55 bg-[#2563EB]/10 dark:bg-[#38BDF8]/15 text-[var(--accent-cyan)]'
                         : 'border-[var(--border-hairline)] text-[var(--text-muted)]'
                     }`}
                   >
@@ -180,22 +180,22 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
             }
           />
 
-          <div className="bg-[#050B18] p-4 flex-1 flex items-center justify-center min-h-[520px] relative">
+          <div className="bg-[#0C1424] p-4 flex-1 flex items-center justify-center min-h-[520px] relative">
             <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full max-h-[540px]">
               <defs>
                 <pattern id="gisGrid" width="32" height="32" patternUnits="userSpaceOnUse">
-                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(0,240,255,0.12)" strokeWidth="1" />
+                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(56,189,248,0.12)" strokeWidth="1" />
                 </pattern>
               </defs>
               {showGrid && <rect width={svgW} height={svgH} fill="url(#gisGrid)" />}
 
               {/* Road Frontage Indicator */}
-              <rect x={toSvg(minX, minY).sx} y={toSvg(minX, minY).sy - 36} width={plotW * scale} height="22" fill="rgba(0,240,255,0.08)" stroke="rgba(0,240,255,0.28)" strokeWidth="1" rx="4" />
+              <rect x={toSvg(minX, minY).sx} y={toSvg(minX, minY).sy - 36} width={plotW * scale} height="22" fill="rgba(56,189,248,0.08)" stroke="rgba(56,189,248,0.32)" strokeWidth="1" rx="4" />
               <text
                 x={toSvg(minX + plotW / 2, minY).sx}
                 y={toSvg(minX, minY).sy - 21}
                 textAnchor="middle"
-                fill="#00F0FF"
+                fill="#38BDF8"
                 fontSize="11"
                 fontFamily="monospace"
               >
@@ -215,8 +215,8 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 <>
                   <polygon
                     points={insetPolyStr}
-                    fill="rgba(0,240,255,0.10)"
-                    stroke="#00F0FF"
+                    fill="rgba(56,189,248,0.10)"
+                    stroke="#38BDF8"
                     strokeWidth="2"
                     strokeDasharray="6 4"
                   />
@@ -224,7 +224,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                     x={envCentroid.cx}
                     y={envCentroid.cy}
                     textAnchor="middle"
-                    fill="#E0F7FF"
+                    fill="#E2E8F0"
                     fontSize="12"
                     fontFamily="monospace"
                   >
@@ -243,7 +243,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 const midY = (p1.sy + p2.sy) / 2;
                 return (
                   <g key={idx}>
-                    <circle cx={p1.sx} cy={p1.sy} r="5.5" fill="#00E5A8" stroke="#050B18" strokeWidth="1.5" />
+                    <circle cx={p1.sx} cy={p1.sy} r="5.5" fill="#10B981" stroke="#090E1A" strokeWidth="1.5" />
                     <text x={p1.sx + 8} y={p1.sy - 8} fill="#F8FAFC" fontSize="10" fontFamily="monospace">
                       {pt.label || `P${idx + 1}`}
                     </text>
@@ -258,8 +258,8 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
 
               {/* North Arrow */}
               <g transform={`translate(${svgW - 48}, 48)`}>
-                <circle r="18" fill="rgba(5,11,24,0.9)" stroke="#00F0FF" strokeOpacity="0.45" strokeWidth="1" />
-                <path d="M 0 -12 L 5 6 L 0 2 L -5 6 Z" fill="#00F0FF" />
+                <circle r="18" fill="rgba(9,14,26,0.9)" stroke="#38BDF8" strokeOpacity="0.45" strokeWidth="1" />
+                <path d="M 0 -12 L 5 6 L 0 2 L -5 6 Z" fill="#38BDF8" />
                 <text y="16" textAnchor="middle" fill="#CBD5E1" fontSize="9" fontFamily="monospace">N</text>
               </g>
             </svg>

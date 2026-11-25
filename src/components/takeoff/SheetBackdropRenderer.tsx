@@ -214,7 +214,7 @@ export const SheetBackdropRenderer: React.FC<SheetBackdropRendererProps> = ({
   if (fetchingFromCloud) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#0B1324] text-slate-200 text-xs gap-2 p-6 text-center">
-        <CloudDownload className="w-6 h-6 text-[#38BDF8] animate-pulse" />
+        <CloudDownload className="w-6 h-6 text-[#38BDF8]" />
         <span>
           {lang === 'ar'
             ? 'جارٍ استرجاع المخطط السحابي المقسّم من Firestore...'

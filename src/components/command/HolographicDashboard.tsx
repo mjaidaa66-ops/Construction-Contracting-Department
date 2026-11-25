@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowUpRight,
@@ -39,8 +39,13 @@ import {
   HolographicPanel,
   KPIWidget,
   ProjectDataTable,
+  SkeletonBlock,
   StatusBadge,
 } from '../ui';
+
+const DigitalTwinStage3D = lazy(() =>
+  import('../bim/DigitalTwinStage3D').then((m) => ({ default: m.DigitalTwinStage3D }))
+);
 
 interface HolographicDashboardProps {
   projects: Project[];
@@ -151,11 +156,11 @@ export const HolographicDashboard: React.FC<HolographicDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 1. Holographic Digital Twin Hero Strip */}
+      {/* 1. Global 3D Digital Twin Executive Hero */}
       <HolographicPanel scanline className="p-5 sm:p-6">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-center">
-          <div className="xl:col-span-7 space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="xl:col-span-6 space-y-4">
+            <div className="flex flex-wrap items-center gap-2.5">
               <StatusBadge
                 tone="info"
                 label={isAr ? 'التوأم الرقمي الهندسي 5D BIM' : '5D BIM DIGITAL TWIN'}
@@ -168,19 +173,49 @@ export const HolographicDashboard: React.FC<HolographicDashboardProps> = ({
             <div className="space-y-1.5">
               <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] tracking-tight">
                 {isAr
-                  ? 'لوحة التحكم الهندسية ومؤشرات التوأم الرقمي'
-                  : 'Holographic Engineering Control Dashboard'}
+                  ? 'منصة التوأم الرقمي وإدارة المشاريع الهندسية 3D'
+                  : 'Global 3D Digital Twin & 5D BIM Command'}
               </h1>
               <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed max-w-2xl">
                 {isAr
-                  ? 'متابعة فورية لمحفظة المشاريع المعتمدة في بلدية الشارقة، نماذج البناء الثلاثية الأبعاد، الحصر الهندسي الدقيق، والتدفقات المالية.'
-                  : 'Unified live oversight for Sharjah Municipality projects, 5D BIM structural models, precision quantity takeoffs, and certified cashflow.'}
+                  ? 'متابعة فورية لمحفظة المشاريع المعتمدة في بلدية الشارقة، نماذج البناء الثلاثية الأبعاد التفاعلية، الحصر الهندسي الدقيق، والتدفقات المالية.'
+                  : 'Unified live oversight for construction portfolios, interactive 3D structural twins, precision quantity takeoffs, and certified cashflow.'}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[11px]">
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)] flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[var(--accent-cyan)] shrink-0" />
+                  <span className="truncate">{isAr ? 'القطعة النشطة' : 'Active Plot'}</span>
+                </div>
+                <div dir="ltr" className="font-mono font-bold text-[var(--accent-cyan)] truncate mt-0.5">
+                  {activeProject.gisData.plotNumber}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)] flex items-center gap-1">
+                  <Cpu className="w-3 h-3 text-[var(--accent-gold)] shrink-0" />
+                  <span className="truncate">{isAr ? 'عناصر BIM' : 'BIM Elements'}</span>
+                </div>
+                <div dir="ltr" className="font-mono font-bold text-[var(--text-primary)] tabular-nums mt-0.5">
+                  {activeBimElements.length} · {telemetry.concreteM3} m³
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[var(--text-muted)] flex items-center gap-1">
+                  <Activity className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="truncate">{isAr ? 'التقدم الفعلي' : 'Completion'}</span>
+                </div>
+                <div dir="ltr" className="font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums mt-0.5">
+                  {telemetry.actualProgress}%
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
-                variant="cyan"
+                variant="primary"
                 size="sm"
                 icon={<Box className="w-4 h-4" />}
                 onClick={() => onNavigate('bim')}
@@ -188,9 +223,9 @@ export const HolographicDashboard: React.FC<HolographicDashboardProps> = ({
                 {isAr ? 'تشغيل محاكي BIM 5D' : 'Launch 5D BIM'}
               </Button>
               <Button
-                variant="secondary"
+                variant="cyan"
                 size="sm"
-                icon={<Columns2 className="w-4 h-4 text-[var(--accent-cyan)]" />}
+                icon={<Columns2 className="w-4 h-4" />}
                 onClick={() => onNavigate('studio')}
               >
                 {isAr ? 'استوديو الحصر 2D + 3D' : '2D+3D Takeoff Studio'}
@@ -214,82 +249,19 @@ export const HolographicDashboard: React.FC<HolographicDashboardProps> = ({
             </div>
           </div>
 
-          {/* Interactive Blueprint Digital Twin Projection Card */}
-          <div className="xl:col-span-5">
-            <div className="rounded-2xl border border-[#0284C7]/25 dark:border-[#00F0FF]/30 bg-[#050B18] text-slate-100 p-4 relative overflow-hidden">
-              {/* Subtle Isometric SVG Wireframe Building */}
-              <svg
-                viewBox="0 0 320 140"
-                className="w-full h-32 opacity-90"
-                aria-hidden="true"
-              >
-                <defs>
-                  <linearGradient id="holoSlab" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.24" />
-                    <stop offset="100%" stopColor="#1677FF" stopOpacity="0.06" />
-                  </linearGradient>
-                </defs>
-                {/* Perspective grid floor */}
-                <path
-                  d="M20 112 L160 132 L300 112 L160 92 Z"
-                  fill="url(#holoSlab)"
-                  stroke="#00F0FF"
-                  strokeOpacity="0.35"
-                  strokeWidth="1"
-                />
-                {/* Structural Floors Wireframe */}
-                {[0, 18, 36, 54].map((dy, idx) => (
-                  <g key={dy}>
-                    <path
-                      d={`M85 ${94 - dy} L160 ${108 - dy} L235 ${94 - dy} L160 ${80 - dy} Z`}
-                      fill="url(#holoSlab)"
-                      stroke={idx === 3 ? '#D6A64F' : '#00F0FF'}
-                      strokeOpacity={idx === 3 ? 0.85 : 0.65}
-                      strokeWidth="1.2"
-                    />
-                  </g>
-                ))}
-                {/* Vertical Columns */}
-                <line x1="85" y1="94" x2="85" y2="40" stroke="#00F0FF" strokeOpacity="0.7" strokeWidth="1.2" />
-                <line x1="160" y1="108" x2="160" y2="54" stroke="#00F0FF" strokeOpacity="0.9" strokeWidth="1.4" />
-                <line x1="235" y1="94" x2="235" y2="40" stroke="#00F0FF" strokeOpacity="0.7" strokeWidth="1.2" />
-                <line x1="160" y1="80" x2="160" y2="26" stroke="#1677FF" strokeOpacity="0.55" strokeWidth="1" />
-                {/* Telemetry anchor nodes */}
-                <circle cx="85" cy="40" r="2.8" fill="#00E5A8" />
-                <circle cx="160" cy="54" r="3.2" fill="#00F0FF" />
-                <circle cx="235" cy="40" r="2.8" fill="#D6A64F" />
-              </svg>
-
-              <div className="mt-2 pt-3 border-t border-[#00F0FF]/20 grid grid-cols-3 gap-2 text-[11px]">
-                <div className="min-w-0">
-                  <div className="text-slate-400 flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-[#00F0FF] shrink-0" />
-                    <span className="truncate">{isAr ? 'القطعة النشطة' : 'Active Plot'}</span>
-                  </div>
-                  <div dir="ltr" className="font-mono font-bold text-[#00F0FF] truncate mt-0.5">
-                    {activeProject.gisData.plotNumber}
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-slate-400 flex items-center gap-1">
-                    <Cpu className="w-3 h-3 text-[#D6A64F] shrink-0" />
-                    <span className="truncate">{isAr ? 'عناصر BIM' : 'BIM Elements'}</span>
-                  </div>
-                  <div dir="ltr" className="font-mono font-bold text-white tabular-nums mt-0.5">
-                    {activeBimElements.length} · {telemetry.concreteM3} m³
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-slate-400 flex items-center gap-1">
-                    <Activity className="w-3 h-3 text-[#00E5A8] shrink-0" />
-                    <span className="truncate">{isAr ? 'التقدم الفعلي' : 'Completion'}</span>
-                  </div>
-                  <div dir="ltr" className="font-mono font-bold text-[#00E5A8] tabular-nums mt-0.5">
-                    {telemetry.actualProgress}%
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Real Interactive Three.js 3D Architectural Digital Twin Stage (Light & Dark Adaptive) */}
+          <div className="xl:col-span-6">
+            <Suspense
+              fallback={
+                <SkeletonBlock className="h-[300px] sm:h-[330px] w-full rounded-2xl" />
+              }
+            >
+              <DigitalTwinStage3D
+                project={activeProject}
+                lang={lang}
+                heightClass="h-[300px] sm:h-[330px]"
+              />
+            </Suspense>
           </div>
         </div>
       </HolographicPanel>
@@ -380,7 +352,7 @@ export const HolographicDashboard: React.FC<HolographicDashboardProps> = ({
                     onClick={() => setTableFilter(key)}
                     className={`px-2.5 py-1 rounded-lg bunyan-transition cursor-pointer whitespace-nowrap ${
                       tableFilter === key
-                        ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
+                        ? 'bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white'
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >

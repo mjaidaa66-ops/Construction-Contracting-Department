@@ -7,57 +7,71 @@
     --font-arabic: "IBM Plex Sans Arabic", "Cairo", "Plus Jakarta Sans", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    /* Crisp Architectural Daylight Mode */
-    --bg-canvas: #eef3fb;
-    --bg-dark: #e4ecf8;
-    --bg-surface: rgba(255, 255, 255, 0.88);
+    /* Global AEC Daylight Studio Mode (60-30-10 Architectural Palette) */
+    --bg-canvas: #f3f6fa;
+    --bg-dark: #e8eef6;
+    --bg-surface: rgba(255, 255, 255, 0.94);
     --bg-surface-solid: #ffffff;
-    --bg-surface-subtle: #f1f6fc;
+    --bg-surface-subtle: #f7f9fc;
     --bg-surface-elevated: #ffffff;
-    --border-hairline: rgba(15, 23, 42, 0.1);
-    --border-strong: rgba(22, 119, 255, 0.34);
-    --text-primary: #0a1428;
+    --border-hairline: rgba(15, 23, 42, 0.09);
+    --border-strong: rgba(37, 99, 235, 0.32);
+    --text-primary: #0f172a;
     --text-secondary: #334155;
     --text-muted: #64748b;
 
-    /* Holographic Accent Tokens (Daylight Balanced) */
+    /* Precision Cobalt, Steel Azure & Architectural Brass */
     --accent-cyan: #0284c7;
-    --accent-blue: #1677ff;
+    --accent-blue: #2563eb;
     --accent-gold: #b4863c;
-    --accent-gold-hover: #9e7330;
+    --accent-gold-hover: #996f2e;
     --accent-gold-soft: rgba(180, 134, 60, 0.12);
     --accent-green: #059669;
     --accent-orange: #d97706;
     --accent-red: #dc2626;
-    --glass-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.1);
-    --grid-line: rgba(2, 132, 199, 0.06);
+    --glass-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 12px 30px -14px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --spatial-card-shadow:
+      0 2px 6px rgba(15, 23, 42, 0.04),
+      0 18px 38px -18px rgba(15, 23, 42, 0.14);
+    --grid-line: rgba(37, 99, 235, 0.048);
+    --viewport-bg: #eaf0f8;
   }
 
   .dark {
-    /* Futuristic Holographic Digital Twin Palette */
-    --bg-canvas: #050b18;
-    --bg-dark: #080f1f;
-    --bg-surface: rgba(16, 27, 48, 0.76);
-    --bg-surface-solid: #101b30;
-    --bg-surface-subtle: rgba(10, 19, 38, 0.82);
-    --bg-surface-elevated: #0e1a30;
-    --border-hairline: rgba(0, 240, 255, 0.15);
-    --border-strong: rgba(0, 240, 255, 0.38);
-    --text-primary: #eef6ff;
-    --text-secondary: #c5d6ef;
-    --text-muted: #7f97b8;
+    /* Global AEC Obsidian CAD Studio Mode */
+    --bg-canvas: #090e1a;
+    --bg-dark: #0d1424;
+    --bg-surface: rgba(17, 25, 43, 0.9);
+    --bg-surface-solid: #11192b;
+    --bg-surface-subtle: rgba(13, 20, 36, 0.92);
+    --bg-surface-elevated: #162038;
+    --border-hairline: rgba(148, 163, 184, 0.14);
+    --border-strong: rgba(56, 189, 248, 0.36);
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #8496b0;
 
-    /* Neon & Gold Accents */
-    --accent-cyan: #00f0ff;
-    --accent-blue: #1677ff;
+    /* Precision Sky Azure, Architectural Cobalt & Champagne Brass */
+    --accent-cyan: #38bdf8;
+    --accent-blue: #3b82f6;
     --accent-gold: #d6a64f;
-    --accent-gold-hover: #c99a49;
+    --accent-gold-hover: #e2b665;
     --accent-gold-soft: rgba(214, 166, 79, 0.15);
-    --accent-green: #00e5a8;
-    --accent-orange: #ff9d42;
-    --accent-red: #ff405c;
-    --glass-shadow: 0 14px 36px -14px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 240, 255, 0.06);
-    --grid-line: rgba(0, 240, 255, 0.055);
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --accent-red: #f43f5e;
+    --glass-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 16px 38px -16px rgba(0, 0, 0, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --spatial-card-shadow:
+      0 16px 40px -16px rgba(0, 0, 0, 0.78),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --grid-line: rgba(56, 189, 248, 0.045);
+    --viewport-bg: #080e1a;
   }
 
   html {
@@ -81,31 +95,31 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Futuristic Blueprint Grid Backdrop */
+/* Precision Spatial CAD Blueprint Canvas */
 .bunyan-holo-grid {
   background-image:
-    radial-gradient(circle at 18% 12%, rgba(0, 240, 255, 0.08), transparent 36%),
-    radial-gradient(circle at 84% 8%, rgba(22, 119, 255, 0.09), transparent 34%),
-    radial-gradient(circle at 50% 95%, rgba(214, 166, 79, 0.06), transparent 40%),
+    radial-gradient(circle at 14% 8%, rgba(37, 99, 235, 0.07), transparent 36%),
+    radial-gradient(circle at 86% 6%, rgba(56, 189, 248, 0.06), transparent 34%),
+    radial-gradient(circle at 52% 96%, rgba(180, 134, 60, 0.05), transparent 40%),
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-  background-size: auto, auto, auto, 42px 42px, 42px 42px;
+  background-size: auto, auto, auto, 44px 44px, 44px 44px;
 }
 
-/* Frosted Glassmorphism Surface */
+/* Architectural Dimensional Surface */
 .bunyan-glass {
   background: var(--bg-surface);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: var(--glass-shadow);
 }
 
 .dark .bunyan-glass {
   background-image: linear-gradient(
-    145deg,
-    rgba(0, 240, 255, 0.04) 0%,
-    rgba(16, 27, 48, 0.65) 42%,
-    rgba(8, 15, 31, 0.84) 100%
+    155deg,
+    rgba(255, 255, 255, 0.025) 0%,
+    rgba(17, 25, 43, 0.72) 45%,
+    rgba(11, 17, 30, 0.92) 100%
   );
 }
 
@@ -113,29 +127,16 @@
   border-color: var(--border-hairline);
 }
 
-.dark .bunyan-neon-border:hover {
-  border-color: rgba(0, 240, 255, 0.42);
-  box-shadow: 0 0 22px -6px rgba(0, 240, 255, 0.25), var(--glass-shadow);
+.bunyan-neon-border:hover {
+  border-color: var(--border-strong);
 }
 
-/* Subtle Holographic Scan Animation */
-@keyframes bunyan-scan-sweep {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  20% {
-    opacity: 0.45;
-  }
-  80% {
-    opacity: 0.45;
-  }
-  100% {
-    transform: translateY(400%);
-    opacity: 0;
-  }
+/* Spatial 3D Elevation Accent */
+.bunyan-spatial-card {
+  box-shadow: var(--spatial-card-shadow);
 }
 
+/* Precision Architectural Top Edge */
 .bunyan-scanline {
   position: relative;
   overflow: hidden;
@@ -146,10 +147,10 @@
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.55), transparent);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-blue), var(--accent-gold), transparent);
+  opacity: 0.65;
   pointer-events: none;
-  animation: bunyan-scan-sweep 7s ease-in-out infinite;
 }
 
 /* Crisp Architectural Surface Transition */
@@ -162,7 +163,7 @@
     opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Subtle Futuristic Scrollbars */
+/* Precision CAD Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -173,12 +174,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(127, 151, 184, 0.28);
+  background: rgba(100, 116, 139, 0.3);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.55);
+  background: rgba(37, 99, 235, 0.55);
 }
 
 /* Skeleton Loader Shimmer */
@@ -194,9 +195,9 @@
 .bunyan-skeleton {
   background: linear-gradient(
     90deg,
-    rgba(0, 240, 255, 0.06) 25%,
-    rgba(0, 240, 255, 0.16) 50%,
-    rgba(0, 240, 255, 0.06) 75%
+    rgba(148, 163, 184, 0.1) 25%,
+    rgba(56, 189, 248, 0.18) 50%,
+    rgba(148, 163, 184, 0.1) 75%
   );
   background-size: 200% 100%;
   animation: bunyan-shimmer 1.6s ease-in-out infinite;
@@ -204,8 +205,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bunyan-skeleton,
-  .bunyan-transition,
-  .bunyan-scanline::after {
+  .bunyan-transition {
     animation: none !important;
     transition: none !important;
   }

@@ -34,7 +34,7 @@ export function SegmentedTabs<T extends string>({
             onClick={() => onChange(item.id)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bunyan-transition cursor-pointer ${
               active
-                ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18] shadow-xs'
+                ? 'bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white shadow-xs'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]/70'
             }`}
           >

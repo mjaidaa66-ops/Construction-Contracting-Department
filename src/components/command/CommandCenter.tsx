@@ -346,7 +346,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           </div>
 
           {/* Active Project Context Card */}
-          <div className="w-full xl:w-[420px] shrink-0 rounded-2xl border border-[#0284C7]/25 dark:border-[#00F0FF]/25 bg-[var(--bg-surface-subtle)] p-4 space-y-3">
+          <div className="w-full xl:w-[420px] shrink-0 rounded-2xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-[var(--text-secondary)]">
                 {isAr ? 'المشروع النشط في بيئة العمل' : 'Active Workspace Project'}
@@ -421,7 +421,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 }
                 className={`px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer bunyan-transition ${
                   visibleWidgets[key]
-                    ? 'border-[var(--accent-cyan)]/50 bg-[#0284C7]/10 dark:bg-[#00F0FF]/12 text-[var(--accent-cyan)]'
+                    ? 'border-[var(--accent-cyan)]/50 bg-[#2563EB]/10 dark:bg-[#38BDF8]/12 text-[var(--accent-cyan)]'
                     : 'border-[var(--border-hairline)] text-[var(--text-muted)]'
                 }`}
               >
@@ -496,7 +496,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                       onClick={() => setChartTab('financials')}
                       className={`px-2.5 py-1 rounded-lg cursor-pointer bunyan-transition ${
                         chartTab === 'financials'
-                          ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
+                          ? 'bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white'
                           : 'text-[var(--text-secondary)]'
                       }`}
                     >
@@ -507,7 +507,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                       onClick={() => setChartTab('status')}
                       className={`px-2.5 py-1 rounded-lg cursor-pointer bunyan-transition ${
                         chartTab === 'status'
-                          ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
+                          ? 'bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white'
                           : 'text-[var(--text-secondary)]'
                       }`}
                     >
@@ -560,7 +560,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                               style={{ width: `${Math.max(20, budgetPct)}%` }}
                             >
                               <div
-                                className="h-full bg-gradient-to-l from-[#00E5A8] to-[#00F0FF] absolute inset-y-0 start-0 rounded-full"
+                                className="h-full bg-gradient-to-l from-[#10B981] to-[#38BDF8] absolute inset-y-0 start-0 rounded-full"
                                 style={{ width: `${paidPct}%` }}
                               />
                             </div>
@@ -573,10 +573,10 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
                     {(
                       [
-                        ['under_construction', portfolioStats.activeCount, 'bg-[#00E5A8]'],
-                        ['permitting', portfolioStats.permittingCount, 'bg-[#FF9D42]'],
-                        ['completed', portfolioStats.completedCount, 'bg-[#00F0FF]'],
-                        ['suspended', portfolioStats.suspendedCount, 'bg-[#FF405C]'],
+                        ['under_construction', portfolioStats.activeCount, 'bg-emerald-500'],
+                        ['permitting', portfolioStats.permittingCount, 'bg-amber-500'],
+                        ['completed', portfolioStats.completedCount, 'bg-sky-500'],
+                        ['suspended', portfolioStats.suspendedCount, 'bg-rose-500'],
                       ] as const
                     ).map(([statusKey, count, barClass]) => {
                       const pct =

@@ -53,7 +53,7 @@ export const StructuralImportHistory: React.FC<StructuralImportHistoryProps> = (
                 <div
                   key={rev.id}
                   className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-                    isActive ? 'bg-[#0284C7]/8 dark:bg-[#00F0FF]/8' : ''
+                    isActive ? 'bg-[#2563EB]/8 dark:bg-[#38BDF8]/8' : ''
                   }`}
                 >
                   <div className="space-y-1 min-w-0">

@@ -171,7 +171,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00F0FF] to-[#1677FF] text-[#050B18] font-bold flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2563EB] to-[#0284C7] dark:from-[#38BDF8] dark:to-[#2563EB] text-white dark:text-[#090E1A] font-bold flex items-center justify-center">
                   {(firebaseUser.displayName || firebaseUser.email || 'G').slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -371,8 +371,8 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                   onClick={() => onChangeRole(r)}
                   className={`py-2 px-3 rounded-xl border text-xs font-semibold capitalize bunyan-transition cursor-pointer ${
                     currentRole === r
-                      ? 'border-[var(--accent-cyan)]/60 bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18] font-bold'
-                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/45'
+                      ? 'border-[var(--accent-blue)]/60 bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#38BDF8] dark:to-[#2563EB] text-white dark:text-[#090E1A] font-bold'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-blue)]/45'
                   }`}
                 >
                   {r}
@@ -511,7 +511,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
               </span>
             </div>
 
-            <div className="p-3.5 rounded-xl border border-[#0284C7]/25 dark:border-[#00F0FF]/25 bg-[#0284C7]/6 dark:bg-[#00F0FF]/8 space-y-1.5">
+            <div className="p-3.5 rounded-xl border border-[#2563EB]/25 dark:border-[#38BDF8]/25 bg-[#2563EB]/6 dark:bg-[#38BDF8]/8 space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
                 <Cpu className="w-4 h-4 text-[var(--accent-cyan)] shrink-0" />
                 <span>{isAr ? 'إرشادات الدعم الفني السريع' : 'Quick Support Guidance'}</span>

@@ -151,7 +151,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 no-print px-3 lg:px-6 pt-3">
-      <div className="h-16 px-3 sm:px-5 bunyan-glass rounded-2xl border border-[var(--border-hairline)] shadow-[0_12px_36px_rgba(0,0,0,0.22)] flex items-center justify-between gap-3">
+      <div className="h-16 px-3 sm:px-5 bunyan-glass rounded-2xl border border-[var(--border-hairline)] shadow-[var(--spatial-card-shadow)] flex items-center justify-between gap-3">
         {/* Start: Mobile Drawer Trigger + Breadcrumb + Active Project Selector */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
@@ -209,12 +209,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </div>
           )}
 
-          {/* Active Role Pill */}
+          {/* Active Role Tag */}
           <button
             type="button"
             onClick={() => onNavigateModule('accounts')}
             title={lang === 'ar' ? 'إدارة الصلاحيات والأدوار' : 'Manage Roles & Permissions'}
-            className="hidden xl:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl border border-[#0284C7]/25 dark:border-[#00F0FF]/30 bg-[#0284C7]/8 dark:bg-[#00F0FF]/10 text-[11px] font-semibold text-[#0284C7] dark:text-[#00F0FF] hover:border-[var(--accent-cyan)] bunyan-transition whitespace-nowrap cursor-pointer"
+            className="hidden xl:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl border border-[#2563EB]/25 dark:border-[#38BDF8]/30 bg-[#2563EB]/8 dark:bg-[#38BDF8]/10 text-[11px] font-semibold text-[#1D4ED8] dark:text-[#38BDF8] hover:border-[var(--accent-cyan)] bunyan-transition whitespace-nowrap cursor-pointer"
           >
             <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
             <span>{ROLE_LABELS[currentRole][lang]}</span>
@@ -244,7 +244,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             <button
               type="button"
               onClick={() => setQuickMenuOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18] text-xs font-bold hover:brightness-110 shadow-[0_0_16px_rgba(0,240,255,0.22)] bunyan-transition cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl bg-gradient-to-l from-[#2563EB] to-[#0284C7] dark:from-[#3B82F6] dark:to-[#0284C7] text-white text-xs font-bold hover:brightness-110 shadow-sm bunyan-transition cursor-pointer whitespace-nowrap"
               aria-expanded={quickMenuOpen}
             >
               <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -380,12 +380,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="w-5 h-5 rounded-full bg-gradient-to-br from-[#00F0FF] to-[#1677FF] text-[#050B18] text-[10px] font-bold flex items-center justify-center">
+                  <span className="w-5 h-5 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#2563EB] text-white text-[10px] font-bold flex items-center justify-center">
                     {avatarInitials}
                   </span>
                 )}
                 <span className="hidden sm:inline max-w-[110px] truncate">{displayName}</span>
-                <span className="w-2 h-2 rounded-full bg-[#00E5A8] shrink-0" aria-hidden="true" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
               </button>
 
               {accountMenuOpen && (

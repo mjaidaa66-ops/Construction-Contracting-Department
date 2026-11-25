@@ -57,22 +57,22 @@ export type StatusTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 const TONE_BADGE: Record<StatusTone, string> = {
   success:
-    'text-emerald-700 dark:text-[#00E5A8] bg-emerald-500/12 border-emerald-500/25 dark:border-[#00E5A8]/30',
+    'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
   warning:
-    'text-amber-700 dark:text-[#FF9D42] bg-amber-500/12 border-amber-500/25 dark:border-[#FF9D42]/30',
+    'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/25',
   danger:
-    'text-rose-700 dark:text-[#FF405C] bg-rose-500/12 border-rose-500/25 dark:border-[#FF405C]/30',
+    'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/25',
   info:
-    'text-sky-700 dark:text-[#00F0FF] bg-sky-500/12 border-sky-500/25 dark:border-[#00F0FF]/30',
+    'text-sky-700 dark:text-sky-400 bg-sky-500/10 border-sky-500/25',
   neutral:
     'text-[var(--text-secondary)] bg-[var(--bg-surface-subtle)] border-[var(--border-hairline)]',
 };
 
 const TONE_DOT: Record<StatusTone, string> = {
-  success: 'bg-emerald-500 dark:bg-[#00E5A8]',
-  warning: 'bg-amber-500 dark:bg-[#FF9D42]',
-  danger: 'bg-rose-500 dark:bg-[#FF405C]',
-  info: 'bg-sky-500 dark:bg-[#00F0FF]',
+  success: 'bg-emerald-600 dark:bg-emerald-400',
+  warning: 'bg-amber-600 dark:bg-amber-400',
+  danger: 'bg-rose-600 dark:bg-rose-400',
+  info: 'bg-sky-600 dark:bg-sky-400',
   neutral: 'bg-slate-400',
 };
 
@@ -82,9 +82,9 @@ export const StatusIndicator: React.FC<{
   className?: string;
 }> = ({ tone, label, className = '' }) => (
   <span
-    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${TONE_BADGE[tone]} ${className}`}
+    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-semibold whitespace-nowrap ${TONE_BADGE[tone]} ${className}`}
   >
-    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TONE_DOT[tone]}`} aria-hidden="true" />
+    <span className={`w-1.5 h-1.5 rounded-xs shrink-0 ${TONE_DOT[tone]}`} aria-hidden="true" />
     <span>{label}</span>
   </span>
 );
