@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { CompanyProfile, Language, Project, ProjectDocument } from '../../types/bunyan';
 import { downloadChunkedDocument } from '../../services/firestoreStorage';
-import { cacheBinaryLocally, getCachedBinaryLocally } from '../../services/cloudSyncService';
+import { cacheSessionBinary, getCachedSessionBinary } from '../../services/cloudSyncService';
 import { formatAED, PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS } from '../../utils/i18n';
 import { disposePdfDocumentProxy, ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
 import {
@@ -102,23 +102,23 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       }
       setError(null);
       if (docItem.localDataUrl) {
-        await cacheBinaryLocally(docItem.id, docItem.localDataUrl);
+        await cacheSessionBinary(docItem.id, docItem.localDataUrl);
         if (docItem.manifestId) {
-          await cacheBinaryLocally(docItem.manifestId, docItem.localDataUrl);
+          await cacheSessionBinary(docItem.manifestId, docItem.localDataUrl);
         }
         if (active) setRawDataUrl(docItem.localDataUrl);
         return;
       }
 
       if (docItem.manifestId) {
-        const cachedManifest = await getCachedBinaryLocally(docItem.manifestId);
+        const cachedManifest = await getCachedSessionBinary(docItem.manifestId);
         if (cachedManifest) {
           if (active) setRawDataUrl(cachedManifest);
           return;
         }
       }
 
-      const cachedDoc = await getCachedBinaryLocally(docItem.id);
+      const cachedDoc = await getCachedSessionBinary(docItem.id);
       if (cachedDoc) {
         if (active) setRawDataUrl(cachedDoc);
         return;
@@ -129,8 +129,8 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         try {
           const res = await downloadChunkedDocument(docItem.manifestId);
           if (res?.dataUrl) {
-            await cacheBinaryLocally(docItem.manifestId, res.dataUrl);
-            await cacheBinaryLocally(docItem.id, res.dataUrl);
+            await cacheSessionBinary(docItem.manifestId, res.dataUrl);
+            await cacheSessionBinary(docItem.id, res.dataUrl);
           }
           if (active) setRawDataUrl(res?.dataUrl || null);
         } catch (err) {

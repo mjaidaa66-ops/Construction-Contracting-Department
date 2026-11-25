@@ -99,31 +99,29 @@ export function deriveWorkspaceAlerts(params: {
     }
   }
 
-  // 4. Real Cloud Sync & Offline Cache Warning
-  if (!syncState.isOnline) {
+  // 4. Fail-Closed Cloud Connectivity & Authentication Alerts
+  if (!syncState.isOnline || syncState.isServerReachable === false) {
     alerts.unshift({
-      id: 'alert-sync-offline',
-      severity: 'warning',
-      titleAr: 'العمل في وضع التخزين المحلي دون اتصال',
-      titleEn: 'Working in Offline IndexedDB Cache Mode',
+      id: 'alert-sync-fail-closed',
+      severity: 'critical',
+      titleAr: 'المسار السحابي مغلق أمنياً (Fail-Closed)',
+      titleEn: 'Cloud Path Blocked (Fail-Closed)',
       detailAr:
-        syncState.pendingCount > 0
-          ? `يوجد ${syncState.pendingCount} تعديلات بانتظار عودة الاتصال للمزامنة.`
-          : 'سيتم مزامنة التعديلات تلقائياً فور استعادة الاتصال.',
+        syncState.lastError ||
+        'انقطع الاتصال بخادم Cloud Firestore. جميع عمليات القراءة والكتابة موقوفة لحماية سلامة البيانات حتى عودة الاتصال.',
       detailEn:
-        syncState.pendingCount > 0
-          ? `${syncState.pendingCount} pending local changes awaiting reconnection.`
-          : 'Changes will synchronize automatically when online.',
+        syncState.lastError ||
+        'Cloud Firestore server is unreachable. Reads and writes are blocked to prevent split-brain drift until connectivity is restored.',
       targetModule: 'settings',
     });
-  } else if (!syncState.isAuthenticated && syncState.pendingCount > 0) {
-    alerts.push({
+  } else if (!syncState.isAuthenticated) {
+    alerts.unshift({
       id: 'alert-sync-auth',
-      severity: 'info',
-      titleAr: 'تعديلات محفوظة محلياً بانتظار تسجيل الدخول',
-      titleEn: 'Local Changes Awaiting Cloud Sign-In',
-      detailAr: `يوجد ${syncState.pendingCount} عنصر غير متزامن مع Firestore. سجل الدخول للمزامنة السحابية.`,
-      detailEn: `${syncState.pendingCount} item(s) cached locally. Sign in with Google to sync to Firestore.`,
+      severity: 'warning',
+      titleAr: 'يتطلب توثيق حساب Google للمتابعة',
+      titleEn: 'Verified Google Sign-In Required',
+      detailAr: 'الوصول لبيانات Firestore مقفل (Fail-Closed) حتى تسجيل الدخول بحساب Google موثق.',
+      detailEn: 'Workspace access is locked (Fail-Closed) until a verified Google account signs in.',
       targetModule: 'settings',
     });
   }

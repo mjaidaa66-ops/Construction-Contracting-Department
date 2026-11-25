@@ -39,7 +39,7 @@ import {
   ensureProjectExistsInCloud,
   uploadChunkedDocument,
 } from '../../services/firestoreStorage';
-import { cacheBinaryLocally, getCachedBinaryLocally } from '../../services/cloudSyncService';
+import { cacheSessionBinary, getCachedSessionBinary } from '../../services/cloudSyncService';
 import { BackupSyncModal } from './BackupSyncModal';
 import { DocumentViewerModal } from './DocumentViewerModal';
 import { ProjectFilesExchangeModal } from './ProjectFilesExchangeModal';
@@ -172,6 +172,15 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
       return;
     }
 
+    if (!cloudUid) {
+      const msg = isAr
+        ? 'يتطلب رفع المستندات تسجيل الدخول بحساب Google الموثق والاتصال بالسحابة.'
+        : 'Verified cloud sign-in is required before uploading documents (Fail-Closed).';
+      setUploadError(msg);
+      pushToast(msg, 'error');
+      return;
+    }
+
     setUploadingDoc(true);
     setUploadError(null);
     try {
@@ -182,24 +191,19 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
         const mimeType = inferMimeTypeFromFilename(file.name, file.type);
         const category = inferDocCategoryFromFilename(file.name);
 
-        let manifestId: string | undefined;
-        if (cloudUid) {
-          await ensureProjectExistsInCloud(activeProject, cloudUid);
-          const manifest = await uploadChunkedDocument({
-            ownerId: cloudUid,
-            projectId: activeProject.id,
-            fileName: file.name,
-            mimeType,
-            base64DataUrl,
-          });
-          manifestId = manifest.id;
-        }
+        await ensureProjectExistsInCloud(activeProject, cloudUid);
+        const manifest = await uploadChunkedDocument({
+          ownerId: cloudUid,
+          projectId: activeProject.id,
+          fileName: file.name,
+          mimeType,
+          base64DataUrl,
+        });
+        const manifestId = manifest.id;
 
         const docId = `doc-${Date.now()}-${i}`;
-        await cacheBinaryLocally(docId, base64DataUrl);
-        if (manifestId) {
-          await cacheBinaryLocally(manifestId, base64DataUrl);
-        }
+        await cacheSessionBinary(docId, base64DataUrl);
+        await cacheSessionBinary(manifestId, base64DataUrl);
 
         createdDocs.push({
           id: docId,
@@ -239,28 +243,31 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
 
   const handleReplaceDocumentFile = async (docId: string, file: File) => {
     if (!activeProject || !perms.canEditEngineering) return;
+    if (!cloudUid) {
+      const msg = isAr
+        ? 'يتطلب إرفاق الملفات تسجيل الدخول بحساب Google الموثق والاتصال بالسحابة.'
+        : 'Verified cloud sign-in is required before attaching files (Fail-Closed).';
+      setUploadError(msg);
+      pushToast(msg, 'error');
+      return;
+    }
     setUploadingDoc(true);
     setUploadError(null);
     try {
       const base64DataUrl = await readFileAsDataUrl(file);
       const mimeType = inferMimeTypeFromFilename(file.name, file.type);
-      let manifestId: string | undefined;
-      if (cloudUid) {
-        await ensureProjectExistsInCloud(activeProject, cloudUid);
-        const manifest = await uploadChunkedDocument({
-          ownerId: cloudUid,
-          projectId: activeProject.id,
-          fileName: file.name,
-          mimeType,
-          base64DataUrl,
-        });
-        manifestId = manifest.id;
-      }
+      await ensureProjectExistsInCloud(activeProject, cloudUid);
+      const manifest = await uploadChunkedDocument({
+        ownerId: cloudUid,
+        projectId: activeProject.id,
+        fileName: file.name,
+        mimeType,
+        base64DataUrl,
+      });
+      const manifestId = manifest.id;
 
-      await cacheBinaryLocally(docId, base64DataUrl);
-      if (manifestId) {
-        await cacheBinaryLocally(manifestId, base64DataUrl);
-      }
+      await cacheSessionBinary(docId, base64DataUrl);
+      await cacheSessionBinary(manifestId, base64DataUrl);
 
       let updatedDoc: ProjectDocument | null = null;
       const nextDocs = activeProject.documents.map((d) => {
@@ -301,20 +308,21 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
     if (!perms.canExportReports) return;
     let resolved = docItem.localDataUrl;
     if (!resolved && docItem.manifestId) {
-      resolved = (await getCachedBinaryLocally(docItem.manifestId)) ?? undefined;
+      resolved = (await getCachedSessionBinary(docItem.manifestId)) ?? undefined;
     }
     if (!resolved) {
-      resolved = (await getCachedBinaryLocally(docItem.id)) ?? undefined;
+      resolved = (await getCachedSessionBinary(docItem.id)) ?? undefined;
     }
     if (!resolved && docItem.manifestId) {
       try {
         const res = await downloadChunkedDocument(docItem.manifestId);
         if (res?.dataUrl) {
           resolved = res.dataUrl;
-          await cacheBinaryLocally(docItem.manifestId, res.dataUrl);
-          await cacheBinaryLocally(docItem.id, res.dataUrl);
+          await cacheSessionBinary(docItem.manifestId, res.dataUrl);
+          await cacheSessionBinary(docItem.id, res.dataUrl);
         }
-      } catch {
+      } catch (err) {
+        pushToast(err instanceof Error ? err.message : 'Cloud download failed', 'error');
         resolved = undefined;
       }
     }

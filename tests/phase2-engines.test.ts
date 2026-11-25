@@ -733,18 +733,18 @@ describe('Group 4 — Backup Validation, RBAC Permissions & Timestamp Sync Merge
     assert.equal(accountant.canManageGovernment, false);
   });
 
-  it('preserves newer local unsynced edits and pending projects during Firestore snapshot merge', () => {
+  it('treats remote Firestore snapshots as authoritative during merge and protects in-flight commits', () => {
     assert.equal(parseSyncTimestampMs('2026-11-19T10:00:00.000Z'), Date.parse('2026-11-19T10:00:00.000Z'));
     assert.equal(parseSyncTimestampMs({ seconds: 1700000000 }), 1700000000 * 1000);
 
-    const localNewer = makeBaseProject({
+    const localSkewed = makeBaseProject({
       id: 'p1',
       nameEn: 'Local Newer Edit',
       updatedAt: '2026-11-19T12:00:00.000Z',
     });
-    const remoteOlder = makeBaseProject({
+    const remoteAuthoritative = makeBaseProject({
       id: 'p1',
-      nameEn: 'Stale Cloud Copy',
+      nameEn: 'Authoritative Cloud Copy',
       updatedAt: '2026-11-19T11:50:00.000Z',
     });
     const remoteBrandNew = makeBaseProject({
@@ -754,31 +754,28 @@ describe('Group 4 — Backup Validation, RBAC Permissions & Timestamp Sync Merge
       updatedAt: '2026-11-19T12:05:00.000Z',
     });
 
+    // Without an in-flight commit, Firestore server snapshot is strictly authoritative (zero clock-skew split-brain)
     const merged = mergeRemoteProjectsWithLocal(
-      [localNewer],
-      [remoteOlder, remoteBrandNew],
+      [localSkewed],
+      [remoteAuthoritative, remoteBrandNew],
       () => false
     );
     assert.equal(merged.length, 2);
-    assert.equal(merged.find((p) => p.id === 'p1')?.nameEn, 'Local Newer Edit');
+    assert.equal(merged.find((p) => p.id === 'p1')?.nameEn, 'Authoritative Cloud Copy');
     assert.equal(merged.find((p) => p.id === 'p2')?.nameEn, 'New Device Project');
 
-    // Remote wins if newer than local by >1.5s and not pending
+    // In-flight commit flag protects local state while the Firestore transaction/upload is actively running
     const remoteEvenNewer = makeBaseProject({
       id: 'p1',
       nameEn: 'Fresh Cloud Edit',
       updatedAt: '2026-11-19T12:10:00.000Z',
     });
-    const merged2 = mergeRemoteProjectsWithLocal([localNewer], [remoteEvenNewer], () => false);
-    assert.equal(merged2[0].nameEn, 'Fresh Cloud Edit');
-
-    // Pending sync flag protects local even if remote has newer timestamp
-    const mergedPending = mergeRemoteProjectsWithLocal(
-      [localNewer],
+    const mergedInFlight = mergeRemoteProjectsWithLocal(
+      [localSkewed],
       [remoteEvenNewer],
       (id) => id === 'p1'
     );
-    assert.equal(mergedPending[0].nameEn, 'Local Newer Edit');
+    assert.equal(mergedInFlight[0].nameEn, 'Local Newer Edit');
   });
 });
 

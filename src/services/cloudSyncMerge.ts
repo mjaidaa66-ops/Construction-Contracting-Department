@@ -19,25 +19,23 @@ export function parseSyncTimestampMs(ts: unknown): number {
   return 0;
 }
 
+/**
+ * Replaces local workspace project projections strictly with authoritative Firestore snapshots
+ * while hydrating ephemeral SVG previews for blueprint sheets.
+ */
 export function mergeRemoteProjectsWithLocal(
   localProjects: Project[],
   remoteProjects: Project[],
-  hasPendingSync: (projectId: string) => boolean = () => false
+  hasInFlightCommit: (projectId: string) => boolean = () => false
 ): Project[] {
-  const byId = new Map(localProjects.map((p) => [p.id, p]));
+  const localById = new Map(localProjects.map((p) => [p.id, p]));
+  const result: Project[] = [];
 
   for (const remote of remoteProjects) {
-    if (hasPendingSync(remote.id)) {
+    const local = localById.get(remote.id);
+    if (hasInFlightCommit(remote.id) && local) {
+      result.push(local);
       continue;
-    }
-
-    const local = byId.get(remote.id);
-    if (local) {
-      const localUpdatedMs = parseSyncTimestampMs(local.updatedAt);
-      const remoteUpdatedMs = parseSyncTimestampMs(remote.updatedAt);
-      if (localUpdatedMs > 0 && (remoteUpdatedMs === 0 || localUpdatedMs > remoteUpdatedMs + 1500)) {
-        continue;
-      }
     }
 
     const localSheetsById = new Map((local?.takeoffSheets || []).map((s) => [s.id, s]));
@@ -55,16 +53,20 @@ export function mergeRemoteProjectsWithLocal(
             }
             return {
               ...rs,
-              pdfDataUrl: rs.pdfDataUrl || localSheet?.pdfDataUrl,
+              pdfDataUrl:
+                rs.pdfDataUrl ||
+                (localSheet?.pdfManifestId === rs.pdfManifestId
+                  ? localSheet?.pdfDataUrl
+                  : undefined),
             };
           })
-        : local?.takeoffSheets || [generateGisPlotTakeoffSheet(remote)];
+        : [generateGisPlotTakeoffSheet(remote)];
 
-    byId.set(remote.id, {
+    result.push({
       ...remote,
       takeoffSheets: hydratedSheets,
     });
   }
 
-  return Array.from(byId.values());
+  return result;
 }

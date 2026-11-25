@@ -37,9 +37,9 @@ import {
 } from '../../modules/structural/services/etabsImport.service';
 import { generateStructuralReport } from '../../modules/structural/reports/structuralReport.service';
 import {
-  loadLocalStructuralWorkspace,
+  loadStructuralProjectBundleFromCloud,
   saveConfirmedStructuralRevisionToCloud,
-  saveLocalStructuralWorkspace,
+  saveStructuralReportToCloud,
 } from '../../services/structuralFirestoreService';
 import {
   Button,
@@ -122,58 +122,47 @@ export const StructuralWorkspace: React.FC<StructuralWorkspaceProps> = ({
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Hydrate persisted structural workspace per owner scope
+  // Hydrate strictly from Cloud Firestore (zero localStorage fallback)
   useEffect(() => {
-    const cached = loadLocalStructuralWorkspace(cloudUid);
-    const projRevs = cached.revisions.filter(
-      (r) => r.projectId === baseStructuralProject.id
-    );
-    setRevisions(projRevs);
-    setDatasetsByRevision(cached.datasetsByRevision);
-    setReports(cached.reports.filter((r) => r.projectId === baseStructuralProject.id));
-    setJobs(cached.importJobs.filter((j) => j.projectId === baseStructuralProject.id));
-    setActiveRevisionId(projRevs[0]?.id || null);
-  }, [cloudUid, baseStructuralProject.id]);
+    if (!cloudUid) {
+      setRevisions([]);
+      setDatasetsByRevision({});
+      setReports([]);
+      setJobs([]);
+      setActiveRevisionId(null);
+      return;
+    }
 
-  const persistWorkspaceSnapshot = useCallback(
-    (next: {
-      revisions: StructuralModelRevision[];
-      datasetsByRevision: Record<string, NormalizedStructuralDataset>;
-      reports: StructuralReportDocument[];
-      importJobs: StructuralImportJob[];
-    }) => {
-      const existingAll = loadLocalStructuralWorkspace(cloudUid);
-      const otherRevs = existingAll.revisions.filter(
-        (r) => r.projectId !== baseStructuralProject.id
-      );
-      const otherReports = existingAll.reports.filter(
-        (r) => r.projectId !== baseStructuralProject.id
-      );
-      const otherJobs = existingAll.importJobs.filter(
-        (j) => j.projectId !== baseStructuralProject.id
-      );
-      const mergedProjects = [
-        {
-          ...baseStructuralProject,
-          activeRevisionId: next.revisions[0]?.id,
-          revisionCount: next.revisions.length,
-          reliabilitySummary: next.revisions[0]?.reliability || 'MISSING',
-        },
-        ...existingAll.projects.filter((p) => p.id !== baseStructuralProject.id),
-      ];
-      saveLocalStructuralWorkspace(
-        {
-          projects: mergedProjects,
-          revisions: [...next.revisions, ...otherRevs],
-          datasetsByRevision: { ...existingAll.datasetsByRevision, ...next.datasetsByRevision },
-          reports: [...next.reports, ...otherReports],
-          importJobs: [...next.importJobs, ...otherJobs],
-        },
-        cloudUid
-      );
-    },
-    [cloudUid, baseStructuralProject]
-  );
+    let cancelled = false;
+    setWorkflowError(null);
+    void loadStructuralProjectBundleFromCloud(cloudUid, baseStructuralProject.id)
+      .then((remote) => {
+        if (cancelled) return;
+        const sortedRevs = [...remote.revisions].sort(
+          (a, b) => (b.revisionNumber || 0) - (a.revisionNumber || 0)
+        );
+        setRevisions(sortedRevs);
+        setDatasetsByRevision(remote.datasetsByRevision);
+        setReports(remote.reports);
+        setJobs(remote.importJobs);
+        setActiveRevisionId(sortedRevs[0]?.id || null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setWorkflowError(msg);
+        pushToast(
+          lang === 'ar'
+            ? 'تعذر تحميل بيانات الهندسة الإنشائية من Cloud Firestore.'
+            : 'Failed to load structural workspace from Cloud Firestore.',
+          'error'
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudUid, baseStructuralProject.id]);
 
   const authHeaders = useMemo(
     () => ({
@@ -346,6 +335,14 @@ export const StructuralWorkspace: React.FC<StructuralWorkspaceProps> = ({
         allowDuplicateOverride,
       });
 
+      if (!cloudUid) {
+        throw new Error(
+          lang === 'ar'
+            ? 'مرفوض (Fail-Closed): يجب تسجيل الدخول بحساب Google الموثق والاتصال بـ Cloud Firestore قبل اعتماد أي مراجعة إنشائية.'
+            : 'FAIL_CLOSED: Verified Google sign-in and active Cloud Firestore connection are required to commit structural revisions.'
+        );
+      }
+
       const nextRevisions = [result.dataset.revision, ...revisions];
       const nextDatasets = {
         ...datasetsByRevision,
@@ -353,6 +350,20 @@ export const StructuralWorkspace: React.FC<StructuralWorkspaceProps> = ({
       };
       const nextReports = [result.report, ...reports];
       const nextJobs = [result.confirmedJob, ...jobs];
+
+      const updatedStructuralProj = {
+        ...baseStructuralProject,
+        activeRevisionId: result.dataset.revision.id,
+        revisionCount: nextRevisions.length,
+        reliabilitySummary: result.dataset.validation.reliability,
+      };
+
+      await saveConfirmedStructuralRevisionToCloud({
+        ownerId: cloudUid,
+        structuralProject: updatedStructuralProj,
+        dataset: result.dataset,
+        report: result.report,
+      });
 
       setRevisions(nextRevisions);
       setDatasetsByRevision(nextDatasets);
@@ -362,32 +373,10 @@ export const StructuralWorkspace: React.FC<StructuralWorkspaceProps> = ({
       setActiveRevisionId(result.dataset.revision.id);
       setPreview(null);
 
-      persistWorkspaceSnapshot({
-        revisions: nextRevisions,
-        datasetsByRevision: nextDatasets,
-        reports: nextReports,
-        importJobs: nextJobs,
-      });
-
-      if (cloudUid) {
-        const updatedStructuralProj = {
-          ...baseStructuralProject,
-          activeRevisionId: result.dataset.revision.id,
-          revisionCount: nextRevisions.length,
-          reliabilitySummary: result.dataset.validation.reliability,
-        };
-        await saveConfirmedStructuralRevisionToCloud({
-          ownerId: cloudUid,
-          structuralProject: updatedStructuralProj,
-          dataset: result.dataset,
-          report: result.report,
-        });
-      }
-
       pushToast(
         lang === 'ar'
-          ? `تم حفظ المراجعة #${result.dataset.revision.revisionNumber} بنجاح.`
-          : `Saved immutable revision #${result.dataset.revision.revisionNumber}.`,
+          ? `تم حفظ المراجعة #${result.dataset.revision.revisionNumber} ذرياً ومزامنتها مع Cloud Firestore.`
+          : `Committed immutable revision #${result.dataset.revision.revisionNumber} atomically to Cloud Firestore.`,
         'success'
       );
     } catch (err) {
@@ -434,18 +423,36 @@ export const StructuralWorkspace: React.FC<StructuralWorkspaceProps> = ({
     { id: 'reports', label: lang === 'ar' ? 'التقارير الإنشائية' : 'Structural Reports', icon: <FileText className="w-3.5 h-3.5" /> },
   ];
 
-  const handleGenerateExtraReport = (type: StructuralReportDocument['reportType']) => {
+  const handleGenerateExtraReport = async (type: StructuralReportDocument['reportType']) => {
     if (!activeDataset) return;
+    if (!cloudUid) {
+      pushToast(
+        lang === 'ar'
+          ? 'مرفوض (Fail-Closed): يجب الاتصال بحساب Google الموثق لحفظ التقرير سحابياً.'
+          : 'FAIL_CLOSED: Verified Google cloud session required to save structural reports.',
+        'error'
+      );
+      return;
+    }
     const docReport = generateStructuralReport({ dataset: activeDataset, reportType: type });
-    const nextReports = [docReport, ...reports];
-    setReports(nextReports);
-    persistWorkspaceSnapshot({
-      revisions,
-      datasetsByRevision,
-      reports: nextReports,
-      importJobs: jobs,
-    });
-    pushToast(lang === 'ar' ? 'تم إصدار التقرير الهندسي.' : 'Structural report generated.', 'success');
+    try {
+      await saveStructuralReportToCloud({
+        ownerId: cloudUid,
+        projectId: baseStructuralProject.id,
+        revisionId: activeDataset.revision.id,
+        report: docReport,
+      });
+      setReports((prev) => [docReport, ...prev]);
+      pushToast(
+        lang === 'ar' ? 'تم إصدار وحفظ التقرير الهندسي سحابياً.' : 'Structural report committed to Firestore.',
+        'success'
+      );
+    } catch (err) {
+      pushToast(
+        err instanceof Error ? err.message : 'Failed to save structural report to Firestore.',
+        'error'
+      );
+    }
   };
 
   const handleDownloadMarkdownReport = (rep: StructuralReportDocument) => {

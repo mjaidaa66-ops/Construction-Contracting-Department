@@ -12,8 +12,15 @@ import {
   mergeRemoteProjectsWithLocal as mergeRemoteProjectsPure,
   parseSyncTimestampMs,
 } from './cloudSyncMerge';
-import { isFirestoreOfflinePersistenceEnabled } from './firebase';
 import {
+  assertVerifiedCloudPath,
+  computeIdempotencyKey,
+  isAppCheckConfigured,
+  isFirestoreOfflinePersistenceEnabled,
+  OperationType,
+} from './firebase';
+import {
+  clearCommittedIdempotencyCache,
   downloadChunkedDocument,
   ensureProjectExistsInCloud,
   saveCompanyProfileToCloud,
@@ -31,37 +38,24 @@ import {
 } from './firestoreStorage';
 import { normalizeReportsWorkspace } from './reportStorageService';
 
-export type CloudSyncStateStatus = 'synced' | 'syncing' | 'offline_cached';
+export type CloudSyncStateStatus =
+  | 'synced'
+  | 'syncing'
+  | 'offline_cached'
+  | 'auth_required'
+  | 'cloud_unreachable';
 
 export interface CloudSyncState {
   status: CloudSyncStateStatus;
   isOnline: boolean;
   isAuthenticated: boolean;
+  isServerReachable?: boolean;
+  appCheckActive?: boolean;
   persistenceEnabled: boolean;
   pendingCount: number;
   lastSyncedAt: string | null;
   lastError: string | null;
-}
-
-export interface CachedWorkspaceSnapshot {
-  projects?: Project[];
-  companyProfile?: CompanyProfile;
-  rateLibrary?: RateLibraryItem[];
-  transactions?: GovernmentTransaction[];
-  pendingProjectIds?: string[];
-  lastSyncedAt?: string | null;
-}
-
-const DB_NAME = 'bunyan_offline_cache';
-const DB_VERSION = 1;
-const STORE_WORKSPACE = 'workspace';
-const STORE_BINARIES = 'sheet_binaries';
-const LEGACY_WORKSPACE_KEY = 'bunyan_active_workspace';
-const DEBOUNCE_MS = 1500;
-
-function getWorkspaceStorageKey(ownerId?: string | null): string {
-  const cleanUid = ownerId ? ownerId.replace(/[^a-zA-Z0-9_-]/g, '_') : '';
-  return cleanUid ? `bunyan_workspace_user_${cleanUid}` : 'bunyan_workspace_guest';
+  lastIdempotencyKey?: string | null;
 }
 
 const inMemoryBinaryCache = new Map<string, string>();
@@ -69,20 +63,43 @@ const inFlightSheetUploads = new Map<
   string,
   Promise<{ sheet: TakeoffSheet; manifest: DocumentManifest | null }>
 >();
-const projectDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const pendingProjectPayloads = new Map<string, Project>();
-const pendingCompanyTimer = { current: null as ReturnType<typeof setTimeout> | null };
-const pendingReportsTimer = { current: null as ReturnType<typeof setTimeout> | null };
+const inFlightProjectIds = new Set<string>();
 const syncStateListeners = new Set<(state: CloudSyncState) => void>();
 
+export async function cacheSessionBinary(key: string, dataUrl: string): Promise<void> {
+  inMemoryBinaryCache.set(key, dataUrl);
+}
+
+export async function getCachedSessionBinary(key: string): Promise<string | null> {
+  return inMemoryBinaryCache.get(key) ?? null;
+}
+
+function deriveFailClosedStatus(state: {
+  isOnline: boolean;
+  isAuthenticated: boolean;
+  isServerReachable?: boolean;
+  pendingCount: number;
+}): CloudSyncStateStatus {
+  if (!state.isAuthenticated) return 'auth_required';
+  if (!state.isOnline || state.isServerReachable === false) return 'cloud_unreachable';
+  if (state.pendingCount > 0) return 'syncing';
+  return 'synced';
+}
+
 let currentSyncState: CloudSyncState = {
-  status: 'offline_cached',
-  isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  status: 'auth_required',
+  isOnline:
+    typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+      ? navigator.onLine
+      : true,
   isAuthenticated: false,
+  isServerReachable: false,
+  appCheckActive: isAppCheckConfigured,
   persistenceEnabled: isFirestoreOfflinePersistenceEnabled,
   pendingCount: 0,
   lastSyncedAt: null,
   lastError: null,
+  lastIdempotencyKey: null,
 };
 
 function notifySyncListeners(): void {
@@ -109,142 +126,87 @@ function updateCloudSyncState(patch: Partial<CloudSyncState>): void {
   notifySyncListeners();
 }
 
-function openOfflineDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
-  return new Promise((resolve) => {
-    try {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
-        const database = req.result;
-        if (!database.objectStoreNames.contains(STORE_WORKSPACE)) {
-          database.createObjectStore(STORE_WORKSPACE);
-        }
-        if (!database.objectStoreNames.contains(STORE_BINARIES)) {
-          database.createObjectStore(STORE_BINARIES);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function idbGet<T>(storeName: string, key: string): Promise<T | null> {
-  const database = await openOfflineDb();
-  if (!database) return null;
-  return new Promise((resolve) => {
-    try {
-      const tx = database.transaction(storeName, 'readonly');
-      const req = tx.objectStore(storeName).get(key);
-      req.onsuccess = () => resolve((req.result as T) ?? null);
-      req.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function idbSet<T>(storeName: string, key: string, value: T): Promise<void> {
-  const database = await openOfflineDb();
-  if (!database) return;
-  await new Promise<void>((resolve) => {
-    try {
-      const tx = database.transaction(storeName, 'readwrite');
-      tx.objectStore(storeName).put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-    } catch {
-      resolve();
-    }
-  });
-}
-
-export async function loadCachedWorkspaceSnapshot(
-  ownerId?: string | null
-): Promise<CachedWorkspaceSnapshot | null> {
-  const scopedKey = getWorkspaceStorageKey(ownerId);
-  let cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, scopedKey);
-  if (!cached && !ownerId) {
-    cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, LEGACY_WORKSPACE_KEY);
-  }
-  if (cached) {
-    if (Array.isArray(cached.pendingProjectIds)) {
-      const cachedById = new Map((cached.projects || []).map((p) => [p.id, p]));
-      for (const pid of cached.pendingProjectIds) {
-        const match = cachedById.get(pid);
-        if (match) {
-          pendingProjectPayloads.set(pid, match);
-        }
-      }
-      updateCloudSyncState({
-        pendingCount: pendingProjectPayloads.size,
-        lastSyncedAt: cached.lastSyncedAt ?? currentSyncState.lastSyncedAt,
-      });
-    }
-    return cached;
-  }
-  return null;
-}
-
-export async function saveCachedWorkspaceSnapshot(
-  patch: Partial<CachedWorkspaceSnapshot>,
-  ownerId?: string | null
-): Promise<void> {
-  const scopedKey = getWorkspaceStorageKey(ownerId);
-  const existing = (await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, scopedKey)) || {};
-  const merged: CachedWorkspaceSnapshot = {
-    ...existing,
-    ...patch,
-  };
-  await idbSet(STORE_WORKSPACE, scopedKey, merged);
-}
-
 export function resetSyncQueueForAccountSwitch(isAuthenticated: boolean): void {
-  for (const timer of projectDebounceTimers.values()) {
-    clearTimeout(timer);
-  }
-  projectDebounceTimers.clear();
-  pendingProjectPayloads.clear();
-  if (pendingCompanyTimer.current) {
-    clearTimeout(pendingCompanyTimer.current);
-    pendingCompanyTimer.current = null;
-  }
-  if (pendingReportsTimer.current) {
-    clearTimeout(pendingReportsTimer.current);
-    pendingReportsTimer.current = null;
-  }
+  inFlightProjectIds.clear();
+  inMemoryBinaryCache.clear();
+  clearCommittedIdempotencyCache();
   updateCloudSyncState({
     isAuthenticated,
     pendingCount: 0,
     lastSyncedAt: null,
     lastError: null,
-    status: isAuthenticated && currentSyncState.isOnline ? 'syncing' : 'offline_cached',
+    lastIdempotencyKey: null,
+    status: deriveFailClosedStatus({
+      isOnline: currentSyncState.isOnline,
+      isAuthenticated,
+      isServerReachable: currentSyncState.isServerReachable,
+      pendingCount: 0,
+    }),
   });
 }
 
-export async function cacheBinaryLocally(key: string, dataUrl: string): Promise<void> {
-  if (!key || !dataUrl) return;
-  inMemoryBinaryCache.set(key, dataUrl);
-  await idbSet(STORE_BINARIES, key, dataUrl);
+export function setNetworkOnlineStatus(isOnline: boolean): void {
+  updateCloudSyncState({
+    isOnline,
+    isServerReachable: isOnline ? currentSyncState.isServerReachable : false,
+    lastError: isOnline ? currentSyncState.lastError : 'Network offline — Fail-Closed active',
+    status: deriveFailClosedStatus({
+      isOnline,
+      isAuthenticated: currentSyncState.isAuthenticated,
+      isServerReachable: isOnline ? currentSyncState.isServerReachable : false,
+      pendingCount: inFlightProjectIds.size,
+    }),
+  });
 }
 
-export async function getCachedBinaryLocally(key: string): Promise<string | null> {
-  if (!key) return null;
-  const mem = inMemoryBinaryCache.get(key);
-  if (mem) return mem;
-  const disk = await idbGet<string>(STORE_BINARIES, key);
-  if (disk) {
-    inMemoryBinaryCache.set(key, disk);
-    return disk;
-  }
-  return null;
+export function setServerReachableStatus(
+  isServerReachable: boolean,
+  errorMessage: string | null = null
+): void {
+  updateCloudSyncState({
+    isServerReachable,
+    lastError: errorMessage,
+    status: deriveFailClosedStatus({
+      isOnline: currentSyncState.isOnline,
+      isAuthenticated: currentSyncState.isAuthenticated,
+      isServerReachable,
+      pendingCount: inFlightProjectIds.size,
+    }),
+  });
+}
+
+export function setAuthSyncStatus(isAuthenticated: boolean): void {
+  updateCloudSyncState({
+    isAuthenticated,
+    status: deriveFailClosedStatus({
+      isOnline: currentSyncState.isOnline,
+      isAuthenticated,
+      isServerReachable: currentSyncState.isServerReachable,
+      pendingCount: inFlightProjectIds.size,
+    }),
+  });
+}
+
+export function hasPendingSyncForProject(projectId: string): boolean {
+  return inFlightProjectIds.has(projectId);
+}
+
+export function cancelPendingProjectSync(projectId: string, _ownerId?: string | null): void {
+  inFlightProjectIds.delete(projectId);
+  updateCloudSyncState({
+    pendingCount: inFlightProjectIds.size,
+    status: deriveFailClosedStatus({
+      isOnline: currentSyncState.isOnline,
+      isAuthenticated: currentSyncState.isAuthenticated,
+      isServerReachable: currentSyncState.isServerReachable,
+      pendingCount: inFlightProjectIds.size,
+    }),
+  });
 }
 
 /**
- * Ensures any uploaded PDF/image sheet is sliced into 800KB DocumentChunk records
- * under DocumentManifest in Firestore so it loads across devices.
+ * Uploads any newly attached PDF/image sheet into atomic Firestore DocumentManifest + 800KB chunks.
+ * Fails closed when unauthenticated or offline.
  */
 export async function uploadSheetBinaryToCloud(params: {
   project: Project;
@@ -253,18 +215,17 @@ export async function uploadSheetBinaryToCloud(params: {
 }): Promise<{ sheet: TakeoffSheet; manifest: DocumentManifest | null }> {
   const { project, sheet, ownerId } = params;
 
-  if (sheet.pdfDataUrl) {
-    await cacheBinaryLocally(sheet.id, sheet.pdfDataUrl);
-  }
-
   if (
-    !ownerId ||
-    !currentSyncState.isOnline ||
     sheet.sheetType === 'blueprint_svg' ||
     !sheet.pdfDataUrl ||
     sheet.pdfManifestId
   ) {
     return { sheet, manifest: null };
+  }
+
+  assertVerifiedCloudPath(OperationType.CREATE, `projects/${project.id}/sheet/${sheet.id}`);
+  if (!ownerId) {
+    throw new Error('FAIL_CLOSED_UNAUTHENTICATED: Cannot upload sheet without verified ownerId.');
   }
 
   const dedupeKey = `${project.id}:${sheet.id}`;
@@ -289,7 +250,8 @@ export async function uploadSheetBinaryToCloud(params: {
       base64DataUrl: sheet.pdfDataUrl!,
     });
 
-    await cacheBinaryLocally(manifest.id, sheet.pdfDataUrl!);
+    inMemoryBinaryCache.set(manifest.id, sheet.pdfDataUrl!);
+    inMemoryBinaryCache.set(sheet.id, sheet.pdfDataUrl!);
 
     return {
       manifest,
@@ -309,34 +271,22 @@ export async function uploadSheetBinaryToCloud(params: {
 }
 
 /**
- * Reassembles a sheet's binary data URL from in-memory cache, IndexedDB, or Firestore DocumentChunks.
+ * Resolves a sheet binary URL strictly from Firestore DocumentManifest chunks (with read-through session memo).
  */
 export async function resolveSheetBinaryUrl(sheet: TakeoffSheet): Promise<string | null> {
   if (sheet.pdfDataUrl) {
-    await cacheBinaryLocally(sheet.id, sheet.pdfDataUrl);
-    if (sheet.pdfManifestId) {
-      await cacheBinaryLocally(sheet.pdfManifestId, sheet.pdfDataUrl);
-    }
     return sheet.pdfDataUrl;
   }
-
   if (sheet.pdfManifestId) {
-    const cachedByManifest = await getCachedBinaryLocally(sheet.pdfManifestId);
-    if (cachedByManifest) return cachedByManifest;
-  }
-
-  const cachedBySheet = await getCachedBinaryLocally(sheet.id);
-  if (cachedBySheet) return cachedBySheet;
-
-  if (sheet.pdfManifestId && currentSyncState.isOnline) {
+    const memo = inMemoryBinaryCache.get(sheet.pdfManifestId);
+    if (memo) return memo;
+    assertVerifiedCloudPath(OperationType.GET, `document_manifests/${sheet.pdfManifestId}`);
     const downloaded = await downloadChunkedDocument(sheet.pdfManifestId);
     if (downloaded?.dataUrl) {
-      await cacheBinaryLocally(sheet.pdfManifestId, downloaded.dataUrl);
-      await cacheBinaryLocally(sheet.id, downloaded.dataUrl);
+      inMemoryBinaryCache.set(sheet.pdfManifestId, downloaded.dataUrl);
       return downloaded.dataUrl;
     }
   }
-
   return null;
 }
 
@@ -350,9 +300,7 @@ async function uploadPendingBinariesOnProject(
   for (const s of project.takeoffSheets || []) {
     if (s.sheetType !== 'blueprint_svg' && s.pdfDataUrl && !s.pdfManifestId) {
       const res = await uploadSheetBinaryToCloud({ project, sheet: s, ownerId });
-      if (res.manifest) {
-        changed = true;
-      }
+      if (res.manifest) changed = true;
       nextSheets.push(res.sheet);
     } else {
       nextSheets.push(s);
@@ -370,7 +318,7 @@ async function uploadPendingBinariesOnProject(
         mimeType: d.mimeType || 'application/octet-stream',
         base64DataUrl: d.localDataUrl,
       });
-      await cacheBinaryLocally(manifest.id, d.localDataUrl);
+      inMemoryBinaryCache.set(manifest.id, d.localDataUrl);
       changed = true;
       nextDocs.push({ ...d, manifestId: manifest.id });
     } else {
@@ -389,226 +337,130 @@ async function uploadPendingBinariesOnProject(
   };
 }
 
-async function commitProjectToCloud(
-  project: Project,
-  ownerId: string,
-  onManifestAttached?: (updatedProject: Project) => void
-): Promise<void> {
-  const { project: withManifests, changed } = await uploadPendingBinariesOnProject(
-    project,
-    ownerId
-  );
-
-  if (changed && onManifestAttached) {
-    onManifestAttached(withManifests);
-  }
-
-  await saveProjectToCloud(withManifests, ownerId);
-  pendingProjectPayloads.delete(project.id);
-
-  const remainingPending = Array.from(pendingProjectPayloads.keys());
-  const nowIso = new Date().toISOString();
-  await saveCachedWorkspaceSnapshot(
-    {
-      pendingProjectIds: remainingPending,
-      lastSyncedAt: nowIso,
-    },
-    ownerId
-  );
-
-  updateCloudSyncState({
-    pendingCount: remainingPending.length,
-    lastSyncedAt: remainingPending.length === 0 ? nowIso : currentSyncState.lastSyncedAt,
-    status:
-      remainingPending.length > 0
-        ? currentSyncState.isOnline && currentSyncState.isAuthenticated
-          ? 'syncing'
-          : 'offline_cached'
-        : 'synced',
-    lastError: null,
-  });
-}
-
 /**
- * Schedules a 1.5s debounced auto-save for a project's measurements, BIM elements,
- * calibrated sheets, and chunked documents while persisting immediately to IndexedDB.
+ * Fail-Closed atomic project commit with idempotency key & exponential backoff.
  */
-export function scheduleProjectSync(params: {
+export async function commitProjectToCloudFailClosed(params: {
   project: Project;
-  allProjects: Project[];
-  ownerId: string | null;
+  ownerId: string;
+  forceOverwrite?: boolean;
   onManifestAttached?: (updatedProject: Project) => void;
-}): void {
-  const { project, allProjects, ownerId, onManifestAttached } = params;
+}): Promise<Project> {
+  const { project, ownerId, forceOverwrite, onManifestAttached } = params;
+  assertVerifiedCloudPath(OperationType.WRITE, `projects/${project.id}`);
 
-  pendingProjectPayloads.set(project.id, project);
-
-  const pendingIds = Array.from(pendingProjectPayloads.keys());
-  void saveCachedWorkspaceSnapshot(
-    {
-      projects: allProjects,
-      pendingProjectIds: pendingIds,
-    },
-    ownerId
-  );
-
-  // Cache any newly attached sheet binaries locally right away
-  for (const s of project.takeoffSheets || []) {
-    if (s.pdfDataUrl) {
-      void cacheBinaryLocally(s.id, s.pdfDataUrl);
-    }
-  }
-
-  const existingTimer = projectDebounceTimers.get(project.id);
-  if (existingTimer) {
-    clearTimeout(existingTimer);
-  }
-
-  if (!ownerId || !currentSyncState.isOnline) {
-    updateCloudSyncState({
-      status: 'offline_cached',
-      pendingCount: pendingIds.length,
-      isAuthenticated: Boolean(ownerId),
-      lastError: null,
-    });
-    return;
-  }
-
+  const idemKey = computeIdempotencyKey('project_commit', project.id, project);
+  inFlightProjectIds.add(project.id);
   updateCloudSyncState({
     status: 'syncing',
-    pendingCount: pendingIds.length,
-    isAuthenticated: true,
+    pendingCount: inFlightProjectIds.size,
     lastError: null,
-  });
-
-  const timer = setTimeout(() => {
-    projectDebounceTimers.delete(project.id);
-    const latest = pendingProjectPayloads.get(project.id) || project;
-    void commitProjectToCloud(latest, ownerId, onManifestAttached).catch((err) => {
-      updateCloudSyncState({
-        status: 'offline_cached',
-        pendingCount: pendingProjectPayloads.size,
-        lastError: err instanceof Error ? err.message : String(err),
-      });
-    });
-  }, DEBOUNCE_MS);
-
-  projectDebounceTimers.set(project.id, timer);
-}
-
-export function scheduleCompanyProfileSync(
-  profile: CompanyProfile,
-  ownerId: string | null
-): void {
-  void saveCachedWorkspaceSnapshot({ companyProfile: profile }, ownerId);
-
-  if (pendingCompanyTimer.current) {
-    clearTimeout(pendingCompanyTimer.current);
-  }
-
-  if (!ownerId || !currentSyncState.isOnline) {
-    updateCloudSyncState({
-      status: 'offline_cached',
-      isAuthenticated: Boolean(ownerId),
-    });
-    return;
-  }
-
-  updateCloudSyncState({ status: 'syncing', lastError: null });
-
-  pendingCompanyTimer.current = setTimeout(() => {
-    pendingCompanyTimer.current = null;
-    void saveCompanyProfileToCloud(profile, ownerId)
-      .then(() => {
-        const nowIso = new Date().toISOString();
-        void saveCachedWorkspaceSnapshot({ lastSyncedAt: nowIso }, ownerId);
-        updateCloudSyncState({
-          status: pendingProjectPayloads.size > 0 ? 'syncing' : 'synced',
-          lastSyncedAt: nowIso,
-          lastError: null,
-        });
-      })
-      .catch((err) => {
-        updateCloudSyncState({
-          status: 'offline_cached',
-          lastError: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }, DEBOUNCE_MS);
-}
-
-export function scheduleReportsWorkspaceSync(
-  workspace: ReportsWorkspaceStorage,
-  ownerId: string | null
-): void {
-  if (pendingReportsTimer.current) {
-    clearTimeout(pendingReportsTimer.current);
-  }
-
-  if (!ownerId || !currentSyncState.isOnline) {
-    updateCloudSyncState({
-      status: 'offline_cached',
-      isAuthenticated: Boolean(ownerId),
-    });
-    return;
-  }
-
-  updateCloudSyncState({ status: 'syncing', lastError: null });
-
-  pendingReportsTimer.current = setTimeout(() => {
-    pendingReportsTimer.current = null;
-    void saveReportsWorkspaceToCloud(workspace, ownerId)
-      .then(() => {
-        const nowIso = new Date().toISOString();
-        void saveCachedWorkspaceSnapshot({ lastSyncedAt: nowIso }, ownerId);
-        updateCloudSyncState({
-          status: pendingProjectPayloads.size > 0 ? 'syncing' : 'synced',
-          lastSyncedAt: nowIso,
-          lastError: null,
-        });
-      })
-      .catch((err) => {
-        updateCloudSyncState({
-          status: 'offline_cached',
-          lastError: err instanceof Error ? err.message : String(err),
-        });
-      });
-  }, DEBOUNCE_MS);
-}
-
-export async function flushPendingProjectSyncs(
-  ownerId: string,
-  onManifestAttached?: (updatedProject: Project) => void
-): Promise<void> {
-  if (!ownerId || !currentSyncState.isOnline) {
-    updateCloudSyncState({ status: 'offline_cached', isAuthenticated: Boolean(ownerId) });
-    return;
-  }
-
-  for (const timer of projectDebounceTimers.values()) {
-    clearTimeout(timer);
-  }
-  projectDebounceTimers.clear();
-
-  const entries = Array.from(pendingProjectPayloads.values());
-  if (entries.length === 0) return;
-
-  updateCloudSyncState({
-    status: 'syncing',
-    pendingCount: entries.length,
-    isAuthenticated: true,
-    lastError: null,
+    lastIdempotencyKey: idemKey,
   });
 
   try {
-    for (const proj of entries) {
-      await commitProjectToCloud(proj, ownerId, onManifestAttached);
+    const { project: withManifests, changed } = await uploadPendingBinariesOnProject(
+      project,
+      ownerId
+    );
+    if (changed && onManifestAttached) {
+      onManifestAttached(withManifests);
     }
-  } catch (err) {
+    await saveProjectToCloud(withManifests, ownerId, {
+      forceOverwrite,
+      idempotencyKey: idemKey,
+    });
+    inFlightProjectIds.delete(project.id);
+    const nowIso = new Date().toISOString();
     updateCloudSyncState({
-      status: 'offline_cached',
-      pendingCount: pendingProjectPayloads.size,
-      lastError: err instanceof Error ? err.message : String(err),
+      pendingCount: inFlightProjectIds.size,
+      isServerReachable: true,
+      lastSyncedAt: nowIso,
+      lastError: null,
+      status: inFlightProjectIds.size > 0 ? 'syncing' : 'synced',
+    });
+    return withManifests;
+  } catch (err) {
+    inFlightProjectIds.delete(project.id);
+    const msg = err instanceof Error ? err.message : String(err);
+    updateCloudSyncState({
+      pendingCount: inFlightProjectIds.size,
+      isServerReachable: false,
+      lastError: msg,
+      status: 'cloud_unreachable',
+    });
+    throw err;
+  }
+}
+
+export async function pushSingleProjectImmediate(
+  project: Project,
+  ownerId: string,
+  onManifestAttached?: (updatedProject: Project) => void
+): Promise<Project> {
+  return commitProjectToCloudFailClosed({
+    project,
+    ownerId,
+    forceOverwrite: true,
+    onManifestAttached,
+  });
+}
+
+export async function commitCompanyProfileFailClosed(
+  profile: CompanyProfile,
+  ownerId: string
+): Promise<void> {
+  assertVerifiedCloudPath(OperationType.WRITE, `company_profiles/${ownerId}`);
+  const idemKey = computeIdempotencyKey('company_commit', ownerId, profile);
+  updateCloudSyncState({
+    status: 'syncing',
+    lastError: null,
+    lastIdempotencyKey: idemKey,
+  });
+  try {
+    await saveCompanyProfileToCloud(profile, ownerId, { idempotencyKey: idemKey });
+    updateCloudSyncState({
+      status: inFlightProjectIds.size > 0 ? 'syncing' : 'synced',
+      isServerReachable: true,
+      lastSyncedAt: new Date().toISOString(),
+      lastError: null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    updateCloudSyncState({
+      status: 'cloud_unreachable',
+      isServerReachable: false,
+      lastError: msg,
+    });
+    throw err;
+  }
+}
+
+export async function commitReportsWorkspaceFailClosed(
+  workspace: ReportsWorkspaceStorage,
+  ownerId: string
+): Promise<void> {
+  assertVerifiedCloudPath(OperationType.WRITE, `report_workspaces/${ownerId}`);
+  const idemKey = computeIdempotencyKey('reports_commit', ownerId, workspace);
+  updateCloudSyncState({
+    status: 'syncing',
+    lastError: null,
+    lastIdempotencyKey: idemKey,
+  });
+  try {
+    await saveReportsWorkspaceToCloud(workspace, ownerId, { idempotencyKey: idemKey });
+    updateCloudSyncState({
+      status: inFlightProjectIds.size > 0 ? 'syncing' : 'synced',
+      isServerReachable: true,
+      lastSyncedAt: new Date().toISOString(),
+      lastError: null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    updateCloudSyncState({
+      status: 'cloud_unreachable',
+      isServerReachable: false,
+      lastError: msg,
     });
     throw err;
   }
@@ -633,10 +485,7 @@ export async function syncNowAll(params: {
     onManifestAttached,
   } = params;
 
-  if (!currentSyncState.isOnline) {
-    updateCloudSyncState({ status: 'offline_cached', isAuthenticated: Boolean(ownerId) });
-    return;
-  }
+  assertVerifiedCloudPath(OperationType.WRITE, 'workspace/syncNowAll');
 
   updateCloudSyncState({
     status: 'syncing',
@@ -645,12 +494,14 @@ export async function syncNowAll(params: {
   });
 
   try {
-    await flushPendingProjectSyncs(ownerId, onManifestAttached);
-
     await saveCompanyProfileToCloud(companyProfile, ownerId);
 
     for (const p of projects) {
-      await commitProjectToCloud(p, ownerId, onManifestAttached);
+      await commitProjectToCloudFailClosed({
+        project: p,
+        ownerId,
+        onManifestAttached,
+      });
     }
 
     for (const r of rateLibrary) {
@@ -666,82 +517,21 @@ export async function syncNowAll(params: {
     }
 
     const nowIso = new Date().toISOString();
-    await saveCachedWorkspaceSnapshot(
-      {
-        projects,
-        companyProfile,
-        rateLibrary,
-        transactions,
-        pendingProjectIds: [],
-        lastSyncedAt: nowIso,
-      },
-      ownerId
-    );
-
     updateCloudSyncState({
       status: 'synced',
+      isServerReachable: true,
       pendingCount: 0,
       lastSyncedAt: nowIso,
       lastError: null,
     });
   } catch (err) {
     updateCloudSyncState({
-      status: 'offline_cached',
+      status: 'cloud_unreachable',
+      isServerReachable: false,
       lastError: err instanceof Error ? err.message : String(err),
     });
     throw err;
   }
-}
-
-export function hasPendingSyncForProject(projectId: string): boolean {
-  return pendingProjectPayloads.has(projectId) || projectDebounceTimers.has(projectId);
-}
-
-export function cancelPendingProjectSync(projectId: string, ownerId?: string | null): void {
-  const timer = projectDebounceTimers.get(projectId);
-  if (timer) {
-    clearTimeout(timer);
-    projectDebounceTimers.delete(projectId);
-  }
-  pendingProjectPayloads.delete(projectId);
-  const remainingIds = Array.from(pendingProjectPayloads.keys());
-  void saveCachedWorkspaceSnapshot({ pendingProjectIds: remainingIds }, ownerId);
-  updateCloudSyncState({
-    pendingCount: remainingIds.length,
-    status:
-      remainingIds.length > 0
-        ? currentSyncState.isOnline && currentSyncState.isAuthenticated
-          ? 'syncing'
-          : 'offline_cached'
-        : currentSyncState.isOnline && currentSyncState.isAuthenticated
-        ? 'synced'
-        : 'offline_cached',
-  });
-}
-
-export function setNetworkOnlineStatus(isOnline: boolean): void {
-  updateCloudSyncState({
-    isOnline,
-    status: !isOnline
-      ? 'offline_cached'
-      : currentSyncState.isAuthenticated && pendingProjectPayloads.size === 0
-      ? 'synced'
-      : currentSyncState.isAuthenticated
-      ? 'syncing'
-      : 'offline_cached',
-  });
-}
-
-export function setAuthSyncStatus(isAuthenticated: boolean): void {
-  updateCloudSyncState({
-    isAuthenticated,
-    status:
-      isAuthenticated && currentSyncState.isOnline && pendingProjectPayloads.size === 0
-        ? 'synced'
-        : isAuthenticated && currentSyncState.isOnline
-        ? 'syncing'
-        : 'offline_cached',
-  });
 }
 
 export { parseSyncTimestampMs };
@@ -754,18 +544,21 @@ export function mergeRemoteProjectsWithLocal(
 }
 
 /**
- * Attaches real-time onSnapshot listeners across projects, companyProfile,
- * rateLibrary, governmentTransactions, and reportWorkspaces for instant
- * automatic cross-device synchronization per authenticated Google account.
+ * Protected real-time onSnapshot listeners across all 5 per-user collections.
+ * Requires verified auth & server connectivity; surfaces listener faults explicitly (Fail-Closed).
  */
 export function subscribeWorkspaceRealtime(params: {
   ownerId: string;
-  onRemoteProjects: (remoteProjects: Project[]) => void;
-  onRemoteCompanyProfile: (profile: CompanyProfile) => void;
-  onRemoteRateLibrary: (items: RateLibraryItem[]) => void;
-  onRemoteTransactions: (txs: GovernmentTransaction[]) => void;
-  onRemoteReportsWorkspace?: (workspace: ReportsWorkspaceStorage) => void;
+  onRemoteProjects: (remoteProjects: Project[], meta: SnapshotSyncMetadata) => void;
+  onRemoteCompanyProfile: (profile: CompanyProfile, meta: SnapshotSyncMetadata) => void;
+  onRemoteRateLibrary: (items: RateLibraryItem[], meta: SnapshotSyncMetadata) => void;
+  onRemoteTransactions: (txs: GovernmentTransaction[], meta: SnapshotSyncMetadata) => void;
+  onRemoteReportsWorkspace?: (
+    workspace: ReportsWorkspaceStorage,
+    meta: SnapshotSyncMetadata
+  ) => void;
   onCloudBootstrapNeeded?: () => void;
+  onFatalSyncError?: (error: Error) => void;
 }): Unsubscribe {
   const {
     ownerId,
@@ -775,10 +568,13 @@ export function subscribeWorkspaceRealtime(params: {
     onRemoteTransactions,
     onRemoteReportsWorkspace,
     onCloudBootstrapNeeded,
+    onFatalSyncError,
   } = params;
 
-  let projectsSnapshotSeen = false;
-  let companySnapshotSeen = false;
+  assertVerifiedCloudPath(OperationType.LIST, 'workspace/realtime');
+
+  let projectsServerSnapshotSeen = false;
+  let companyServerSnapshotSeen = false;
   let hasCloudProjectsEver = false;
   let hasCloudCompanyProfile = false;
   let bootstrapFired = false;
@@ -786,8 +582,8 @@ export function subscribeWorkspaceRealtime(params: {
   const checkBootstrap = () => {
     if (
       !bootstrapFired &&
-      projectsSnapshotSeen &&
-      companySnapshotSeen &&
+      projectsServerSnapshotSeen &&
+      companyServerSnapshotSeen &&
       !hasCloudProjectsEver &&
       !hasCloudCompanyProfile
     ) {
@@ -798,23 +594,30 @@ export function subscribeWorkspaceRealtime(params: {
 
   const handleMeta = (meta: SnapshotSyncMetadata) => {
     if (!currentSyncState.isOnline) {
-      updateCloudSyncState({ status: 'offline_cached' });
+      updateCloudSyncState({ status: 'cloud_unreachable', isServerReachable: false });
       return;
     }
-    if (meta.hasPendingWrites || pendingProjectPayloads.size > 0) {
-      updateCloudSyncState({
-        status: currentSyncState.isOnline ? 'syncing' : 'offline_cached',
-      });
+    if (meta.hasPendingWrites || inFlightProjectIds.size > 0) {
+      updateCloudSyncState({ status: 'syncing' });
       return;
     }
     if (!meta.fromCache) {
-      const nowIso = new Date().toISOString();
       updateCloudSyncState({
         status: 'synced',
-        lastSyncedAt: nowIso,
+        isServerReachable: true,
+        lastSyncedAt: new Date().toISOString(),
         lastError: null,
       });
     }
+  };
+
+  const handleListenerError = (err: Error) => {
+    updateCloudSyncState({
+      status: 'cloud_unreachable',
+      isServerReachable: false,
+      lastError: err.message,
+    });
+    onFatalSyncError?.(err);
   };
 
   const unsubProjects = subscribeProjects(
@@ -822,19 +625,17 @@ export function subscribeWorkspaceRealtime(params: {
     (list, meta) => {
       if (list.length > 0) {
         hasCloudProjectsEver = true;
-        onRemoteProjects(list);
-      } else if (hasCloudProjectsEver) {
-        onRemoteProjects(list);
       }
       if (!meta.fromCache || list.length > 0) {
-        projectsSnapshotSeen = true;
+        onRemoteProjects(list, meta);
+      }
+      if (!meta.fromCache) {
+        projectsServerSnapshotSeen = true;
         checkBootstrap();
       }
       handleMeta(meta);
     },
-    (err) => {
-      updateCloudSyncState({ status: 'offline_cached', lastError: err.message });
-    }
+    handleListenerError
   );
 
   const unsubCompany = subscribeCompanyProfile(
@@ -842,56 +643,48 @@ export function subscribeWorkspaceRealtime(params: {
     (profile, meta) => {
       if (profile) {
         hasCloudCompanyProfile = true;
-        onRemoteCompanyProfile(profile);
+        onRemoteCompanyProfile(profile, meta);
       }
-      if (!meta.fromCache || profile !== null) {
-        companySnapshotSeen = true;
+      if (!meta.fromCache) {
+        companyServerSnapshotSeen = true;
         checkBootstrap();
       }
       handleMeta(meta);
     },
-    (err) => {
-      updateCloudSyncState({ lastError: err.message });
-    }
+    handleListenerError
   );
 
   const unsubRates = subscribeRateLibrary(
     ownerId,
     (items, meta) => {
-      if (items.length > 0) {
-        onRemoteRateLibrary(items);
+      if (items.length > 0 || !meta.fromCache) {
+        onRemoteRateLibrary(items, meta);
       }
       handleMeta(meta);
     },
-    (err) => {
-      updateCloudSyncState({ lastError: err.message });
-    }
+    handleListenerError
   );
 
   const unsubTx = subscribeTransactions(
     ownerId,
     (txs, meta) => {
-      if (txs.length > 0 || hasCloudProjectsEver) {
-        onRemoteTransactions(txs);
+      if (txs.length > 0 || !meta.fromCache) {
+        onRemoteTransactions(txs, meta);
       }
       handleMeta(meta);
     },
-    (err) => {
-      updateCloudSyncState({ lastError: err.message });
-    }
+    handleListenerError
   );
 
   const unsubReports = subscribeReportsWorkspace(
     ownerId,
     (workspace, meta) => {
       if (workspace && onRemoteReportsWorkspace) {
-        onRemoteReportsWorkspace(normalizeReportsWorkspace(workspace));
+        onRemoteReportsWorkspace(normalizeReportsWorkspace(workspace), meta);
       }
       handleMeta(meta);
     },
-    (err) => {
-      updateCloudSyncState({ lastError: err.message });
-    }
+    handleListenerError
   );
 
   return () => {

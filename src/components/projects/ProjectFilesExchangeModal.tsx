@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { CompanyProfile, Language, Project, ProjectDocument } from '../../types/bunyan';
 import { downloadChunkedDocument, ensureProjectExistsInCloud, uploadChunkedDocument } from '../../services/firestoreStorage';
-import { cacheBinaryLocally, getCachedBinaryLocally } from '../../services/cloudSyncService';
+import { cacheSessionBinary, getCachedSessionBinary } from '../../services/cloudSyncService';
 import {
   buildProjectDocumentsIndexCsv,
   buildProjectFilesBundle,
@@ -108,17 +108,17 @@ export const ProjectFilesExchangeModal: React.FC<ProjectFilesExchangeModalProps>
   const resolveDocumentDataUrl = async (docItem: ProjectDocument): Promise<string | undefined> => {
     if (docItem.localDataUrl) return docItem.localDataUrl;
     if (docItem.manifestId) {
-      const byManifest = await getCachedBinaryLocally(docItem.manifestId);
+      const byManifest = await getCachedSessionBinary(docItem.manifestId);
       if (byManifest) return byManifest;
     }
-    const byId = await getCachedBinaryLocally(docItem.id);
+    const byId = await getCachedSessionBinary(docItem.id);
     if (byId) return byId;
     if (docItem.manifestId) {
       try {
         const res = await downloadChunkedDocument(docItem.manifestId);
         if (res?.dataUrl) {
-          await cacheBinaryLocally(docItem.manifestId, res.dataUrl);
-          await cacheBinaryLocally(docItem.id, res.dataUrl);
+          await cacheSessionBinary(docItem.manifestId, res.dataUrl);
+          await cacheSessionBinary(docItem.id, res.dataUrl);
           return res.dataUrl;
         }
       } catch {
@@ -134,6 +134,16 @@ export const ProjectFilesExchangeModal: React.FC<ProjectFilesExchangeModalProps>
     if (!canEditFiles) {
       pushToast(
         isAr ? 'استيراد ملفات المشروع متاح للمدير والمهندس فقط.' : 'File import requires Admin or Engineer role.',
+        'error'
+      );
+      return;
+    }
+
+    if (!cloudUid) {
+      pushToast(
+        isAr
+          ? 'يتطلب استيراد الملفات تسجيل الدخول بحساب Google الموثق والاتصال بالسحابة.'
+          : 'Verified cloud sign-in is required before importing files (Fail-Closed).',
         'error'
       );
       return;
@@ -155,24 +165,19 @@ export const ProjectFilesExchangeModal: React.FC<ProjectFilesExchangeModalProps>
         const category =
           importCategory === 'auto' ? inferDocCategoryFromFilename(file.name) : importCategory;
 
-        let manifestId: string | undefined;
-        if (cloudUid) {
-          await ensureProjectExistsInCloud(project, cloudUid);
-          const manifest = await uploadChunkedDocument({
-            ownerId: cloudUid,
-            projectId: project.id,
-            fileName: file.name,
-            mimeType,
-            base64DataUrl,
-          });
-          manifestId = manifest.id;
-        }
+        await ensureProjectExistsInCloud(project, cloudUid);
+        const manifest = await uploadChunkedDocument({
+          ownerId: cloudUid,
+          projectId: project.id,
+          fileName: file.name,
+          mimeType,
+          base64DataUrl,
+        });
+        const manifestId = manifest.id;
 
         const docId = `doc-${Date.now()}-${i}`;
-        await cacheBinaryLocally(docId, base64DataUrl);
-        if (manifestId) {
-          await cacheBinaryLocally(manifestId, base64DataUrl);
-        }
+        await cacheSessionBinary(docId, base64DataUrl);
+        await cacheSessionBinary(manifestId, base64DataUrl);
 
         createdDocs.push({
           id: docId,
@@ -216,6 +221,16 @@ export const ProjectFilesExchangeModal: React.FC<ProjectFilesExchangeModalProps>
       return;
     }
 
+    if (!cloudUid) {
+      pushToast(
+        isAr
+          ? 'يتطلب استيراد الحزمة تسجيل الدخول بحساب Google الموثق والاتصال بالسحابة.'
+          : 'Verified cloud sign-in is required before importing bundles (Fail-Closed).',
+        'error'
+      );
+      return;
+    }
+
     setBusy(true);
     try {
       const text = await file.text();
@@ -232,19 +247,17 @@ export const ProjectFilesExchangeModal: React.FC<ProjectFilesExchangeModalProps>
         let manifestId: string | undefined;
 
         if (entry.dataUrl) {
-          await cacheBinaryLocally(newId, entry.dataUrl);
-          if (cloudUid) {
-            await ensureProjectExistsInCloud(project, cloudUid);
-            const manifest = await uploadChunkedDocument({
-              ownerId: cloudUid,
-              projectId: project.id,
-              fileName: entry.name,
-              mimeType: entry.mimeType,
-              base64DataUrl: entry.dataUrl,
-            });
-            manifestId = manifest.id;
-            await cacheBinaryLocally(manifestId, entry.dataUrl);
-          }
+          await cacheSessionBinary(newId, entry.dataUrl);
+          await ensureProjectExistsInCloud(project, cloudUid);
+          const manifest = await uploadChunkedDocument({
+            ownerId: cloudUid,
+            projectId: project.id,
+            fileName: entry.name,
+            mimeType: entry.mimeType,
+            base64DataUrl: entry.dataUrl,
+          });
+          manifestId = manifest.id;
+          await cacheSessionBinary(manifestId, entry.dataUrl);
         }
 
         importedDocs.push({

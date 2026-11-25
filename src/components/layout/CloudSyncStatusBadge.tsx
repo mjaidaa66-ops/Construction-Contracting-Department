@@ -10,7 +10,7 @@ export interface CloudSyncStatusBadgeProps {
 }
 
 function formatSyncTime(iso: string | null, lang: Language): string {
-  if (!iso) return lang === 'ar' ? 'محلي' : 'Local';
+  if (!iso) return lang === 'ar' ? 'انتظار' : 'Pending';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString('en-AE', {
@@ -26,8 +26,13 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
   onSyncNow,
 }) => {
   const isAr = lang === 'ar';
-  const isSynced = syncState.status === 'synced' && syncState.isOnline && syncState.isAuthenticated;
+  const isSynced =
+    syncState.status === 'synced' &&
+    syncState.isOnline &&
+    syncState.isAuthenticated &&
+    syncState.isServerReachable !== false;
   const isSyncing = syncState.status === 'syncing';
+  const needsAuth = !syncState.isAuthenticated || syncState.status === 'auth_required';
   const timeLabel = formatSyncTime(syncState.lastSyncedAt, lang);
 
   const statusText = isSyncing
@@ -37,14 +42,14 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
     : isSynced
     ? isAr
       ? 'متزامن سحابياً'
-      : 'Cloud Synced'
-    : !syncState.isOnline
+      : 'Cloud Verified'
+    : needsAuth
     ? isAr
-      ? 'غير متصل'
-      : 'Offline'
+      ? 'بانتظار التوثيق'
+      : 'Auth Required'
     : isAr
-    ? 'محفوظ محلياً'
-    : 'Cached';
+    ? 'مغلق أمنياً (Fail-Closed)'
+    : 'Cloud Unreachable';
 
   return (
     <div
@@ -53,8 +58,8 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         syncState.lastError
           ? syncState.lastError
           : isAr
-          ? 'حالة المزامنة الفورية مع Firebase Firestore والتخزين دون إنترنت'
-          : 'Firebase Firestore Real-Time Sync & Offline Persistence Status'
+          ? 'المسار السحابي الإلزامي المتصل بخادم Cloud Firestore (Fail-Closed)'
+          : 'Mandatory Verified Cloud Firestore Path (Fail-Closed)'
       }
     >
       <div className="inline-flex items-center gap-1.5 px-2 py-0.5">
@@ -66,7 +71,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
             aria-hidden="true"
           />
         ) : (
-          <CloudOff className="w-3.5 h-3.5 text-[#FF9D42] shrink-0" />
+          <CloudOff className="w-3.5 h-3.5 text-[#FF405C] shrink-0" />
         )}
 
         <span
@@ -75,13 +80,15 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
               ? 'text-[var(--accent-cyan)]'
               : isSynced
               ? 'text-emerald-600 dark:text-[#00E5A8]'
-              : 'text-amber-600 dark:text-[#FF9D42]'
+              : needsAuth
+              ? 'text-amber-600 dark:text-[#FF9D42]'
+              : 'text-[#FF405C]'
           }`}
         >
           {statusText}
         </span>
 
-        {syncState.lastSyncedAt && !isSyncing && (
+        {syncState.lastSyncedAt && !isSyncing && isSynced && (
           <span
             dir="ltr"
             className="hidden 2xl:inline-block font-mono tabular-nums text-[10px] text-[var(--text-muted)]"

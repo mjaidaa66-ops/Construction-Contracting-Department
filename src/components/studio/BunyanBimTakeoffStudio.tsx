@@ -256,16 +256,27 @@ export const BunyanBimTakeoffStudio: React.FC<BunyanBimTakeoffStudioProps> = ({
         project: nextProject,
         sheet: newSheet,
         ownerId: cloudUid,
-      }).then((res) => {
-        if (res.manifest) {
-          onUpdateProject({
-            ...nextProject,
-            takeoffSheets: nextProject.takeoffSheets!.map((s) =>
-              s.id === newSheet.id ? res.sheet : s
-            ),
-          });
-        }
-      });
+      })
+        .then((res) => {
+          if (res.manifest) {
+            onUpdateProject({
+              ...nextProject,
+              takeoffSheets: nextProject.takeoffSheets!.map((s) =>
+                s.id === newSheet.id ? res.sheet : s
+              ),
+            });
+          }
+        })
+        .catch((err) => {
+          setAuditError(
+            err instanceof Error
+              ? err.message
+              : lang === 'ar'
+              ? 'فشل رفع المخطط إلى السحابة (Fail-Closed).'
+              : 'Failed to upload drawing binary to Firestore (Fail-Closed).'
+          );
+          setAuditDrawerOpen(true);
+        });
     }
   };
 

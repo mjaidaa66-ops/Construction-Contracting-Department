@@ -40,9 +40,9 @@ service cloud.firestore {
       return isEmailVerified() && request.auth.uid == ownerId;
     }
 
-    // Connectivity probe document
+    // Connectivity probe document (requires verified email for authenticated cloud-path verification)
     match /test/connection {
-      allow get: if isSignedIn();
+      allow get: if isEmailVerified();
     }
 
     // Admins registry
@@ -184,7 +184,10 @@ service cloud.firestore {
             ])
           )
         );
-      allow delete: if isValidId(projectId) && (isOwner(existing().ownerId) || isAdmin());
+      allow delete: if isValidId(projectId) && (
+        isAdmin() ||
+        (isOwner(existing().ownerId) && existing().status != 'completed')
+      );
     }
 
     // Government Transactions Collection
@@ -222,8 +225,16 @@ service cloud.firestore {
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
-        && exists(/databases/$(database)/documents/projects/$(incoming().projectId))
-        && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin());
+        && (
+          (
+            exists(/databases/$(database)/documents/projects/$(incoming().projectId))
+            && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin())
+          ) ||
+          (
+            existsAfter(/databases/$(database)/documents/projects/$(incoming().projectId))
+            && (getAfter(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin())
+          )
+        );
       allow update: if isValidId(transactionId)
         && isEmailVerified()
         && isValidGovernmentTransaction(incoming(), transactionId)
@@ -244,7 +255,10 @@ service cloud.firestore {
             ])
           )
         );
-      allow delete: if isValidId(transactionId) && (isOwner(existing().ownerId) || isAdmin());
+      allow delete: if isValidId(transactionId) && (
+        isAdmin() ||
+        (isOwner(existing().ownerId) && existing().status != 'approved')
+      );
     }
 
     // Document Manifests & Chunked Binary Storage (800KB base64 chunks)
@@ -281,12 +295,20 @@ service cloud.firestore {
         && isValidDocumentManifest(incoming(), manifestId)
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
-        && exists(/databases/$(database)/documents/projects/$(incoming().projectId))
-        && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin());
+        && (
+          (
+            exists(/databases/$(database)/documents/projects/$(incoming().projectId))
+            && (get(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin())
+          ) ||
+          (
+            existsAfter(/databases/$(database)/documents/projects/$(incoming().projectId))
+            && (getAfter(/databases/$(database)/documents/projects/$(incoming().projectId)).data.ownerId == request.auth.uid || isAdmin())
+          )
+        );
       allow update: if false;
       allow delete: if isValidId(manifestId) && (isOwner(existing().ownerId) || isAdmin());
 
-      // Master Gate: Chunk access derives from parent DocumentManifest
+      // Master Gate: Chunk access derives from parent DocumentManifest (supports atomic writeBatch create via existsAfter)
       match /chunks/{chunkId} {
         allow get: if isValidId(manifestId) && isValidId(chunkId)
           && isEmailVerified()
@@ -299,8 +321,16 @@ service cloud.firestore {
           && isValidDocumentChunk(incoming(), manifestId, chunkId)
           && incoming().ownerId == request.auth.uid
           && incoming().createdAt == request.time
-          && exists(/databases/$(database)/documents/document_manifests/$(manifestId))
-          && get(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid;
+          && (
+            (
+              exists(/databases/$(database)/documents/document_manifests/$(manifestId))
+              && get(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid
+            ) ||
+            (
+              existsAfter(/databases/$(database)/documents/document_manifests/$(manifestId))
+              && getAfter(/databases/$(database)/documents/document_manifests/$(manifestId)).data.ownerId == request.auth.uid
+            )
+          );
         allow update: if false;
         allow delete: if isValidId(manifestId) && isValidId(chunkId)
           && isEmailVerified()
@@ -446,8 +476,16 @@ service cloud.firestore {
 
     function hasValidStructuralProjectParent(projectId) {
       return isValidId(projectId)
-        && exists(/databases/$(database)/documents/structuralProjects/$(projectId))
-        && (get(/databases/$(database)/documents/structuralProjects/$(projectId)).data.ownerId == request.auth.uid || isAdmin());
+        && (
+          (
+            exists(/databases/$(database)/documents/structuralProjects/$(projectId))
+            && (get(/databases/$(database)/documents/structuralProjects/$(projectId)).data.ownerId == request.auth.uid || isAdmin())
+          ) ||
+          (
+            existsAfter(/databases/$(database)/documents/structuralProjects/$(projectId))
+            && (getAfter(/databases/$(database)/documents/structuralProjects/$(projectId)).data.ownerId == request.auth.uid || isAdmin())
+          )
+        );
     }
 
     function isValidStructuralProject(data, projectId) {

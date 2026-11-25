@@ -6,6 +6,7 @@ import {
   Cpu,
   Download,
   Fingerprint,
+  GitCompareArrows,
   LifeBuoy,
   LogIn,
   LogOut,
@@ -17,12 +18,18 @@ import {
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { CloudSyncState } from '../../services/cloudSyncService';
-import { FIRESTORE_DATABASE_ID, formatFirebaseAuthError } from '../../services/firebase';
-import type { BackupData, CompanyProfile, Language, Role } from '../../types/bunyan';
+import {
+  FIRESTORE_DATABASE_ID,
+  formatFirebaseAuthError,
+  isAppCheckConfigured,
+} from '../../services/firebase';
+import type { WorkspaceSnapshotData } from '../../services/reconciliationAuditor';
+import type { BackupData, CompanyProfile, Language, Project, Role } from '../../types/bunyan';
 import { getRolePermissions, type RolePermissions } from '../../utils/rbacPermissions';
 import { usePWAInstall } from '../../utils/usePWAInstall';
 import { BunyanLogo } from '../common/BunyanLogo';
 import { BackupSyncModal } from '../projects/BackupSyncModal';
+import { ReconciliationAuditorPanel } from './ReconciliationAuditorPanel';
 import {
   Button,
   Card,
@@ -51,6 +58,10 @@ interface SettingsAuthModuleProps {
   onSyncSeedToCloud: () => Promise<void>;
   backupData?: BackupData;
   onImportBackup?: (data: BackupData, mode?: 'merge' | 'replace') => void;
+  cloudUid?: string | null;
+  localWorkspace?: WorkspaceSnapshotData;
+  onApplyPulledWorkspacePatch?: (patch: Partial<WorkspaceSnapshotData>) => void;
+  onManifestAttached?: (updatedProject: Project) => void;
 }
 
 const PERMISSION_ROWS: Array<{
@@ -86,6 +97,10 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   onSyncSeedToCloud,
   backupData,
   onImportBackup,
+  cloudUid = null,
+  localWorkspace,
+  onApplyPulledWorkspacePatch,
+  onManifestAttached,
 }) => {
   const [companyForm, setCompanyForm] = useState<CompanyProfile>(companyProfile);
   const [syncing, setSyncing] = useState(false);
@@ -179,20 +194,20 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             <div className="flex justify-between items-center">
               <span className="text-[var(--text-muted)]">{isAr ? 'حالة الاتصال السحابي:' : 'Firestore Status:'}</span>
               <StatusIndicator
-                tone={firestoreConnected && firebaseUser ? 'success' : 'warning'}
+                tone={firestoreConnected && firebaseUser?.emailVerified ? 'success' : 'danger'}
                 label={
-                  firestoreConnected && firebaseUser
-                    ? isAr ? 'متزامن تلقائياً' : 'Auto-Sync Active'
+                  firestoreConnected && firebaseUser?.emailVerified
+                    ? isAr ? 'مسار سحابي موثق (Fail-Closed)' : 'Verified Cloud Path'
                     : firestoreConnected
-                    ? isAr ? 'متاح (بانتظار تسجيل الدخول)' : 'Ready (Sign in to sync)'
-                    : isAr ? 'وضع التخزين المحلي' : 'Local Cache Mode'
+                    ? isAr ? 'مقفل (بانتظار توثيق Google)' : 'Locked (Sign In Required)'
+                    : isAr ? 'مقفل (السحابة غير متاحة)' : 'Locked (Cloud Unreachable)'
                 }
               />
             </div>
             <div className="flex justify-between items-center gap-2">
               <span className="text-[var(--text-muted)]">{isAr ? 'الحساب المسجل:' : 'Signed-in Account:'}</span>
               <span dir="ltr" className="font-mono text-[var(--text-primary)] truncate">
-                {firebaseUser?.email || (isAr ? 'غير مسجل (معاينة محلية)' : 'Not signed in (Local Preview)')}
+                {firebaseUser?.email || (isAr ? 'غير مسجل (مقفل أمنياً)' : 'Not signed in (Fail-Closed)')}
               </span>
             </div>
             <div className="flex justify-between items-center gap-2">
@@ -284,6 +299,20 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             {backupData && onImportBackup && (
               <Button variant="outline" icon={<Archive className="w-4 h-4 text-[var(--accent-gold)]" />} onClick={() => setBackupOpen(true)}>
                 {isAr ? 'النسخ الاحتياطي JSON' : 'JSON Backup & Restore'}
+              </Button>
+            )}
+
+            {localWorkspace && (
+              <Button
+                variant="outline"
+                icon={<GitCompareArrows className="w-4 h-4 text-[var(--accent-cyan)]" />}
+                onClick={() => {
+                  document
+                    .getElementById('reconciliation-auditor')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                {isAr ? 'مدقق المطابقة السحابية' : 'Reconciliation Auditor'}
               </Button>
             )}
 
@@ -382,6 +411,21 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
         </Card>
       </div>
 
+      {/* Cloud Snapshot Reconciliation Auditor */}
+      {localWorkspace && onApplyPulledWorkspacePatch && (
+        <ReconciliationAuditorPanel
+          lang={lang}
+          cloudUid={cloudUid}
+          userEmail={firebaseUser?.email}
+          currentRole={currentRole}
+          isOnline={syncState?.isOnline ?? true}
+          localWorkspace={localWorkspace}
+          onApplyPulledWorkspacePatch={onApplyPulledWorkspacePatch}
+          onManifestAttached={onManifestAttached}
+          onSignInGoogle={onSignInGoogle}
+        />
+      )}
+
       {/* RBAC Permissions Matrix + System Support & Diagnostics */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <Card className="lg:col-span-7 overflow-hidden">
@@ -431,9 +475,27 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
               <span dir="ltr" className="font-mono font-semibold text-[var(--accent-cyan)]">BUNYAN 5D · 2026.1</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
-              <span className="text-[var(--text-muted)]">{isAr ? 'وضع العمل دون إنترنت' : 'Offline Persistence'}</span>
+              <span className="text-[var(--text-muted)]">{isAr ? 'سياسة الاتصال السحابي' : 'Cloud Sync Policy'}</span>
               <span className="font-semibold text-emerald-600 dark:text-[#00E5A8]">
-                {syncState?.persistenceEnabled !== false ? (isAr ? 'نشط (IndexedDB)' : 'Active (IndexedDB)') : 'Off'}
+                {isAr ? 'سحابي إلزامي (Fail-Closed · Memory)' : 'Strict Cloud-Only (Fail-Closed)'}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
+              <span className="text-[var(--text-muted)]">{isAr ? 'حماية App Check' : 'Firebase App Check'}</span>
+              <span
+                className={`font-semibold ${
+                  isAppCheckConfigured
+                    ? 'text-emerald-600 dark:text-[#00E5A8]'
+                    : 'text-amber-600 dark:text-[#FF9D42]'
+                }`}
+              >
+                {isAppCheckConfigured
+                  ? isAr
+                    ? 'مفعل (reCAPTCHA v3)'
+                    : 'Active (reCAPTCHA v3)'
+                  : isAr
+                  ? 'بانتظار مفتاح الموقع'
+                  : 'Awaiting Site Key'}
               </span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
