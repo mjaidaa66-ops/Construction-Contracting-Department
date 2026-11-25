@@ -13,11 +13,19 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  persistentSingleTabManager,
   type Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId || 'gifted-force-fxctm';
+export const FIRESTORE_DATABASE_ID =
+  firebaseConfig.firestoreDatabaseId || 'ai-studio-a758e3b4-81b5-47a3-a9ca-2d6487629b67';
+
+const app = initializeApp({
+  ...firebaseConfig,
+  projectId: FIREBASE_PROJECT_ID,
+});
 
 let dbInstance: Firestore;
 let offlinePersistenceActive = false;
@@ -29,18 +37,34 @@ try {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
       }),
+      experimentalAutoDetectLongPolling: true,
     },
-    firebaseConfig.firestoreDatabaseId
+    FIRESTORE_DATABASE_ID
   );
   offlinePersistenceActive = true;
 } catch {
-  dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  try {
+    dbInstance = initializeFirestore(
+      app,
+      {
+        localCache: persistentLocalCache({
+          tabManager: persistentSingleTabManager({ forceOwnership: true }),
+        }),
+        experimentalAutoDetectLongPolling: true,
+      },
+      FIRESTORE_DATABASE_ID
+    );
+    offlinePersistenceActive = true;
+  } catch {
+    dbInstance = getFirestore(app, FIRESTORE_DATABASE_ID);
+  }
 }
 
 export const db = dbInstance;
 export const isFirestoreOfflinePersistenceEnabled = offlinePersistenceActive;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
   CREATE = 'create',
@@ -105,6 +129,36 @@ export async function testFirestoreConnection(): Promise<boolean> {
     }
     return true;
   }
+}
+
+export function formatFirebaseAuthError(error: unknown, lang: 'ar' | 'en' = 'ar'): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code || '')
+      : '';
+  const msg = error instanceof Error ? error.message : String(error);
+
+  if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
+    return lang === 'ar'
+      ? 'قام المتصفح بحظر نافذة تسجيل الدخول عبر Google. يرجى السماح بالنوافذ المنبثقة والمحاولة مرة أخرى.'
+      : 'Browser blocked the Google sign-in popup. Please allow popups and retry.';
+  }
+  if (code === 'auth/popup-closed-by-user' || msg.includes('popup-closed-by-user')) {
+    return lang === 'ar'
+      ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.'
+      : 'Google sign-in window was closed before completing.';
+  }
+  if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+    return lang === 'ar'
+      ? 'نطاق التشغيل الحالي غير مضاف في قائمة النطاقات المصرح بها داخل Firebase Authentication.'
+      : 'This domain is not authorized in Firebase Authentication settings.';
+  }
+  if (code === 'auth/network-request-failed' || msg.includes('network-request-failed')) {
+    return lang === 'ar'
+      ? 'تعذر الاتصال بخدمة المصادقة. تحقق من اتصال الإنترنت.'
+      : 'Network error while signing in with Google. Check your connection.';
+  }
+  return msg || (lang === 'ar' ? 'تعذر تسجيل الدخول بحساب Google' : 'Google sign-in failed');
 }
 
 export async function signInWithGooglePopup(): Promise<User> {

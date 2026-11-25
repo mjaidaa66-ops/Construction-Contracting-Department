@@ -141,12 +141,33 @@ describe('Reports & Printing Center Engine', () => {
     ];
 
     for (const def of REPORT_DEFINITIONS) {
+      const testProjects =
+        def.id === 'doc_vault_registry'
+          ? [
+              {
+                ...INITIAL_PROJECTS[0],
+                documents: [
+                  {
+                    id: 'doc-real-test-1',
+                    name: 'Uploaded_Permit.pdf',
+                    category: 'permit' as const,
+                    mimeType: 'application/pdf',
+                    sizeBytes: 2048,
+                    uploadedAt: '2026-11-24',
+                    localDataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=',
+                  },
+                ],
+              },
+              ...INITIAL_PROJECTS.slice(1),
+            ]
+          : INITIAL_PROJECTS;
+
       const report = generateReport({
         definitionId: def.id,
         lang: 'ar',
         role: 'admin',
         actorName: 'Admin',
-        projects: INITIAL_PROJECTS,
+        projects: testProjects,
         transactions: INITIAL_TRANSACTIONS,
         rateLibrary: INITIAL_RATE_LIBRARY,
         company: DEFAULT_COMPANY_PROFILE,

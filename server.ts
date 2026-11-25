@@ -3,6 +3,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { runSharjahMunicipalityAudit } from './server/services/sharjahComplianceAudit.ts';
+import { createStructuralRouter } from './src/modules/structural/routes/structural.routes.ts';
 
 async function startServer() {
   const app = express();
@@ -21,6 +22,8 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
+
+  app.use('/api/structural', createStructuralRouter());
 
   const ALLOWED_PROJECT_TYPES = new Set([
     'villa',

@@ -17,7 +17,6 @@ import type {
 } from '../../types/bunyan';
 import { resolveSheetBinaryUrl } from '../../services/cloudSyncService';
 import { disposePdfDocumentProxy, ensurePdfWorkerConfigured } from '../../utils/pdfWorkerConfig';
-import { generateSampleEngineeringPdfBytes } from '../../utils/samplePdfGenerator';
 import { dataUrlOrBlobToUint8Array } from '../../utils/takeoffSheetLoader';
 import { PdfCanvasSheet } from './PdfCanvasSheet';
 import { PdfPageRenderer } from './PdfPageRenderer';
@@ -62,11 +61,11 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
 }) => {
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const pdfDocRef = useRef<PDFDocumentProxy | null>(null);
-  const [fileName, setFileName] = useState<string>('BNY-2026-001_Engineering_Set.pdf');
+  const [fileName, setFileName] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomScale, setZoomScale] = useState(1.1);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageMetrics, setPageMetrics] = useState<{
     box: PdfBoxOrigin;
@@ -81,26 +80,32 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
   useEffect(() => {
     let active = true;
     async function loadPdfDocument() {
+      if (!uploadedPdfSheet) {
+        if (pdfDocRef.current) {
+          void disposePdfDocumentProxy(pdfDocRef.current);
+          pdfDocRef.current = null;
+        }
+        setPdfDoc(null);
+        setFileName('');
+        setLoading(false);
+        setError(null);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
         const pdfjs = ensurePdfWorkerConfigured();
-        let bytes: Uint8Array;
-        let nextTitle = 'BNY-2026-001_Engineering_Set.pdf';
-        if (uploadedPdfSheet) {
-          const resolvedPdfUrl = uploadedPdfSheet.pdfDataUrl || (await resolveSheetBinaryUrl(uploadedPdfSheet));
-          if (!resolvedPdfUrl) {
-            throw new Error(
-              lang === 'ar'
-                ? 'بيانات ملف PDF السحابية غير متوفرة حالياً — يرجى إعادة المزامنة أو فتح الملف مجدداً.'
-                : 'Synced PDF binary is unavailable — please sync or reload the PDF file.'
-            );
-          }
-          bytes = await dataUrlOrBlobToUint8Array(resolvedPdfUrl);
-          nextTitle = `${uploadedPdfSheet.title || 'Uploaded_Drawing'}.pdf`;
-        } else {
-          bytes = generateSampleEngineeringPdfBytes();
+        const resolvedPdfUrl = uploadedPdfSheet.pdfDataUrl || (await resolveSheetBinaryUrl(uploadedPdfSheet));
+        if (!resolvedPdfUrl) {
+          throw new Error(
+            lang === 'ar'
+              ? 'بيانات ملف PDF السحابية غير متوفرة حالياً — يرجى إعادة المزامنة أو فتح الملف مجدداً.'
+              : 'Synced PDF binary is unavailable — please sync or reload the PDF file.'
+          );
         }
+        const bytes = await dataUrlOrBlobToUint8Array(resolvedPdfUrl);
+        const nextTitle = `${uploadedPdfSheet.title || 'Uploaded_Drawing'}.pdf`;
         const doc = await pdfjs.getDocument({ data: bytes }).promise;
         if (!active) {
           await disposePdfDocumentProxy(doc);
@@ -174,7 +179,7 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
       <div className="px-4 py-2.5 border-b border-[var(--border-hairline)] flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-mono font-semibold text-[#B4863C] truncate max-w-[220px]">
-            {fileName}
+            {fileName || (lang === 'ar' ? 'لم يتم تحميل ملف PDF' : 'No PDF Loaded')}
           </span>
           {pdfDoc && (
             <span className="text-[var(--text-muted)] font-mono tabular-nums">
@@ -285,7 +290,24 @@ export const EngineeringPdfViewer: React.FC<EngineeringPdfViewerProps> = ({
                 onCalibrateTwoPoints={onCalibrateTwoPoints}
               />
             </div>
-          ) : null}
+          ) : (
+            <div className="my-auto text-center space-y-3 max-w-md px-4">
+              <FileUp className="w-10 h-10 text-[#B4863C] mx-auto" />
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {lang === 'ar' ? 'لا يوجد ملف PDF مفتوح حالياً' : 'No PDF Drawing Loaded'}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {lang === 'ar'
+                  ? 'اختر ملف مخطط هندسي بصيغة PDF من جهازك لفتحه ومعايرة المقياس وحساب الكميات مباشرة.'
+                  : 'Select an architectural or structural PDF file to view, calibrate scale, and perform 2D takeoff.'}
+              </p>
+              <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] cursor-pointer transition-colors">
+                <FileUp className="w-4 h-4" />
+                <span>{lang === 'ar' ? 'اختيار ملف PDF' : 'Load PDF File'}</span>
+                <input type="file" accept=".pdf,application/pdf" onChange={handleUploadPdf} className="hidden" />
+              </label>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -68,6 +68,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
   }, [transactions, q]);
 
   const modulesList: ActiveModule[] = [
+    'dashboard',
     'command',
     'projects',
     'financials',
@@ -77,12 +78,14 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
     'bim',
     'takeoff',
     'gis',
+    'structural',
     'government',
+    'accounts',
     'settings',
   ];
 
   const matchedModules = useMemo(() => {
-    if (!q) return modulesList.slice(0, 5);
+    if (!q) return modulesList.slice(0, 6);
     return modulesList.filter((m) => t.nav[m].toLowerCase().includes(q) || m.includes(q));
   }, [q, t]);
 
@@ -95,13 +98,13 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
       title={lang === 'ar' ? 'البحث المركزي والتنقل السريع' : 'Global Command Search'}
       subtitle={
         lang === 'ar'
-          ? 'ابحث في 56 مشروعاً، قطع الأراضي، المعاملات الحكومية، أو انتقل لأي وحدة'
-          : 'Search across 56 projects, GIS plots, municipal transactions, or workspace modules'
+          ? `ابحث في ${projects.length} مشروعاً، قطع الأراضي، المعاملات الحكومية، أو انتقل لأي وحدة`
+          : `Search across ${projects.length} projects, GIS plots, municipal transactions, or workspace modules`
       }
     >
       <div className="p-4 space-y-4">
         <div className="relative">
-          <Search className="w-4 h-4 text-[var(--text-muted)] absolute top-1/2 -translate-y-1/2 start-3" />
+          <Search className="w-4 h-4 text-[var(--accent-cyan)] absolute top-1/2 -translate-y-1/2 start-3" />
           <input
             autoFocus
             value={query}
@@ -111,7 +114,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
                 ? 'اكتب كود المشروع، رقم قطعة الأرض، اسم المالك، أو رقم المعاملة...'
                 : 'Type project code, plot number, owner, or transaction ref...'
             }
-            className="w-full h-10 ps-9 pe-3 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[#B4863C]/60"
+            className="w-full h-10 ps-9 pe-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/45"
           />
         </div>
 
@@ -130,14 +133,14 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
                     onNavigate(mod);
                     onClose();
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] hover:border-[#B4863C] text-xs font-medium text-[var(--text-primary)] cursor-pointer bunyan-transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] hover:border-[var(--accent-cyan)]/50 text-xs font-medium text-[var(--text-primary)] cursor-pointer bunyan-transition"
                 >
                   {mod === 'financials' ? (
-                    <Wallet className="w-3.5 h-3.5 text-[#B4863C]" />
+                    <Wallet className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
                   ) : mod === 'gis' ? (
-                    <Compass className="w-3.5 h-3.5 text-[#B4863C]" />
+                    <Compass className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
                   ) : (
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#B4863C]" />
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
                   )}
                   <span>{t.nav[mod]}</span>
                 </button>
@@ -156,7 +159,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
               {lang === 'ar' ? 'لا توجد مشاريع مطابقة.' : 'No matching projects.'}
             </div>
           ) : (
-            <div className="divide-y divide-[var(--border-hairline)] rounded-lg border border-[var(--border-hairline)] overflow-hidden">
+            <div className="divide-y divide-[var(--border-hairline)] rounded-xl border border-[var(--border-hairline)] overflow-hidden">
               {matchedProjects.map((p) => (
                 <button
                   key={p.id}
@@ -169,7 +172,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
                   className="w-full px-3.5 py-2.5 flex items-center justify-between gap-3 text-start hover:bg-[var(--bg-surface-subtle)] cursor-pointer bunyan-transition"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <FolderKanban className="w-4 h-4 text-[#B4863C] shrink-0" />
+                    <FolderKanban className="w-4 h-4 text-[var(--accent-cyan)] shrink-0" />
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
                         {lang === 'ar' ? p.name : p.nameEn}
@@ -180,7 +183,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  <span dir="ltr" className="text-[11px] font-mono tabular-nums text-[#B4863C] shrink-0">
+                  <span dir="ltr" className="text-[11px] font-mono tabular-nums text-[var(--accent-cyan)] shrink-0">
                     {p.actualProgress}%
                   </span>
                 </button>
@@ -195,7 +198,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
             <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               {lang === 'ar' ? 'المعاملات الحكومية' : 'Municipal Clearances'}
             </div>
-            <div className="divide-y divide-[var(--border-hairline)] rounded-lg border border-[var(--border-hairline)] overflow-hidden">
+            <div className="divide-y divide-[var(--border-hairline)] rounded-xl border border-[var(--border-hairline)] overflow-hidden">
               {matchedTransactions.map((tx) => (
                 <button
                   key={tx.id}
@@ -208,7 +211,7 @@ export const GlobalCommandModal: React.FC<GlobalCommandModalProps> = ({
                   className="w-full px-3.5 py-2 flex items-center justify-between gap-3 text-start hover:bg-[var(--bg-surface-subtle)] cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Landmark className="w-3.5 h-3.5 text-[#B4863C] shrink-0" />
+                    <Landmark className="w-3.5 h-3.5 text-[var(--accent-gold)] shrink-0" />
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-[var(--text-primary)] truncate">
                         {lang === 'ar' ? tx.serviceName : tx.serviceNameEn || tx.serviceName}

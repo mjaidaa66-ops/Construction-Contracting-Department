@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+coverage/
+.git/
+.github/
+.aistudio/
+.firebase/
+backups/
+tests/
+*.log
+.env
+.env.*
+!.env.example

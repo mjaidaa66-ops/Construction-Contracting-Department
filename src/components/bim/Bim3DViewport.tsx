@@ -212,8 +212,8 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1324);
-    scene.fog = new THREE.FogExp2(0x0b1324, 0.011);
+    scene.background = new THREE.Color(0x050b18);
+    scene.fog = new THREE.FogExp2(0x050b18, 0.011);
 
     const buildEnvironment = () => {
       scene.environment?.dispose();
@@ -979,13 +979,13 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
       </div>
 
       {/* Full-Width 3D WebGL Canvas + Clean Architectural Side Panels */}
-      <div className="relative rounded-xl border border-[var(--border-hairline)] bg-[#060D1A] h-[600px] overflow-hidden">
+      <div className="relative rounded-2xl border border-[#0284C7]/30 dark:border-[#00F0FF]/25 bg-[#050B18] h-[600px] overflow-hidden">
         <div ref={canvasMountRef} className="w-full h-full" />
 
         {webglError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#060D1A] text-slate-300 text-xs p-6 text-center">
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050B18] text-slate-300 text-xs p-6 text-center">
             <div className="space-y-2">
-              <p className="font-semibold text-amber-400">WebGL Viewport Notice</p>
+              <p className="font-semibold text-[#FF9D42]">WebGL Viewport Notice</p>
               <p>{webglError}</p>
               <button
                 type="button"
@@ -993,7 +993,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                   setWebglError(null);
                   setViewportKey((k) => k + 1);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4863C] text-white font-semibold hover:bg-[#9E7330]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00F0FF] text-[#050B18] font-bold hover:brightness-110"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>{lang === 'ar' ? 'إعادة تشغيل WebGL' : 'Reinitialize 3D Viewport'}</span>
@@ -1004,14 +1004,14 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
 
         {/* Top-Start Compact Architectural Spec Label */}
         <div
-          className={`absolute top-3 start-3 z-10 rounded-xl bg-[#0B1426]/92 border border-slate-700/80 px-3.5 py-2.5 text-[11px] text-slate-200 pointer-events-none space-y-1.5 ${
+          className={`absolute top-3 start-3 z-10 rounded-xl bg-[#080F1F]/92 border border-[#00F0FF]/30 px-3.5 py-2.5 text-[11px] text-slate-200 pointer-events-none space-y-1.5 ${
             inspectorOpen
               ? 'hidden sm:block max-w-[calc(100%-290px)] lg:max-w-[440px]'
               : 'max-w-[calc(100%-200px)] sm:max-w-[440px]'
           }`}
         >
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span dir="ltr" className="font-mono font-bold text-[#C99A49]">
+            <span dir="ltr" className="font-mono font-bold text-[#00F0FF]">
               {projectCode ? `${projectCode} · ` : ''}3D BIM
             </span>
             <span dir="ltr" className="font-mono tabular-nums text-slate-100">
@@ -1024,7 +1024,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
             {highlightedElementIds.length > 0 && (
               <>
                 <span aria-hidden="true" className="text-slate-600">|</span>
-                <span className="text-rose-400 font-semibold inline-flex items-center gap-1">
+                <span className="text-[#FF405C] font-semibold inline-flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
                   <span dir="ltr" className="font-mono tabular-nums">
                     {highlightedElementIds.length}
@@ -1234,7 +1234,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           <button
             type="button"
             onClick={() => setDockCollapsed((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-lg bg-[#0E1628]/95 border border-b-0 border-slate-700/80 text-[11px] font-medium text-slate-200 hover:text-white"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl bg-[#080F1F]/95 border border-b-0 border-[#00F0FF]/30 text-[11px] font-medium text-slate-200 hover:text-[#00F0FF] cursor-pointer"
           >
             {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             <span>
@@ -1249,7 +1249,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
           </button>
 
           {!dockCollapsed && (
-            <div className="w-full rounded-xl bg-[#0E1628]/95 border border-slate-700/80 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <div className="w-full rounded-2xl bg-[#080F1F]/95 border border-[#00F0FF]/30 p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
               {/* Camera Presets */}
               <div className="flex items-center gap-1">
                 {(['iso', 'top', 'front', 'back', 'left', 'right'] as BimCameraPreset[]).map((p) => (
@@ -1257,9 +1257,9 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     key={p}
                     type="button"
                     onClick={() => setCameraPreset(p)}
-                    className={`px-2 py-1 rounded font-mono uppercase transition-colors ${
+                    className={`px-2 py-1 rounded-lg font-mono uppercase transition-colors cursor-pointer ${
                       cameraPreset === p
-                        ? 'bg-[#B4863C] text-white font-semibold'
+                        ? 'bg-[#00F0FF] text-[#050B18] font-bold'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
@@ -1275,9 +1275,9 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     key={m}
                     type="button"
                     onClick={() => setRenderMode(m)}
-                    className={`px-2 py-1 rounded font-mono uppercase transition-colors ${
+                    className={`px-2 py-1 rounded-lg font-mono uppercase transition-colors cursor-pointer ${
                       renderMode === m
-                        ? 'bg-[#B4863C]/25 text-[#E5B869] border border-[#B4863C]/60 font-semibold'
+                        ? 'bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/55 font-semibold'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
@@ -1288,15 +1288,15 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
 
               {/* Clipping Section Planes */}
               <div className="flex items-center gap-1.5 border-s border-slate-700 ps-2">
-                <Scissors className="w-3.5 h-3.5 text-[#C99A49]" />
+                <Scissors className="w-3.5 h-3.5 text-[#D6A64F]" />
                 {(['none', 'x', 'y', 'z', 'box'] as BimSectionMode[]).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setSectionMode(s)}
-                    className={`px-1.5 py-1 rounded font-mono uppercase ${
+                    className={`px-1.5 py-1 rounded-lg font-mono uppercase cursor-pointer ${
                       sectionMode === s
-                        ? 'bg-amber-600 text-white font-semibold'
+                        ? 'bg-[#D6A64F] text-[#050B18] font-bold'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
@@ -1311,7 +1311,7 @@ export const Bim3DViewport: React.FC<Bim3DViewportProps> = ({
                     step={0.5}
                     value={sectionOffset}
                     onChange={(e) => setSectionOffset(Number(e.target.value))}
-                    className="w-20 accent-[#B4863C]"
+                    className="w-20 accent-[#00F0FF]"
                     aria-label="Section clipping offset"
                   />
                 )}

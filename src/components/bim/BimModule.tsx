@@ -1,11 +1,14 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertOctagon,
+  CalendarClock,
   CheckCircle2,
   FileUp,
   Lock,
   Maximize2,
   Minimize2,
+  Pause,
+  Play,
   Unlock,
 } from 'lucide-react';
 import type {
@@ -112,6 +115,8 @@ export const BimModule: React.FC<BimModuleProps> = ({
   const [sectionOffset, setSectionOffset] = useState<number>(6);
   const [auditOpen, setAuditOpen] = useState(false);
   const [focus3d, setFocus3d] = useState(false);
+  const [simPct, setSimPct] = useState<number>(100);
+  const [simPlaying, setSimPlaying] = useState(false);
 
   const [analysisReport, setAnalysisReport] = useState<DrawingAnalysisReport>(() =>
     buildInitialBimReport(project, elements, isParametricPreview)
@@ -120,16 +125,57 @@ export const BimModule: React.FC<BimModuleProps> = ({
   useEffect(() => {
     setSelectedId(elements[0]?.id || null);
     setAnalysisReport(buildInitialBimReport(project, elements, project.bimElements === undefined));
+    setSimPct(100);
+    setSimPlaying(false);
   }, [project.id]);
+
+  // 4D/5D Construction Simulation Playback
+  useEffect(() => {
+    if (!simPlaying) return;
+    const timer = window.setInterval(() => {
+      setSimPct((prev) => {
+        if (prev >= 100) {
+          setSimPlaying(false);
+          return 100;
+        }
+        return Math.min(100, prev + 5);
+      });
+    }, 320);
+    return () => window.clearInterval(timer);
+  }, [simPlaying]);
+
+  const LEVEL_ORDER: Record<string, number> = {
+    site_grid: 0.05,
+    foundation: 0.2,
+    ground: 0.42,
+    level1: 0.62,
+    level2: 0.78,
+    level3: 0.9,
+    roof: 1.0,
+  };
+
+  const simulatedElements = useMemo(() => {
+    if (simPct >= 100) return elements;
+    const ratio = simPct / 100;
+    return elements.filter((el) => {
+      const threshold = LEVEL_ORDER[el.level] ?? 0.5;
+      return threshold <= ratio + 0.04;
+    });
+  }, [elements, simPct]);
+
+  const activeSimCost = useMemo(
+    () => simulatedElements.reduce((acc, el) => acc + el.estimatedCost, 0),
+    [simulatedElements]
+  );
 
   const selectedElement: BimElement | null =
     elements.find((e) => e.id === selectedId) || null;
 
   const totalBimCost = elements.reduce((acc, el) => acc + el.estimatedCost, 0);
-  const totalConcreteVol = elements
+  const totalConcreteVol = simulatedElements
     .filter((e) => e.boqCategory === 'concrete')
     .reduce((acc, e) => acc + e.volumeM3, 0);
-  const totalNetWallArea = elements
+  const totalNetWallArea = simulatedElements
     .filter((e) => e.category === 'wall')
     .reduce((acc, e) => acc + e.netAreaM2, 0);
 
@@ -366,12 +412,92 @@ export const BimModule: React.FC<BimModuleProps> = ({
         </Card>
       )}
 
+      {/* Interactive 4D/5D Construction Timeline & Cost Simulator */}
+      {elements.length > 0 && (
+        <Card className="p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)]">
+              <CalendarClock className="w-4 h-4 text-[var(--accent-cyan)]" />
+              <span>
+                {lang === 'ar'
+                  ? 'محاكي الجدول الزمني والتكلفة 4D / 5D BIM'
+                  : '4D Schedule & 5D Cost Progression Simulator'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span dir="ltr" className="font-mono tabular-nums text-[var(--accent-cyan)] font-bold">
+                {simPct}% ({simulatedElements.length}/{elements.length}{' '}
+                {lang === 'ar' ? 'عنصر' : 'EL'})
+              </span>
+              <span className="text-[var(--text-muted)]">·</span>
+              <span dir="ltr" className="font-mono tabular-nums font-bold text-[#00E5A8]">
+                {formatAED(activeSimCost, lang)}
+              </span>
+              <Button
+                variant="cyan"
+                size="xs"
+                icon={simPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                onClick={() => {
+                  if (simPct >= 100 && !simPlaying) setSimPct(15);
+                  setSimPlaying((p) => !p);
+                }}
+              >
+                {simPlaying
+                  ? lang === 'ar' ? 'إيقاف' : 'Pause'
+                  : lang === 'ar' ? 'تشغيل المحاكاة' : 'Simulate'}
+              </Button>
+            </div>
+          </div>
+
+          <input
+            type="range"
+            min={5}
+            max={100}
+            step={5}
+            value={simPct}
+            onChange={(e) => {
+              setSimPlaying(false);
+              setSimPct(Number(e.target.value));
+            }}
+            className="w-full accent-[#00F0FF] cursor-pointer"
+            aria-label={lang === 'ar' ? 'شريط محاكاة مراحل البناء 4D' : '4D Construction Timeline Scrubber'}
+          />
+
+          {project.phases && project.phases.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {project.phases.map((ph, idx) => {
+                const targetPct = Math.round(((idx + 1) / project.phases.length) * 100);
+                const active = simPct >= targetPct - 15 && simPct <= targetPct + 5;
+                return (
+                  <button
+                    key={ph.id}
+                    type="button"
+                    onClick={() => {
+                      setSimPlaying(false);
+                      setSimPct(targetPct);
+                    }}
+                    className={`px-2.5 py-1 rounded-xl border bunyan-transition cursor-pointer ${
+                      active
+                        ? 'border-[var(--accent-cyan)]/55 bg-[#0284C7]/12 dark:bg-[#00F0FF]/15 text-[var(--accent-cyan)] font-semibold'
+                        : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/40'
+                    }`}
+                  >
+                    {lang === 'ar' ? ph.nameAr : ph.nameEn || ph.nameAr} ({ph.progressPercentage}%)
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* 3-Column 5D BIM Workbench: Tree + 3D Viewport + Properties (or Focused 3D) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {!focus3d && (
           <div className="xl:col-span-3">
             <BimModelTree
-              elements={elements}
+              elements={simulatedElements}
               selectedId={selectedId}
               hiddenDisciplines={hiddenDisciplines}
               onSelectElement={setSelectedId}
@@ -393,7 +519,7 @@ export const BimModule: React.FC<BimModuleProps> = ({
             }
           >
             <BimViewer3D
-              elements={elements}
+              elements={simulatedElements}
               selectedId={selectedId}
               hiddenDisciplines={hiddenDisciplines}
               cameraPreset={cameraPreset}

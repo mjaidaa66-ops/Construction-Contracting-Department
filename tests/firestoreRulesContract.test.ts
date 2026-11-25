@@ -29,6 +29,7 @@ describe('Firestore Security Rules & Blueprint Contract Verification', () => {
       'document_manifests/{manifestId}',
       'rate_library/{rateId}',
       'company_profiles/{profileId}',
+      'report_workspaces/{workspaceId}',
     ];
     for (const col of requiredCollections) {
       assert.ok(rulesText.includes(`match /${col}`), `Missing match block for /${col}`);
@@ -74,5 +75,32 @@ describe('Firestore Security Rules & Blueprint Contract Verification', () => {
     // 12: Server timestamp integrity
     assert.ok(rulesText.includes('incoming().createdAt == request.time'));
     assert.ok(rulesText.includes('incoming().updatedAt == request.time'));
+  });
+
+  it('enforces hardened security rules and blueprint schemas for all 10 Structural Intelligence collections', () => {
+    const structuralCollections = [
+      'structuralProjects/{projectId}',
+      'structuralModels/{modelId}',
+      'structuralImports/{importId}',
+      'structuralElements/{elementDocId}',
+      'structuralMaterials/{materialDocId}',
+      'structuralSections/{sectionDocId}',
+      'structuralResults/{resultDocId}',
+      'structuralValidations/{validationId}',
+      'structuralRevisions/{revisionId}',
+      'structuralReports/{reportId}',
+    ];
+
+    for (const col of structuralCollections) {
+      assert.ok(rulesText.includes(`match /${col}`), `Missing match block for /${col}`);
+      assert.ok(
+        blueprint.firestore[`/${col}`] !== undefined,
+        `Missing blueprint path /${col}`
+      );
+    }
+
+    assert.ok(rulesText.includes('function hasValidStructuralProjectParent(projectId)'));
+    assert.ok(rulesText.includes('data.immutable == true'));
+    assert.ok(rulesText.includes('isValidReliability('));
   });
 });

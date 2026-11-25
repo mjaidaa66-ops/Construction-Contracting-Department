@@ -4,7 +4,6 @@ import type {
   FinancialMilestone,
   GovernmentTransaction,
   Project,
-  ProjectDocument,
   ProjectStatus,
   ProjectType,
   RateLibraryItem,
@@ -444,46 +443,7 @@ interface RawFirestoreProject {
     dueDate?: string;
     status?: string;
   }>;
-  documents?: Array<{
-    id?: string;
-    title?: string;
-    fileName?: string;
-    name?: string;
-    category?: string;
-    fileSize?: string;
-    sizeBytes?: number;
-    uploadDate?: string;
-    uploadedAt?: string;
-  }>;
   gisData: Project['gisData'];
-}
-
-function parseFileSizeToBytes(sizeText?: string): number {
-  if (!sizeText) return 512000;
-  const match = sizeText.match(/([\d.]+)\s*(kb|mb|gb|b)?/i);
-  if (!match) return 512000;
-  const val = Number(match[1]) || 1;
-  const unit = (match[2] || 'kb').toLowerCase();
-  if (unit === 'gb') return Math.round(val * 1024 * 1024 * 1024);
-  if (unit === 'mb') return Math.round(val * 1024 * 1024);
-  if (unit === 'kb') return Math.round(val * 1024);
-  return Math.round(val);
-}
-
-function mapDocCategory(cat?: string): ProjectDocument['category'] {
-  switch (cat) {
-    case 'permit':
-    case 'structural':
-    case 'architectural':
-    case 'mep':
-    case 'contract':
-    case 'gis':
-      return cat;
-    case 'financial':
-      return 'contract';
-    default:
-      return 'permit';
-  }
 }
 
 function mapProjectType(t?: string): ProjectType {
@@ -560,19 +520,6 @@ function normalizeSharjahProject(raw: RawFirestoreProject, index: number): Proje
         : 'pending',
   }));
 
-  const documents: ProjectDocument[] = (raw.documents || []).map((doc, idx) => {
-    const fileName = doc.name || doc.fileName || doc.title || `Document-${idx + 1}.pdf`;
-    const isDwg = fileName.toLowerCase().endsWith('.dwg');
-    return {
-      id: doc.id || `doc-${raw.id}-${idx + 1}`,
-      name: fileName,
-      category: mapDocCategory(doc.category),
-      mimeType: isDwg ? 'application/acad' : 'application/pdf',
-      sizeBytes: doc.sizeBytes ?? parseFileSizeToBytes(doc.fileSize),
-      uploadedAt: doc.uploadedAt || doc.uploadDate || raw.permitDate || '2025-01-01',
-    };
-  });
-
   const baseProject: Project = {
     id: raw.id,
     code: raw.code,
@@ -603,7 +550,7 @@ function normalizeSharjahProject(raw: RawFirestoreProject, index: number): Proje
     plannedProgress: Number(raw.plannedProgress ?? 0),
     phases,
     paymentMilestones,
-    documents,
+    documents: [],
     gisData,
     takeoffSummaryConfig: {
       overheadPercent: 10,

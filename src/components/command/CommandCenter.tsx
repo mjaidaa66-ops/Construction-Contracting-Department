@@ -1,9 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle,
   ArrowUpRight,
   BarChart3,
-  Bell,
   Box,
   Building2,
   CheckCircle2,
@@ -36,7 +34,15 @@ import { deriveWorkspaceAlerts } from '../../utils/workspaceAlerts';
 import { BunyanLogo } from '../common/BunyanLogo';
 import { CloudSyncStatusBadge } from '../layout/CloudSyncStatusBadge';
 import type { ActiveModule } from '../layout/Sidebar';
-import { Button, Card, CardHeader, StatusIndicator } from '../ui';
+import {
+  AlertPanel,
+  Button,
+  Card,
+  CardHeader,
+  HolographicPanel,
+  KPIWidget,
+  StatusIndicator,
+} from '../ui';
 
 const BunyanExportCenter = lazy(() =>
   import('../export/BunyanExportCenter').then((m) => ({
@@ -129,6 +135,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
     const avgProgress = projects.length > 0 ? Math.round(progressSum / projects.length) : 0;
     const collectionRate = totalBudget > 0 ? Math.round((totalPaid / totalBudget) * 100) : 0;
+    const sample = projects.slice(0, 7);
 
     return {
       totalBudget,
@@ -140,6 +147,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
       suspendedCount,
       avgProgress,
       collectionRate,
+      budgetSpark: sample.map((p) => Math.max(1, Math.round(p.approvedBudget / 100000))),
+      paidSpark: sample.map((p) => Math.max(1, Math.round(p.paidAmount / 100000))),
+      progressSpark: sample.map((p) => p.actualProgress),
     };
   }, [projects]);
 
@@ -283,14 +293,14 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 1. Executive Welcome Banner & Active Project Switcher */}
-      <Card padded className="bg-[var(--bg-surface)]">
+      {/* 1. Executive Holographic Command Banner & Active Project Switcher */}
+      <HolographicPanel className="p-5 sm:p-6">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <div className="flex flex-wrap items-center gap-3.5">
               <BunyanLogo size="lg" lang={lang} />
               <div className="flex flex-wrap items-center gap-2 text-xs border-s border-[var(--border-hairline)] ps-3">
-                <span className="font-mono font-semibold text-[#B4863C] dark:text-[#C99A49]">
+                <span className="font-mono font-semibold text-[var(--accent-cyan)]">
                   {company.licenseNumber}
                 </span>
                 <span className="text-[var(--text-muted)]">·</span>
@@ -317,11 +327,11 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {onOpenSearch && (
-                <Button variant="outline" size="sm" icon={<Search className="w-3.5 h-3.5 text-[#B4863C]" />} onClick={onOpenSearch}>
+                <Button variant="outline" size="sm" icon={<Search className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />} onClick={onOpenSearch}>
                   {isAr ? 'بحث في المنصة (Ctrl+K)' : 'Global Search (Ctrl+K)'}
                 </Button>
               )}
-              <Button size="sm" icon={<FileDown className="w-3.5 h-3.5" />} onClick={() => setExportOpen(true)}>
+              <Button variant="cyan" size="sm" icon={<FileDown className="w-3.5 h-3.5" />} onClick={() => setExportOpen(true)}>
                 {isAr ? 'إصدار تقرير رسمي PDF / Excel' : 'Official Export PDF / Excel'}
               </Button>
               <Button
@@ -336,7 +346,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           </div>
 
           {/* Active Project Context Card */}
-          <div className="w-full xl:w-[420px] shrink-0 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-4 space-y-3">
+          <div className="w-full xl:w-[420px] shrink-0 rounded-2xl border border-[#0284C7]/25 dark:border-[#00F0FF]/25 bg-[var(--bg-surface-subtle)] p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-[var(--text-secondary)]">
                 {isAr ? 'المشروع النشط في بيئة العمل' : 'Active Workspace Project'}
@@ -350,7 +360,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
               value={activeProject.id}
               onChange={(e) => onSelectProject(e.target.value)}
               aria-label={isAr ? 'اختيار المشروع النشط' : 'Select Active Project'}
-              className="w-full h-9 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[#B4863C]/60"
+              className="w-full h-9 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/45"
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -362,7 +372,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-hairline)] text-[11px]">
               <div className="min-w-0">
                 <div className="text-[var(--text-muted)] flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-[#B4863C] shrink-0" />
+                  <MapPin className="w-3 h-3 text-[var(--accent-cyan)] shrink-0" />
                   <span className="truncate">{isAr ? 'القطعة' : 'Plot'}</span>
                 </div>
                 <div dir="ltr" className="font-mono tabular-nums font-semibold text-[var(--text-primary)] truncate mt-0.5">
@@ -371,7 +381,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-[var(--text-muted)] flex items-center gap-1">
-                  <Building2 className="w-3 h-3 text-[#B4863C] shrink-0" />
+                  <Building2 className="w-3 h-3 text-[var(--accent-gold)] shrink-0" />
                   <span className="truncate">{isAr ? 'الخرسانة' : 'Concrete'}</span>
                 </div>
                 <div dir="ltr" className="font-mono tabular-nums font-semibold text-[var(--text-primary)] truncate mt-0.5">
@@ -380,7 +390,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-[var(--text-muted)]">{isAr ? 'الإنجاز' : 'Progress'}</div>
-                <div dir="ltr" className="font-mono tabular-nums font-bold text-[#B4863C] dark:text-[#C99A49] mt-0.5">
+                <div dir="ltr" className="font-mono tabular-nums font-bold text-[#00E5A8] mt-0.5">
                   {telemetry.actualProgress}%
                 </div>
               </div>
@@ -409,9 +419,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 onClick={() =>
                   setVisibleWidgets((prev) => ({ ...prev, [key]: !prev[key] }))
                 }
-                className={`px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer bunyan-transition ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-medium cursor-pointer bunyan-transition ${
                   visibleWidgets[key]
-                    ? 'border-[#B4863C] bg-[#B4863C]/10 text-[#B4863C] dark:text-[#C99A49]'
+                    ? 'border-[var(--accent-cyan)]/50 bg-[#0284C7]/10 dark:bg-[#00F0FF]/12 text-[var(--accent-cyan)]'
                     : 'border-[var(--border-hairline)] text-[var(--text-muted)]'
                 }`}
               >
@@ -421,85 +431,53 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             ))}
           </div>
         )}
-      </Card>
+      </HolographicPanel>
 
       {/* 2. Four Core Portfolio KPIs (100% Real Aggregated Data) */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card padded interactive onClick={() => onNavigate('projects')}>
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--text-muted)]">
-              {isAr ? 'إجمالي المشاريع الهندسية' : 'Total Portfolio Projects'}
-            </span>
-            <FolderKanban className="w-4 h-4 text-[#B4863C] shrink-0" />
-          </div>
-          <div dir="ltr" className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)] mt-2">
-            {projects.length}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)] mt-2 flex items-center gap-1.5">
-            <span>{isAr ? `تراخيص: ${portfolioStats.permittingCount}` : `Permitting: ${portfolioStats.permittingCount}`}</span>
-            <span>·</span>
-            <span>{isAr ? `منجز: ${portfolioStats.completedCount}` : `Completed: ${portfolioStats.completedCount}`}</span>
-          </div>
-        </Card>
+        <KPIWidget
+          label={isAr ? 'إجمالي المشاريع الهندسية' : 'Total Portfolio Projects'}
+          value={projects.length}
+          accent="cyan"
+          icon={<FolderKanban className="w-4 h-4" />}
+          sparkline={portfolioStats.progressSpark}
+          subtitle={`${isAr ? 'تراخيص' : 'Permits'}: ${portfolioStats.permittingCount} · ${isAr ? 'منجز' : 'Done'}: ${portfolioStats.completedCount}`}
+          onClick={() => onNavigate('projects')}
+        />
 
-        <Card padded interactive onClick={() => onNavigate('financials')}>
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--text-muted)]">
-              {isAr ? 'إجمالي قيمة العقود والميزانيات' : 'Total Portfolio Contract Value'}
-            </span>
-            <Wallet className="w-4 h-4 text-[#B4863C] shrink-0" />
-          </div>
-          <div dir="ltr" className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-[#B4863C] dark:text-[#C99A49] mt-2 truncate">
-            {formatAED(portfolioStats.totalBudget, lang)}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)] mt-2 truncate font-mono tabular-nums">
-            {isAr ? 'المتبقي:' : 'Remaining:'}{' '}
-            {formatAED(Math.max(0, portfolioStats.totalBudget - portfolioStats.totalPaid), lang)}
-          </div>
-        </Card>
+        <KPIWidget
+          label={isAr ? 'إجمالي قيمة العقود والميزانيات' : 'Total Portfolio Contract Value'}
+          value={formatAED(portfolioStats.totalBudget, lang)}
+          accent="gold"
+          icon={<Wallet className="w-4 h-4" />}
+          sparkline={portfolioStats.budgetSpark}
+          subtitle={`${isAr ? 'المتبقي:' : 'Remaining:'} ${formatAED(Math.max(0, portfolioStats.totalBudget - portfolioStats.totalPaid), lang)}`}
+          onClick={() => onNavigate('financials')}
+        />
 
-        <Card padded interactive onClick={() => onNavigate('financials')}>
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--text-muted)]">
-              {isAr ? 'إجمالي الدفعات المستلمة' : 'Total Payments Received'}
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          </div>
-          <div dir="ltr" className="text-xl sm:text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)] mt-2 truncate">
-            {formatAED(portfolioStats.totalPaid, lang)}
-          </div>
-          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono tabular-nums mt-2">
-            {portfolioStats.collectionRate}% {isAr ? 'نسبة التحصيل الفعلي' : 'Portfolio Collection Rate'}
-          </div>
-        </Card>
+        <KPIWidget
+          label={isAr ? 'إجمالي الدفعات المستلمة' : 'Total Payments Received'}
+          value={formatAED(portfolioStats.totalPaid, lang)}
+          accent="green"
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          sparkline={portfolioStats.paidSpark}
+          delta={`${portfolioStats.collectionRate}%`}
+          deltaTone="positive"
+          subtitle={isAr ? 'نسبة التحصيل الفعلي' : 'Portfolio Collection Rate'}
+          onClick={() => onNavigate('financials')}
+        />
 
-        <Card padded interactive onClick={() => onNavigate('projects')}>
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--text-muted)]">
-              {isAr ? 'المشاريع النشطة قيد التنفيذ' : 'Active Construction Projects'}
-            </span>
-            <BarChart3 className="w-4 h-4 text-[#B4863C] shrink-0" />
-          </div>
-          <div className="flex items-baseline gap-2 mt-2">
-            <span dir="ltr" className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)]">
-              {portfolioStats.activeCount}
-            </span>
-            <span dir="ltr" className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
-              / {projects.length}
-            </span>
-          </div>
-          <div className="mt-2.5 space-y-1">
-            <div className="h-1.5 rounded-full bg-[var(--bg-surface-subtle)] overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#B4863C]"
-                style={{ width: `${portfolioStats.avgProgress}%` }}
-              />
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)] font-mono tabular-nums">
-              {isAr ? `متوسط الإنجاز العام: ${portfolioStats.avgProgress}%` : `Avg Portfolio Progress: ${portfolioStats.avgProgress}%`}
-            </div>
-          </div>
-        </Card>
+        <KPIWidget
+          label={isAr ? 'المشاريع النشطة قيد التنفيذ' : 'Active Construction Projects'}
+          value={`${portfolioStats.activeCount} / ${projects.length}`}
+          accent="blue"
+          icon={<BarChart3 className="w-4 h-4" />}
+          sparkline={portfolioStats.progressSpark}
+          delta={`${portfolioStats.avgProgress}%`}
+          deltaTone="neutral"
+          subtitle={isAr ? 'متوسط الإنجاز العام' : 'Avg Portfolio Progress'}
+          onClick={() => onNavigate('projects')}
+        />
       </section>
 
       {/* 3. Interactive Charts & Real Alerts */}
@@ -512,13 +490,13 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 title={isAr ? 'تحليل المحفظة المالية وتقدم المشاريع' : 'Portfolio Financial & Progress Analytics'}
                 subtitle={isAr ? 'مقارنة قيمة المشاريع والدفعات المستلمة لأعلى المشاريع' : 'Project Value vs Payments Received across top capital projects'}
                 action={
-                  <div className="inline-flex rounded-lg border border-[var(--border-hairline)] p-0.5 bg-[var(--bg-surface-subtle)] text-[11px] font-semibold">
+                  <div className="inline-flex rounded-xl border border-[var(--border-hairline)] p-0.5 bg-[var(--bg-surface-subtle)] text-[11px] font-semibold">
                     <button
                       type="button"
                       onClick={() => setChartTab('financials')}
-                      className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg cursor-pointer bunyan-transition ${
                         chartTab === 'financials'
-                          ? 'bg-[#B4863C] text-white'
+                          ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
                           : 'text-[var(--text-secondary)]'
                       }`}
                     >
@@ -527,9 +505,9 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                     <button
                       type="button"
                       onClick={() => setChartTab('status')}
-                      className={`px-2.5 py-1 rounded-md cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg cursor-pointer bunyan-transition ${
                         chartTab === 'status'
-                          ? 'bg-[#B4863C] text-white'
+                          ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18]'
                           : 'text-[var(--text-secondary)]'
                       }`}
                     >
@@ -548,7 +526,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                         <span>{isAr ? 'قيمة المشروع' : 'Project Value'}</span>
                       </span>
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" />
+                        <span className="w-2.5 h-2.5 rounded-xs bg-[#00E5A8]" />
                         <span>{isAr ? 'الدفعات المستلمة' : 'Payments Received'}</span>
                       </span>
                     </div>
@@ -569,8 +547,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                             className="w-full text-start group space-y-1.5 cursor-pointer"
                           >
                             <div className="flex items-center justify-between gap-2 text-xs">
-                              <span className="font-semibold text-[var(--text-primary)] group-hover:text-[#B4863C] truncate">
-                                <span className="font-mono text-[#B4863C] me-1.5">{proj.code}</span>
+                              <span className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-cyan)] truncate">
+                                <span className="font-mono text-[var(--accent-cyan)] me-1.5">{proj.code}</span>
                                 {isAr ? proj.name : proj.nameEn}
                               </span>
                               <span dir="ltr" className="font-mono tabular-nums text-[11px] text-[var(--text-secondary)] shrink-0">
@@ -578,11 +556,11 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                               </span>
                             </div>
                             <div
-                              className="h-3 rounded-md bg-[var(--bg-surface-subtle)] overflow-hidden relative"
+                              className="h-3 rounded-full bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] overflow-hidden relative"
                               style={{ width: `${Math.max(20, budgetPct)}%` }}
                             >
                               <div
-                                className="h-full bg-emerald-500 absolute inset-y-0 start-0"
+                                className="h-full bg-gradient-to-l from-[#00E5A8] to-[#00F0FF] absolute inset-y-0 start-0 rounded-full"
                                 style={{ width: `${paidPct}%` }}
                               />
                             </div>
@@ -595,10 +573,10 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
                     {(
                       [
-                        ['under_construction', portfolioStats.activeCount, 'bg-emerald-500'],
-                        ['permitting', portfolioStats.permittingCount, 'bg-amber-500'],
-                        ['completed', portfolioStats.completedCount, 'bg-sky-500'],
-                        ['suspended', portfolioStats.suspendedCount, 'bg-rose-500'],
+                        ['under_construction', portfolioStats.activeCount, 'bg-[#00E5A8]'],
+                        ['permitting', portfolioStats.permittingCount, 'bg-[#FF9D42]'],
+                        ['completed', portfolioStats.completedCount, 'bg-[#00F0FF]'],
+                        ['suspended', portfolioStats.suspendedCount, 'bg-[#FF405C]'],
                       ] as const
                     ).map(([statusKey, count, barClass]) => {
                       const pct =
@@ -606,7 +584,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                       return (
                         <div
                           key={statusKey}
-                          className="p-3.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] space-y-2"
+                          className="p-3.5 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] space-y-2"
                         >
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-semibold text-[var(--text-primary)]">
@@ -631,55 +609,18 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
           )}
 
           {visibleWidgets.alerts && (
-            <Card className={visibleWidgets.charts ? 'xl:col-span-4' : 'xl:col-span-12'}>
-              <CardHeader
-                icon={<Bell className="w-4 h-4" />}
-                title={isAr ? 'التنبيهات والإشعارات الحية' : 'Operational Alerts'}
-                action={
-                  onOpenNotifications && (
-                    <Button variant="ghost" size="xs" onClick={onOpenNotifications}>
-                      {isAr ? `الكل (${alerts.length})` : `All (${alerts.length})`}
-                    </Button>
-                  )
-                }
+            <div className={visibleWidgets.charts ? 'xl:col-span-4' : 'xl:col-span-12'}>
+              <AlertPanel
+                alerts={alerts}
+                lang={lang}
+                maxItems={5}
+                onViewAll={onOpenNotifications}
+                onSelectAlert={(al) => {
+                  if (al.projectId) onSelectProject(al.projectId);
+                  onNavigate(al.targetModule);
+                }}
               />
-              <div className="divide-y divide-[var(--border-hairline)]">
-                {alerts.slice(0, 5).map((al) => (
-                  <button
-                    key={al.id}
-                    type="button"
-                    onClick={() => {
-                      if (al.projectId) onSelectProject(al.projectId);
-                      onNavigate(al.targetModule);
-                    }}
-                    className="w-full p-3.5 text-start hover:bg-[var(--bg-surface-subtle)] flex items-start gap-2.5 bunyan-transition cursor-pointer"
-                  >
-                    <AlertTriangle
-                      className={`w-4 h-4 shrink-0 mt-0.5 ${
-                        al.severity === 'critical'
-                          ? 'text-rose-500'
-                          : al.severity === 'warning'
-                          ? 'text-amber-500'
-                          : 'text-[#B4863C]'
-                      }`}
-                    />
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                        {isAr ? al.titleAr : al.titleEn}
-                      </div>
-                      <div className="text-[11px] text-[var(--text-muted)] line-clamp-2">
-                        {isAr ? al.detailAr : al.detailEn}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-                {alerts.length === 0 && (
-                  <div className="p-6 text-center text-xs text-[var(--text-muted)]">
-                    {isAr ? 'لا توجد تنبيهات حرجة حالياً.' : 'No active alerts.'}
-                  </div>
-                )}
-              </div>
-            </Card>
+            </div>
           )}
         </section>
       )}
@@ -722,7 +663,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                           <div className="font-semibold text-[var(--text-primary)] truncate">
                             {isAr ? p.name : p.nameEn}
                           </div>
-                          <div className="text-[11px] font-mono text-[#B4863C]">
+                          <div className="text-[11px] font-mono text-[var(--accent-cyan)]">
                             {p.code} · {p.gisData.plotNumber}
                           </div>
                         </td>
@@ -770,30 +711,38 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 }
               />
               <div className="divide-y divide-[var(--border-hairline)]">
-                {recentFiles.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectProject(item.projectId);
-                      onNavigate(item.kind === 'sheet' ? 'takeoff' : 'documents');
-                    }}
-                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--bg-surface-subtle)] bunyan-transition cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText className="w-4 h-4 text-[#B4863C] shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                          {item.name}
-                        </div>
-                        <div className="text-[11px] font-mono text-[var(--text-muted)] truncate">
-                          {item.projectCode} · {item.meta}
+                {recentFiles.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+                    {isAr
+                      ? 'لا توجد ملفات أو مستندات مرفوعة بعد. افتح أرشيف الوثائق لاستيراد ملفات المشروع.'
+                      : 'No project documents uploaded yet. Open the Vault to import files.'}
+                  </div>
+                ) : (
+                  recentFiles.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectProject(item.projectId);
+                        onNavigate(item.kind === 'sheet' ? 'takeoff' : 'documents');
+                      }}
+                      className="w-full px-4 py-3 flex items-center justify-between gap-3 text-start hover:bg-[var(--bg-surface-subtle)] bunyan-transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileText className="w-4 h-4 text-[var(--accent-cyan)] shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                            {item.name}
+                          </div>
+                          <div className="text-[11px] font-mono text-[var(--text-muted)] truncate">
+                            {item.projectCode} · {item.meta}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
-                  </button>
-                ))}
+                      <ArrowUpRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+                    </button>
+                  ))
+                )}
               </div>
 
               <div className="px-4 py-3 border-t border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-between text-xs">
@@ -803,7 +752,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('settings')}
-                  className="inline-flex items-center gap-1 font-semibold text-[#B4863C] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 font-semibold text-[var(--accent-cyan)] hover:underline cursor-pointer"
                 >
                   <Settings className="w-3.5 h-3.5" />
                   <span>{isAr ? 'إدارة' : 'Manage'}</span>
@@ -832,11 +781,11 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                   className="flex items-center justify-between gap-3 group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-center text-[#B4863C] shrink-0">
+                    <div className="w-10 h-10 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] flex items-center justify-center text-[var(--accent-cyan)] shrink-0">
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[#B4863C] truncate">
+                      <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-cyan)] truncate">
                         {isAr ? sc.titleAr : sc.titleEn}
                       </div>
                       <div className="text-[11px] font-mono text-[var(--text-muted)] truncate mt-0.5">
@@ -844,7 +793,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                       </div>
                     </div>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[#B4863C] shrink-0" />
+                  <ArrowUpRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-cyan)] shrink-0" />
                 </Card>
               );
             })}

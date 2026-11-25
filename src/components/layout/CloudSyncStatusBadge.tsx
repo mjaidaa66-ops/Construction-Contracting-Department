@@ -48,7 +48,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
 
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-1 text-xs"
+      className="inline-flex items-center gap-1 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] p-1 text-xs"
       title={
         syncState.lastError
           ? syncState.lastError
@@ -59,20 +59,23 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
     >
       <div className="inline-flex items-center gap-1.5 px-2 py-0.5">
         {isSyncing ? (
-          <Loader2 className="w-3.5 h-3.5 text-[#B4863C] animate-spin shrink-0" />
+          <Loader2 className="w-3.5 h-3.5 text-[var(--accent-cyan)] animate-spin shrink-0" />
         ) : isSynced ? (
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+          <span
+            className="w-2 h-2 rounded-full bg-[#00E5A8] shadow-[0_0_8px_#00E5A8] shrink-0"
+            aria-hidden="true"
+          />
         ) : (
-          <CloudOff className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <CloudOff className="w-3.5 h-3.5 text-[#FF9D42] shrink-0" />
         )}
 
         <span
           className={`text-[11px] font-semibold whitespace-nowrap ${
             isSyncing
-              ? 'text-[#B4863C] dark:text-[#C99A49]'
+              ? 'text-[var(--accent-cyan)]'
               : isSynced
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-amber-600 dark:text-amber-400'
+              ? 'text-emerald-600 dark:text-[#00E5A8]'
+              : 'text-amber-600 dark:text-[#FF9D42]'
           }`}
         >
           {statusText}
@@ -90,7 +93,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         {syncState.pendingCount > 0 && !isSynced && (
           <span
             dir="ltr"
-            className="font-mono tabular-nums text-[10px] font-bold text-[#B4863C] dark:text-[#C99A49]"
+            className="font-mono tabular-nums text-[10px] font-bold text-[var(--accent-cyan)]"
           >
             ({syncState.pendingCount})
           </span>
@@ -102,7 +105,7 @@ export const CloudSyncStatusBadge: React.FC<CloudSyncStatusBadgeProps> = ({
         onClick={onSyncNow}
         disabled={isSyncing}
         aria-label={isAr ? 'مزامنة يدوية الآن' : 'Sync Now'}
-        className="inline-flex items-center gap-1 rounded-md bg-[#B4863C] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#9E7330] disabled:opacity-60 bunyan-transition whitespace-nowrap shrink-0 cursor-pointer"
+        className="inline-flex items-center gap-1 rounded-lg bg-[#0284C7] dark:bg-[#00F0FF]/18 dark:border dark:border-[#00F0FF]/35 px-2.5 py-1 text-[11px] font-semibold text-white dark:text-[#00F0FF] hover:brightness-110 disabled:opacity-60 bunyan-transition whitespace-nowrap shrink-0 cursor-pointer"
       >
         {isSyncing ? (
           <Cloud className="w-3 h-3 shrink-0" />

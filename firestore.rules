@@ -397,5 +397,376 @@ service cloud.firestore {
         );
       allow delete: if isValidId(profileId) && (isOwner(existing().ownerId) || isAdmin());
     }
+
+    // Reports & Printing Workspace Collection (Per-user saved reports, favorites, templates & audit logs)
+    function isValidReportWorkspace(data, workspaceId) {
+      return data.keys().hasAll(['id', 'ownerId', 'savedReports', 'customTemplates', 'printSettings', 'auditLogs', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'savedReports', 'customTemplates', 'printSettings', 'auditLogs', 'updatedAt'])
+        && data.id is string && data.id == workspaceId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.savedReports is list && data.savedReports.size() <= 200
+        && data.customTemplates is map
+        && data.printSettings is map
+        && data.auditLogs is list && data.auditLogs.size() <= 250
+        && data.updatedAt is timestamp;
+    }
+
+    match /report_workspaces/{workspaceId} {
+      allow get: if isValidId(workspaceId) && (isOwner(workspaceId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(workspaceId)
+        && isEmailVerified()
+        && workspaceId == request.auth.uid
+        && isValidReportWorkspace(incoming(), workspaceId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(workspaceId)
+        && isEmailVerified()
+        && isValidReportWorkspace(incoming(), workspaceId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'savedReports', 'customTemplates', 'printSettings', 'auditLogs', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(workspaceId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    // ==================== STRUCTURAL INTELLIGENCE SUITE (PHASE 1) ====================
+
+    function isValidReliability(val) {
+      return val in ['SOURCE_VERIFIED', 'DERIVED', 'UNVERIFIED', 'MISSING', 'FAILED'];
+    }
+
+    function hasValidStructuralProjectParent(projectId) {
+      return isValidId(projectId)
+        && exists(/databases/$(database)/documents/structuralProjects/$(projectId))
+        && (get(/databases/$(database)/documents/structuralProjects/$(projectId)).data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    function isValidStructuralProject(data, projectId) {
+      return data.keys().hasAll(['id', 'ownerId', 'bunyanProjectId', 'code', 'name', 'nameEn', 'revisionCount', 'reliabilitySummary', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'bunyanProjectId', 'code', 'name', 'nameEn',
+          'structuralSystem', 'designCode', 'activeRevisionId',
+          'revisionCount', 'reliabilitySummary', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == projectId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.bunyanProjectId is string && isValidId(data.bunyanProjectId)
+        && data.code is string && data.code.size() >= 1 && data.code.size() <= 64
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 200
+        && (!('structuralSystem' in data) || (data.structuralSystem is string && data.structuralSystem.size() <= 200))
+        && (!('designCode' in data) || (data.designCode is string && data.designCode.size() <= 200))
+        && (!('activeRevisionId' in data) || (data.activeRevisionId is string && data.activeRevisionId.size() <= 128))
+        && data.revisionCount is number && data.revisionCount >= 0
+        && isValidReliability(data.reliabilitySummary)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /structuralProjects/{projectId} {
+      allow get: if isValidId(projectId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(projectId)
+        && isEmailVerified()
+        && isValidStructuralProject(incoming(), projectId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(projectId)
+        && isEmailVerified()
+        && isValidStructuralProject(incoming(), projectId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'nameEn', 'structuralSystem', 'designCode',
+              'activeRevisionId', 'revisionCount', 'reliabilitySummary', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(projectId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralModel(data, modelId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'revisionId', 'name', 'sourceApplication', 'sourceVersion', 'originalUnits', 'normalizedUnits', 'provenance', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'revisionId', 'name',
+          'sourceApplication', 'sourceVersion', 'sourceFileReference',
+          'originalUnits', 'normalizedUnits', 'coordinateSystem', 'modelLocked',
+          'storyCount', 'gridCount', 'nodeCount', 'frameCount', 'areaCount',
+          'materialCount', 'sectionCount', 'loadPatternCount', 'loadCaseCount', 'loadComboCount',
+          'provenance', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == modelId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.revisionId is string && isValidId(data.revisionId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.sourceApplication in ['CSI ETABS', 'ETABS Exported Tables']
+        && data.sourceVersion is string && data.sourceVersion.size() <= 64
+        && (!('sourceFileReference' in data) || (data.sourceFileReference is string && data.sourceFileReference.size() <= 400))
+        && data.originalUnits is string && data.originalUnits.size() <= 40
+        && data.normalizedUnits is string && data.normalizedUnits.size() <= 40
+        && data.provenance is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /structuralModels/{modelId} {
+      allow get: if isValidId(modelId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(modelId)
+        && isEmailVerified()
+        && isValidStructuralModel(incoming(), modelId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(modelId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralImportJob(data, importId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'revisionId', 'sourceMode', 'sourceHash', 'status', 'reliabilitySummary', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'revisionId', 'sourceMode',
+          'sourceFileReference', 'sourceHash', 'status', 'currentStep', 'totalSteps',
+          'startedAt', 'completedAt', 'errorMessage', 'retryCount', 'reliabilitySummary',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == importId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.sourceMode in ['ETABS_OAPI_LIVE', 'ETABS_EXPORTED_TABLES']
+        && data.sourceHash is string && data.sourceHash.size() <= 128
+        && data.status in ['PENDING', 'RUNNING', 'PREVIEW_READY', 'CONFIRMED', 'CANCELLED', 'FAILED']
+        && isValidReliability(data.reliabilitySummary)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /structuralImports/{importId} {
+      allow get: if isValidId(importId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(importId)
+        && isEmailVerified()
+        && isValidStructuralImportJob(incoming(), importId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if isValidId(importId)
+        && isEmailVerified()
+        && isValidStructuralImportJob(incoming(), importId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().projectId == existing().projectId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(existing().ownerId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'currentStep', 'completedAt', 'errorMessage', 'retryCount', 'reliabilitySummary', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(importId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralElementsPacket(data, docId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'modelId', 'revisionId', 'stories', 'grids', 'nodesCount', 'frames', 'areas', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'modelId', 'revisionId',
+          'stories', 'grids', 'nodesCount', 'frames', 'areas',
+          'loadPatterns', 'loadCases', 'loadCombinations', 'createdAt'
+        ])
+        && data.id is string && data.id == docId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.stories is list && data.stories.size() <= 150
+        && data.grids is list && data.grids.size() <= 25
+        && data.nodesCount is number && data.nodesCount >= 0
+        && data.frames is list && data.frames.size() <= 400
+        && data.areas is list && data.areas.size() <= 250
+        && (!('loadPatterns' in data) || (data.loadPatterns is list && data.loadPatterns.size() <= 60))
+        && (!('loadCases' in data) || (data.loadCases is list && data.loadCases.size() <= 80))
+        && (!('loadCombinations' in data) || (data.loadCombinations is list && data.loadCombinations.size() <= 120))
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralElements/{elementDocId} {
+      allow get: if isValidId(elementDocId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(elementDocId)
+        && isEmailVerified()
+        && isValidStructuralElementsPacket(incoming(), elementDocId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(elementDocId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralItemsPacket(data, docId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'modelId', 'revisionId', 'items', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'projectId', 'modelId', 'revisionId', 'items', 'createdAt'])
+        && data.id is string && data.id == docId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.items is list && data.items.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralMaterials/{materialDocId} {
+      allow get: if isValidId(materialDocId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(materialDocId)
+        && isEmailVerified()
+        && isValidStructuralItemsPacket(incoming(), materialDocId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(materialDocId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /structuralSections/{sectionDocId} {
+      allow get: if isValidId(sectionDocId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(sectionDocId)
+        && isEmailVerified()
+        && isValidStructuralItemsPacket(incoming(), sectionDocId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(sectionDocId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralResultsPacket(data, docId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'modelId', 'revisionId', 'analysisResults', 'designResults', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'projectId', 'modelId', 'revisionId', 'analysisResults', 'designResults', 'createdAt'])
+        && data.id is string && data.id == docId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.analysisResults is list && data.analysisResults.size() <= 100
+        && data.designResults is list && data.designResults.size() <= 50
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralResults/{resultDocId} {
+      allow get: if isValidId(resultDocId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(resultDocId)
+        && isEmailVerified()
+        && isValidStructuralResultsPacket(incoming(), resultDocId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(resultDocId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralValidationRecord(data, docId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'revisionId', 'status', 'reliability', 'errorCount', 'warningCount', 'issues', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'revisionId', 'status', 'reliability',
+          'checkedAt', 'errorCount', 'warningCount', 'issues', 'createdAt'
+        ])
+        && data.id is string && data.id == docId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.status in ['PASSED', 'PASSED_WITH_WARNINGS', 'FAILED']
+        && isValidReliability(data.reliability)
+        && data.errorCount is number && data.errorCount >= 0
+        && data.warningCount is number && data.warningCount >= 0
+        && data.issues is list && data.issues.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralValidations/{validationId} {
+      allow get: if isValidId(validationId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(validationId)
+        && isEmailVerified()
+        && isValidStructuralValidationRecord(incoming(), validationId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(validationId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    function isValidStructuralRevision(data, revisionId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'modelId', 'revisionNumber', 'sourceHash', 'immutable', 'reliability', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'modelId', 'revisionNumber', 'label',
+          'sourceHash', 'immutable', 'createdByUid', 'createdByName', 'summary',
+          'reliability', 'createdAt'
+        ])
+        && data.id is string && data.id == revisionId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.revisionNumber is number && data.revisionNumber >= 1
+        && data.immutable == true
+        && isValidReliability(data.reliability)
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralRevisions/{revisionId} {
+      allow get: if isValidId(revisionId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(revisionId)
+        && isEmailVerified()
+        && isValidStructuralRevision(incoming(), revisionId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(revisionId) && isAdmin();
+    }
+
+    function isValidStructuralReport(data, reportId) {
+      return data.keys().hasAll(['id', 'ownerId', 'projectId', 'revisionId', 'reportType', 'titleAr', 'titleEn', 'reliability', 'markdownContent', 'createdAt'])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'projectId', 'revisionId', 'reportType',
+          'titleAr', 'titleEn', 'generatedAt', 'reliability',
+          'markdownContent', 'metrics', 'createdAt'
+        ])
+        && data.id is string && data.id == reportId && data.id.size() <= 128
+        && data.ownerId is string && isValidId(data.ownerId)
+        && data.projectId is string && isValidId(data.projectId)
+        && data.reportType in ['IMPORT_AUDIT', 'VALIDATION_SUMMARY', 'MODEL_INVENTORY']
+        && isValidReliability(data.reliability)
+        && data.markdownContent is string && data.markdownContent.size() <= 50000
+        && data.createdAt is timestamp;
+    }
+
+    match /structuralReports/{reportId} {
+      allow get: if isValidId(reportId) && (isOwner(existing().ownerId) || isAdmin());
+      allow list: if isEmailVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(reportId)
+        && isEmailVerified()
+        && isValidStructuralReport(incoming(), reportId)
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && hasValidStructuralProjectParent(incoming().projectId);
+      allow update: if false;
+      allow delete: if isValidId(reportId) && (isOwner(existing().ownerId) || isAdmin());
+    }
   }
 }

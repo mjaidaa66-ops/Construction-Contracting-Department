@@ -1,9 +1,17 @@
+# Dependencies & build artifacts
 node_modules/
 build/
 dist/
 coverage/
+
+# Cache, logs & OS files
 .DS_Store
 *.log
-.env*
-!.env.example
+npm-debug.log*
+.firebase/
 .aistudio/
+
+# Local environment secrets
+.env
+.env.*
+!.env.example

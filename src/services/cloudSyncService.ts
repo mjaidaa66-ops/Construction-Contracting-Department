@@ -7,6 +7,7 @@ import type {
   RateLibraryItem,
   TakeoffSheet,
 } from '../types/bunyan';
+import type { ReportsWorkspaceStorage } from '../types/reports';
 import {
   mergeRemoteProjectsWithLocal as mergeRemoteProjectsPure,
   parseSyncTimestampMs,
@@ -18,14 +19,17 @@ import {
   saveCompanyProfileToCloud,
   saveProjectToCloud,
   saveRateItemToCloud,
+  saveReportsWorkspaceToCloud,
   saveTransactionToCloud,
   subscribeCompanyProfile,
   subscribeProjects,
   subscribeRateLibrary,
+  subscribeReportsWorkspace,
   subscribeTransactions,
   uploadChunkedDocument,
   type SnapshotSyncMetadata,
 } from './firestoreStorage';
+import { normalizeReportsWorkspace } from './reportStorageService';
 
 export type CloudSyncStateStatus = 'synced' | 'syncing' | 'offline_cached';
 
@@ -52,8 +56,13 @@ const DB_NAME = 'bunyan_offline_cache';
 const DB_VERSION = 1;
 const STORE_WORKSPACE = 'workspace';
 const STORE_BINARIES = 'sheet_binaries';
-const WORKSPACE_KEY = 'bunyan_active_workspace';
+const LEGACY_WORKSPACE_KEY = 'bunyan_active_workspace';
 const DEBOUNCE_MS = 1500;
+
+function getWorkspaceStorageKey(ownerId?: string | null): string {
+  const cleanUid = ownerId ? ownerId.replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+  return cleanUid ? `bunyan_workspace_user_${cleanUid}` : 'bunyan_workspace_guest';
+}
 
 const inMemoryBinaryCache = new Map<string, string>();
 const inFlightSheetUploads = new Map<
@@ -63,6 +72,7 @@ const inFlightSheetUploads = new Map<
 const projectDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingProjectPayloads = new Map<string, Project>();
 const pendingCompanyTimer = { current: null as ReturnType<typeof setTimeout> | null };
+const pendingReportsTimer = { current: null as ReturnType<typeof setTimeout> | null };
 const syncStateListeners = new Set<(state: CloudSyncState) => void>();
 
 let currentSyncState: CloudSyncState = {
@@ -151,8 +161,14 @@ async function idbSet<T>(storeName: string, key: string, value: T): Promise<void
   });
 }
 
-export async function loadCachedWorkspaceSnapshot(): Promise<CachedWorkspaceSnapshot | null> {
-  const cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, WORKSPACE_KEY);
+export async function loadCachedWorkspaceSnapshot(
+  ownerId?: string | null
+): Promise<CachedWorkspaceSnapshot | null> {
+  const scopedKey = getWorkspaceStorageKey(ownerId);
+  let cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, scopedKey);
+  if (!cached && !ownerId) {
+    cached = await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, LEGACY_WORKSPACE_KEY);
+  }
   if (cached) {
     if (Array.isArray(cached.pendingProjectIds)) {
       const cachedById = new Map((cached.projects || []).map((p) => [p.id, p]));
@@ -173,14 +189,39 @@ export async function loadCachedWorkspaceSnapshot(): Promise<CachedWorkspaceSnap
 }
 
 export async function saveCachedWorkspaceSnapshot(
-  patch: Partial<CachedWorkspaceSnapshot>
+  patch: Partial<CachedWorkspaceSnapshot>,
+  ownerId?: string | null
 ): Promise<void> {
-  const existing = (await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, WORKSPACE_KEY)) || {};
+  const scopedKey = getWorkspaceStorageKey(ownerId);
+  const existing = (await idbGet<CachedWorkspaceSnapshot>(STORE_WORKSPACE, scopedKey)) || {};
   const merged: CachedWorkspaceSnapshot = {
     ...existing,
     ...patch,
   };
-  await idbSet(STORE_WORKSPACE, WORKSPACE_KEY, merged);
+  await idbSet(STORE_WORKSPACE, scopedKey, merged);
+}
+
+export function resetSyncQueueForAccountSwitch(isAuthenticated: boolean): void {
+  for (const timer of projectDebounceTimers.values()) {
+    clearTimeout(timer);
+  }
+  projectDebounceTimers.clear();
+  pendingProjectPayloads.clear();
+  if (pendingCompanyTimer.current) {
+    clearTimeout(pendingCompanyTimer.current);
+    pendingCompanyTimer.current = null;
+  }
+  if (pendingReportsTimer.current) {
+    clearTimeout(pendingReportsTimer.current);
+    pendingReportsTimer.current = null;
+  }
+  updateCloudSyncState({
+    isAuthenticated,
+    pendingCount: 0,
+    lastSyncedAt: null,
+    lastError: null,
+    status: isAuthenticated && currentSyncState.isOnline ? 'syncing' : 'offline_cached',
+  });
 }
 
 export async function cacheBinaryLocally(key: string, dataUrl: string): Promise<void> {
@@ -367,10 +408,13 @@ async function commitProjectToCloud(
 
   const remainingPending = Array.from(pendingProjectPayloads.keys());
   const nowIso = new Date().toISOString();
-  await saveCachedWorkspaceSnapshot({
-    pendingProjectIds: remainingPending,
-    lastSyncedAt: nowIso,
-  });
+  await saveCachedWorkspaceSnapshot(
+    {
+      pendingProjectIds: remainingPending,
+      lastSyncedAt: nowIso,
+    },
+    ownerId
+  );
 
   updateCloudSyncState({
     pendingCount: remainingPending.length,
@@ -400,10 +444,13 @@ export function scheduleProjectSync(params: {
   pendingProjectPayloads.set(project.id, project);
 
   const pendingIds = Array.from(pendingProjectPayloads.keys());
-  void saveCachedWorkspaceSnapshot({
-    projects: allProjects,
-    pendingProjectIds: pendingIds,
-  });
+  void saveCachedWorkspaceSnapshot(
+    {
+      projects: allProjects,
+      pendingProjectIds: pendingIds,
+    },
+    ownerId
+  );
 
   // Cache any newly attached sheet binaries locally right away
   for (const s of project.takeoffSheets || []) {
@@ -453,7 +500,7 @@ export function scheduleCompanyProfileSync(
   profile: CompanyProfile,
   ownerId: string | null
 ): void {
-  void saveCachedWorkspaceSnapshot({ companyProfile: profile });
+  void saveCachedWorkspaceSnapshot({ companyProfile: profile }, ownerId);
 
   if (pendingCompanyTimer.current) {
     clearTimeout(pendingCompanyTimer.current);
@@ -474,7 +521,46 @@ export function scheduleCompanyProfileSync(
     void saveCompanyProfileToCloud(profile, ownerId)
       .then(() => {
         const nowIso = new Date().toISOString();
-        void saveCachedWorkspaceSnapshot({ lastSyncedAt: nowIso });
+        void saveCachedWorkspaceSnapshot({ lastSyncedAt: nowIso }, ownerId);
+        updateCloudSyncState({
+          status: pendingProjectPayloads.size > 0 ? 'syncing' : 'synced',
+          lastSyncedAt: nowIso,
+          lastError: null,
+        });
+      })
+      .catch((err) => {
+        updateCloudSyncState({
+          status: 'offline_cached',
+          lastError: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, DEBOUNCE_MS);
+}
+
+export function scheduleReportsWorkspaceSync(
+  workspace: ReportsWorkspaceStorage,
+  ownerId: string | null
+): void {
+  if (pendingReportsTimer.current) {
+    clearTimeout(pendingReportsTimer.current);
+  }
+
+  if (!ownerId || !currentSyncState.isOnline) {
+    updateCloudSyncState({
+      status: 'offline_cached',
+      isAuthenticated: Boolean(ownerId),
+    });
+    return;
+  }
+
+  updateCloudSyncState({ status: 'syncing', lastError: null });
+
+  pendingReportsTimer.current = setTimeout(() => {
+    pendingReportsTimer.current = null;
+    void saveReportsWorkspaceToCloud(workspace, ownerId)
+      .then(() => {
+        const nowIso = new Date().toISOString();
+        void saveCachedWorkspaceSnapshot({ lastSyncedAt: nowIso }, ownerId);
         updateCloudSyncState({
           status: pendingProjectPayloads.size > 0 ? 'syncing' : 'synced',
           lastSyncedAt: nowIso,
@@ -534,9 +620,18 @@ export async function syncNowAll(params: {
   companyProfile: CompanyProfile;
   rateLibrary: RateLibraryItem[];
   transactions: GovernmentTransaction[];
+  reportsWorkspace?: ReportsWorkspaceStorage;
   onManifestAttached?: (updatedProject: Project) => void;
 }): Promise<void> {
-  const { ownerId, projects, companyProfile, rateLibrary, transactions, onManifestAttached } = params;
+  const {
+    ownerId,
+    projects,
+    companyProfile,
+    rateLibrary,
+    transactions,
+    reportsWorkspace,
+    onManifestAttached,
+  } = params;
 
   if (!currentSyncState.isOnline) {
     updateCloudSyncState({ status: 'offline_cached', isAuthenticated: Boolean(ownerId) });
@@ -566,15 +661,22 @@ export async function syncNowAll(params: {
       await saveTransactionToCloud(tx, ownerId);
     }
 
+    if (reportsWorkspace) {
+      await saveReportsWorkspaceToCloud(reportsWorkspace, ownerId);
+    }
+
     const nowIso = new Date().toISOString();
-    await saveCachedWorkspaceSnapshot({
-      projects,
-      companyProfile,
-      rateLibrary,
-      transactions,
-      pendingProjectIds: [],
-      lastSyncedAt: nowIso,
-    });
+    await saveCachedWorkspaceSnapshot(
+      {
+        projects,
+        companyProfile,
+        rateLibrary,
+        transactions,
+        pendingProjectIds: [],
+        lastSyncedAt: nowIso,
+      },
+      ownerId
+    );
 
     updateCloudSyncState({
       status: 'synced',
@@ -595,7 +697,7 @@ export function hasPendingSyncForProject(projectId: string): boolean {
   return pendingProjectPayloads.has(projectId) || projectDebounceTimers.has(projectId);
 }
 
-export function cancelPendingProjectSync(projectId: string): void {
+export function cancelPendingProjectSync(projectId: string, ownerId?: string | null): void {
   const timer = projectDebounceTimers.get(projectId);
   if (timer) {
     clearTimeout(timer);
@@ -603,7 +705,7 @@ export function cancelPendingProjectSync(projectId: string): void {
   }
   pendingProjectPayloads.delete(projectId);
   const remainingIds = Array.from(pendingProjectPayloads.keys());
-  void saveCachedWorkspaceSnapshot({ pendingProjectIds: remainingIds });
+  void saveCachedWorkspaceSnapshot({ pendingProjectIds: remainingIds }, ownerId);
   updateCloudSyncState({
     pendingCount: remainingIds.length,
     status:
@@ -653,7 +755,8 @@ export function mergeRemoteProjectsWithLocal(
 
 /**
  * Attaches real-time onSnapshot listeners across projects, companyProfile,
- * rateLibrary, and governmentTransactions for instant cross-device synchronization.
+ * rateLibrary, governmentTransactions, and reportWorkspaces for instant
+ * automatic cross-device synchronization per authenticated Google account.
  */
 export function subscribeWorkspaceRealtime(params: {
   ownerId: string;
@@ -661,6 +764,8 @@ export function subscribeWorkspaceRealtime(params: {
   onRemoteCompanyProfile: (profile: CompanyProfile) => void;
   onRemoteRateLibrary: (items: RateLibraryItem[]) => void;
   onRemoteTransactions: (txs: GovernmentTransaction[]) => void;
+  onRemoteReportsWorkspace?: (workspace: ReportsWorkspaceStorage) => void;
+  onCloudBootstrapNeeded?: () => void;
 }): Unsubscribe {
   const {
     ownerId,
@@ -668,7 +773,28 @@ export function subscribeWorkspaceRealtime(params: {
     onRemoteCompanyProfile,
     onRemoteRateLibrary,
     onRemoteTransactions,
+    onRemoteReportsWorkspace,
+    onCloudBootstrapNeeded,
   } = params;
+
+  let projectsSnapshotSeen = false;
+  let companySnapshotSeen = false;
+  let hasCloudProjectsEver = false;
+  let hasCloudCompanyProfile = false;
+  let bootstrapFired = false;
+
+  const checkBootstrap = () => {
+    if (
+      !bootstrapFired &&
+      projectsSnapshotSeen &&
+      companySnapshotSeen &&
+      !hasCloudProjectsEver &&
+      !hasCloudCompanyProfile
+    ) {
+      bootstrapFired = true;
+      onCloudBootstrapNeeded?.();
+    }
+  };
 
   const handleMeta = (meta: SnapshotSyncMetadata) => {
     if (!currentSyncState.isOnline) {
@@ -695,7 +821,14 @@ export function subscribeWorkspaceRealtime(params: {
     ownerId,
     (list, meta) => {
       if (list.length > 0) {
+        hasCloudProjectsEver = true;
         onRemoteProjects(list);
+      } else if (hasCloudProjectsEver) {
+        onRemoteProjects(list);
+      }
+      if (!meta.fromCache || list.length > 0) {
+        projectsSnapshotSeen = true;
+        checkBootstrap();
       }
       handleMeta(meta);
     },
@@ -708,7 +841,12 @@ export function subscribeWorkspaceRealtime(params: {
     ownerId,
     (profile, meta) => {
       if (profile) {
+        hasCloudCompanyProfile = true;
         onRemoteCompanyProfile(profile);
+      }
+      if (!meta.fromCache || profile !== null) {
+        companySnapshotSeen = true;
+        checkBootstrap();
       }
       handleMeta(meta);
     },
@@ -733,8 +871,21 @@ export function subscribeWorkspaceRealtime(params: {
   const unsubTx = subscribeTransactions(
     ownerId,
     (txs, meta) => {
-      if (txs.length > 0) {
+      if (txs.length > 0 || hasCloudProjectsEver) {
         onRemoteTransactions(txs);
+      }
+      handleMeta(meta);
+    },
+    (err) => {
+      updateCloudSyncState({ lastError: err.message });
+    }
+  );
+
+  const unsubReports = subscribeReportsWorkspace(
+    ownerId,
+    (workspace, meta) => {
+      if (workspace && onRemoteReportsWorkspace) {
+        onRemoteReportsWorkspace(normalizeReportsWorkspace(workspace));
       }
       handleMeta(meta);
     },
@@ -748,5 +899,6 @@ export function subscribeWorkspaceRealtime(params: {
     unsubCompany();
     unsubRates();
     unsubTx();
+    unsubReports();
   };
 }

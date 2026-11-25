@@ -21,7 +21,7 @@ export function SegmentedTabs<T extends string>({
   return (
     <div
       role="tablist"
-      className={`inline-flex flex-wrap items-center gap-1 p-1 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] ${className}`}
+      className={`inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] ${className}`}
     >
       {items.map((item) => {
         const active = value === item.id;
@@ -32,9 +32,9 @@ export function SegmentedTabs<T extends string>({
             type="button"
             aria-selected={active}
             onClick={() => onChange(item.id)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap bunyan-transition cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bunyan-transition cursor-pointer ${
               active
-                ? 'bg-[#B4863C] text-white shadow-xs'
+                ? 'bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18] shadow-xs'
                 : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]/70'
             }`}
           >
@@ -44,7 +44,7 @@ export function SegmentedTabs<T extends string>({
               <span
                 dir="ltr"
                 className={`font-mono tabular-nums text-[11px] ${
-                  active ? 'text-white/90' : 'text-[var(--text-muted)]'
+                  active ? 'opacity-90' : 'text-[var(--text-muted)]'
                 }`}
               >
                 ({item.count})

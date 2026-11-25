@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import { BunyanLogo } from './components/common/BunyanLogo';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommandCenter } from './components/command/CommandCenter';
+import { HolographicDashboard } from './components/command/HolographicDashboard';
 import { Sidebar, type ActiveModule } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { SkeletonBlock, ToastProvider, useToast } from './components/ui';
@@ -16,8 +17,10 @@ import {
   INITIAL_TRANSACTIONS,
 } from './data/uaeSeedData';
 import { mergeImportedBackupProjects } from './utils/projectHelpers';
+import { purgeSeededDemoDocuments } from './utils/projectFilesEngine';
 import {
   auth,
+  formatFirebaseAuthError,
   signInWithGooglePopup,
   signOutFirebase,
   testFirestoreConnection,
@@ -36,9 +39,11 @@ import {
   getCloudSyncState,
   loadCachedWorkspaceSnapshot,
   mergeRemoteProjectsWithLocal,
+  resetSyncQueueForAccountSwitch,
   saveCachedWorkspaceSnapshot,
   scheduleCompanyProfileSync,
   scheduleProjectSync,
+  scheduleReportsWorkspaceSync,
   setAuthSyncStatus,
   setNetworkOnlineStatus,
   subscribeCloudSyncState,
@@ -129,6 +134,11 @@ const ReportsCenterModule = lazy(() =>
     default: m.ReportsCenterModule,
   }))
 );
+const StructuralWorkspace = lazy(() =>
+  import('./components/structural/StructuralWorkspace').then((m) => ({
+    default: m.StructuralWorkspace,
+  }))
+);
 
 function ModuleLoadingFallback({ lang = 'ar' }: { lang?: Language }) {
   return (
@@ -152,7 +162,7 @@ function ModuleLoadingFallback({ lang = 'ar' }: { lang?: Language }) {
 function BunyanWorkspace() {
   const [lang, setLang] = useState<Language>('ar');
   const [theme, setTheme] = useState<ThemeMode>('dark');
-  const [activeModule, setActiveModule] = useState<ActiveModule>('command');
+  const [activeModule, setActiveModule] = useState<ActiveModule>('dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -197,10 +207,15 @@ function BunyanWorkspace() {
   ratesRef.current = rateLibrary;
   const txRef = useRef(transactions);
   txRef.current = transactions;
+  const reportsRef = useRef(reportsStorage);
+  reportsRef.current = reportsStorage;
+  const langRef = useRef(lang);
+  langRef.current = lang;
 
   const cloudUid = firebaseUser?.emailVerified ? firebaseUser.uid : null;
   const cloudUidRef = useRef<string | null>(cloudUid);
   cloudUidRef.current = cloudUid;
+  const prevAuthUidRef = useRef<string | null | undefined>(undefined);
 
   const handleAttachManifestProject = (withManifests: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === withManifests.id ? withManifests : p)));
@@ -236,14 +251,19 @@ function BunyanWorkspace() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Subscribe to cloud sync badge state + hydrate IndexedDB offline cache + listen to browser online/offline
+  // Subscribe to cloud sync badge state + hydrate guest offline cache + listen to browser online/offline
   useEffect(() => {
     const unsubSync = subscribeCloudSyncState(setSyncState);
 
-    void loadCachedWorkspaceSnapshot().then((cached) => {
+    void loadCachedWorkspaceSnapshot(null).then((cached) => {
+      if (cloudUidRef.current) return;
       if (!cached) return;
       if (cached.projects && cached.projects.length > 0) {
-        setProjects(cached.projects);
+        const cleaned = purgeSeededDemoDocuments(cached.projects);
+        setProjects(cleaned.projects);
+        if (cleaned.removedCount > 0) {
+          void saveCachedWorkspaceSnapshot({ projects: cleaned.projects }, null);
+        }
       }
       if (cached.companyProfile) {
         setCompanyProfile(cached.companyProfile);
@@ -256,8 +276,10 @@ function BunyanWorkspace() {
       }
     });
 
-    void loadReportsWorkspace().then((loadedReports) => {
-      setReportsStorage(loadedReports);
+    void loadReportsWorkspace(null).then((loadedReports) => {
+      if (!cloudUidRef.current) {
+        setReportsStorage(loadedReports);
+      }
     });
 
     const handleOnline = () => {
@@ -281,19 +303,65 @@ function BunyanWorkspace() {
     };
   }, []);
 
-  // Startup Firestore connectivity probe + Auth listener
+  // Startup Firestore connectivity probe + Per-User Google Auth listener
   useEffect(() => {
     testFirestoreConnection().then((ok) => setFirestoreConnected(ok));
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-      const verified = Boolean(user && user.emailVerified);
-      setAuthSyncStatus(verified);
+      const nextUid = user && user.emailVerified ? user.uid : null;
+      const prevUid = prevAuthUidRef.current;
+      const isAccountSwitch = prevUid !== undefined && prevUid !== nextUid;
+      prevAuthUidRef.current = nextUid;
 
-      if (user && user.emailVerified) {
+      setFirebaseUser(user);
+      const verified = Boolean(nextUid);
+
+      if (isAccountSwitch) {
+        resetSyncQueueForAccountSwitch(verified);
+      } else {
+        setAuthSyncStatus(verified);
+      }
+
+      if (user && user.emailVerified && nextUid) {
+        testFirestoreConnection().then((ok) => setFirestoreConnected(ok));
+
+        // Hydrate this specific Google user's scoped offline cache (isolated from other accounts)
+        const [userCached, userReports] = await Promise.all([
+          loadCachedWorkspaceSnapshot(nextUid),
+          loadReportsWorkspace(nextUid),
+        ]);
+
+        if (userCached) {
+          if (userCached.projects && userCached.projects.length > 0) {
+            const cleaned = purgeSeededDemoDocuments(userCached.projects);
+            setProjects(cleaned.projects);
+            if (cleaned.projects[0]) {
+              setActiveProjectId(cleaned.projects[0].id);
+            }
+          }
+          if (userCached.companyProfile) {
+            setCompanyProfile(userCached.companyProfile);
+          }
+          if (userCached.rateLibrary && userCached.rateLibrary.length > 0) {
+            setRateLibrary(userCached.rateLibrary);
+          }
+          if (userCached.transactions) {
+            setTransactions(userCached.transactions);
+          }
+        } else if (prevUid !== null && prevUid !== undefined && prevUid !== nextUid) {
+          // Switching directly from Account A to a new Account B without prior cache: reset cleanly
+          setProjects(INITIAL_PROJECTS);
+          setActiveProjectId(INITIAL_PROJECTS[0].id);
+          setTransactions(INITIAL_TRANSACTIONS);
+          setRateLibrary(INITIAL_RATE_LIBRARY);
+          setCompanyProfile(DEFAULT_COMPANY_PROFILE);
+        }
+
+        setReportsStorage(userReports);
+
         try {
           await upsertUserProfile({
-            uid: user.uid,
+            uid: nextUid,
             email: user.email || '',
             displayName: user.displayName || 'Bunyan Engineer',
             role: currentRole,
@@ -301,41 +369,104 @@ function BunyanWorkspace() {
             licenseNumber: companyRef.current.licenseNumber,
             biometricRegistered,
           });
-          await flushPendingProjectSyncs(user.uid, handleAttachManifestProject);
+          await flushPendingProjectSyncs(nextUid, handleAttachManifestProject);
         } catch (err) {
           console.warn('User profile or pending sync skipped:', err);
         }
+      } else if (prevUid && !nextUid) {
+        // Signed out: restore guest local workspace so signed-out user's private cloud data is cleared
+        const [guestCached, guestReports] = await Promise.all([
+          loadCachedWorkspaceSnapshot(null),
+          loadReportsWorkspace(null),
+        ]);
+        const nextGuestProjects =
+          guestCached?.projects && guestCached.projects.length > 0
+            ? purgeSeededDemoDocuments(guestCached.projects).projects
+            : INITIAL_PROJECTS;
+        setProjects(nextGuestProjects);
+        if (nextGuestProjects[0]) {
+          setActiveProjectId(nextGuestProjects[0].id);
+        }
+        setCompanyProfile(guestCached?.companyProfile || DEFAULT_COMPANY_PROFILE);
+        setRateLibrary(
+          guestCached?.rateLibrary && guestCached.rateLibrary.length > 0
+            ? guestCached.rateLibrary
+            : INITIAL_RATE_LIBRARY
+        );
+        setTransactions(
+          guestCached?.transactions && guestCached.transactions.length > 0
+            ? guestCached.transactions
+            : INITIAL_TRANSACTIONS
+        );
+        setReportsStorage(guestReports);
       }
     });
 
     return () => unsubAuth();
   }, []);
 
-  // Live Firestore real-time onSnapshot listeners across projects, companyProfile, rateLibrary & transactions
+  // Live Firestore real-time onSnapshot listeners across all 5 per-user collections
   useEffect(() => {
     if (!cloudUid) return;
 
     const unsubRealtime = subscribeWorkspaceRealtime({
       ownerId: cloudUid,
       onRemoteProjects: (cloudProjects) => {
-        setProjects((prev) => mergeRemoteProjectsWithLocal(prev, cloudProjects));
+        const cleanedRemote = purgeSeededDemoDocuments(cloudProjects);
+        setProjects((prev) => {
+          const merged = mergeRemoteProjectsWithLocal(prev, cleanedRemote.projects);
+          void saveCachedWorkspaceSnapshot({ projects: merged }, cloudUid);
+          return merged;
+        });
+        if (cleanedRemote.removedCount > 0) {
+          for (const proj of cleanedRemote.projects) {
+            const orig = cloudProjects.find((c) => c.id === proj.id);
+            if (orig && (orig.documents?.length || 0) !== proj.documents.length) {
+              scheduleProjectSync({
+                project: proj,
+                allProjects: cleanedRemote.projects,
+                ownerId: cloudUid,
+                onManifestAttached: handleAttachManifestProject,
+              });
+            }
+          }
+        }
       },
       onRemoteCompanyProfile: (remoteCompany) => {
         setCompanyProfile(remoteCompany);
-        void saveCachedWorkspaceSnapshot({ companyProfile: remoteCompany });
+        void saveCachedWorkspaceSnapshot({ companyProfile: remoteCompany }, cloudUid);
       },
       onRemoteRateLibrary: (cloudRates) => {
         setRateLibrary((prev) => {
           const byId = new Map(prev.map((r) => [r.id, r]));
           cloudRates.forEach((cr) => byId.set(cr.id, cr));
           const merged = Array.from(byId.values());
-          void saveCachedWorkspaceSnapshot({ rateLibrary: merged });
+          void saveCachedWorkspaceSnapshot({ rateLibrary: merged }, cloudUid);
           return merged;
         });
       },
       onRemoteTransactions: (cloudTxs) => {
         setTransactions(cloudTxs);
-        void saveCachedWorkspaceSnapshot({ transactions: cloudTxs });
+        void saveCachedWorkspaceSnapshot({ transactions: cloudTxs }, cloudUid);
+      },
+      onRemoteReportsWorkspace: (remoteReports) => {
+        setReportsStorage(remoteReports);
+        void saveReportsWorkspace(remoteReports, cloudUid);
+      },
+      onCloudBootstrapNeeded: () => {
+        // First-time Google Sign-in with an empty Firestore workspace:
+        // automatically push initial/local user workspace to Cloud Firestore.
+        void syncNowAll({
+          ownerId: cloudUid,
+          projects: projectsRef.current,
+          companyProfile: companyRef.current,
+          rateLibrary: ratesRef.current,
+          transactions: txRef.current,
+          reportsWorkspace: reportsRef.current,
+          onManifestAttached: handleAttachManifestProject,
+        }).catch((err) => {
+          console.warn('Initial automatic cloud bootstrap deferred:', err);
+        });
       },
     });
 
@@ -363,7 +494,9 @@ function BunyanWorkspace() {
   ) => {
     setReportsStorage((prev) => {
       const next = updater(prev);
-      void saveReportsWorkspace(next);
+      const activeUid = cloudUidRef.current;
+      void saveReportsWorkspace(next, activeUid);
+      scheduleReportsWorkspaceSync(next, activeUid);
       return next;
     });
   };
@@ -415,6 +548,19 @@ function BunyanWorkspace() {
     handleSaveProject(updated);
   };
 
+  const handleFinancialProjectUpdate = (updated: Project) => {
+    if (!perms.canEditFinancials) {
+      pushToast(
+        lang === 'ar'
+          ? 'تعديل الدفعات المالية متاح للمدير والمحاسب فقط.'
+          : 'Financial payment updates require Admin or Accountant role.',
+        'error'
+      );
+      return;
+    }
+    handleSaveProject(updated);
+  };
+
   const handleDeleteProject = async (id: string) => {
     if (!perms.canDeleteProjects) {
       pushToast(
@@ -431,7 +577,7 @@ function BunyanWorkspace() {
         ]
       : [];
 
-    cancelPendingProjectSync(id);
+    cancelPendingProjectSync(id, cloudUid);
     const next = projectsRef.current.filter((p) => p.id !== id);
     const orphanedTx = txRef.current.filter((t) => t.projectId === id);
     const remainingTx = txRef.current.filter((t) => t.projectId !== id);
@@ -443,10 +589,13 @@ function BunyanWorkspace() {
     if (activeProjectId === id && next[0]) {
       setActiveProjectId(next[0].id);
     }
-    await saveCachedWorkspaceSnapshot({
-      projects: next,
-      transactions: remainingTx,
-    });
+    await saveCachedWorkspaceSnapshot(
+      {
+        projects: next,
+        transactions: remainingTx,
+      },
+      cloudUid
+    );
     if (cloudUid) {
       await deleteProjectFromCloud(id, manifestIds);
       for (const tx of orphanedTx) {
@@ -470,7 +619,7 @@ function BunyanWorkspace() {
       ? transactions.map((item) => (item.id === tx.id ? tx : item))
       : [tx, ...transactions];
     setTransactions(next);
-    await saveCachedWorkspaceSnapshot({ transactions: next });
+    await saveCachedWorkspaceSnapshot({ transactions: next }, cloudUid);
     if (cloudUid) {
       const parentProject = projectsRef.current.find((p) => p.id === tx.projectId);
       if (parentProject) {
@@ -492,7 +641,7 @@ function BunyanWorkspace() {
     }
     const next = transactions.filter((t) => t.id !== id);
     setTransactions(next);
-    await saveCachedWorkspaceSnapshot({ transactions: next });
+    await saveCachedWorkspaceSnapshot({ transactions: next }, cloudUid);
     if (cloudUid) {
       await deleteTransactionFromCloud(id);
     }
@@ -502,7 +651,7 @@ function BunyanWorkspace() {
     if (!perms.canEditFinancials && !perms.canEditEngineering) return;
     const next = rateLibrary.map((r) => (r.id === item.id ? item : r));
     setRateLibrary(next);
-    await saveCachedWorkspaceSnapshot({ rateLibrary: next });
+    await saveCachedWorkspaceSnapshot({ rateLibrary: next }, cloudUid);
     if (cloudUid) {
       await saveRateItemToCloud(item, cloudUid);
     }
@@ -512,7 +661,7 @@ function BunyanWorkspace() {
     if (!perms.canEditFinancials && !perms.canEditEngineering) return;
     const next = [...rateLibrary, item];
     setRateLibrary(next);
-    await saveCachedWorkspaceSnapshot({ rateLibrary: next });
+    await saveCachedWorkspaceSnapshot({ rateLibrary: next }, cloudUid);
     if (cloudUid) {
       await saveRateItemToCloud(item, cloudUid);
     }
@@ -530,6 +679,36 @@ function BunyanWorkspace() {
     scheduleCompanyProfileSync(profile, cloudUid);
   };
 
+  const handleSignInGoogle = async () => {
+    try {
+      const user = await signInWithGooglePopup();
+      if (user) {
+        pushToast(
+          langRef.current === 'ar'
+            ? `مرحباً ${user.displayName || user.email} — جاري مزامنة بياناتك مع Cloud Firestore`
+            : `Welcome ${user.displayName || user.email} — syncing your Cloud Firestore workspace`,
+          'success'
+        );
+      }
+    } catch (err) {
+      pushToast(formatFirebaseAuthError(err, langRef.current), 'error');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutFirebase();
+      pushToast(
+        langRef.current === 'ar'
+          ? 'تم تسجيل الخروج والعودة إلى الوضع المحلي.'
+          : 'Signed out and switched back to local workspace.',
+        'info'
+      );
+    } catch (err) {
+      pushToast(formatFirebaseAuthError(err, langRef.current), 'error');
+    }
+  };
+
   const handleSyncNow = async () => {
     let targetUid = cloudUid;
     if (!targetUid) {
@@ -540,12 +719,7 @@ function BunyanWorkspace() {
         }
       } catch (err) {
         console.warn('Google sign-in for cloud sync skipped:', err);
-        pushToast(
-          lang === 'ar'
-            ? 'تعذر فتح نافذة تسجيل الدخول عبر Google. تحقق من السماح بالنوافذ المنبثقة.'
-            : 'Google sign-in did not complete. Please allow popups and try again.',
-          'error'
-        );
+        pushToast(formatFirebaseAuthError(err, lang), 'error');
         return;
       }
     }
@@ -558,6 +732,7 @@ function BunyanWorkspace() {
         companyProfile: companyRef.current,
         rateLibrary: ratesRef.current,
         transactions: txRef.current,
+        reportsWorkspace: reportsRef.current,
         onManifestAttached: handleAttachManifestProject,
       });
       confetti({ particleCount: 65, spread: 70, origin: { y: 0.65 } });
@@ -644,13 +819,16 @@ function BunyanWorkspace() {
         ? nextProjects
         : data.projects.map((p) => ({ ...p, updatedAt: nowIso }));
 
-    void saveCachedWorkspaceSnapshot({
-      projects: nextProjects,
-      transactions: nextTransactions,
-      rateLibrary: nextRates,
-      companyProfile: nextCompany,
-      pendingProjectIds: syncTargets.map((p) => p.id),
-    });
+    void saveCachedWorkspaceSnapshot(
+      {
+        projects: nextProjects,
+        transactions: nextTransactions,
+        rateLibrary: nextRates,
+        companyProfile: nextCompany,
+        pendingProjectIds: syncTargets.map((p) => p.id),
+      },
+      cloudUid
+    );
 
     if (cloudUid && syncState.isOnline) {
       void syncNowAll({
@@ -659,6 +837,7 @@ function BunyanWorkspace() {
         companyProfile: nextCompany,
         rateLibrary: nextRates,
         transactions: nextTransactions,
+        reportsWorkspace: reportsRef.current,
         onManifestAttached: handleAttachManifestProject,
       });
     } else {
@@ -677,25 +856,25 @@ function BunyanWorkspace() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[var(--bg-canvas)] text-[var(--text-primary)]">
+    <div className="min-h-screen flex bg-[var(--bg-canvas)] bunyan-holo-grid text-[var(--text-primary)]">
       {showSplash && (
         <div
           onClick={() => setShowSplash(false)}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-slate-100/95 dark:bg-[#0B1120]/95 backdrop-blur-md transition-opacity duration-300 cursor-pointer no-print"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-slate-100/95 dark:bg-[#050B18]/96 backdrop-blur-md transition-opacity duration-300 cursor-pointer no-print"
           role="status"
           aria-label={lang === 'ar' ? 'شاشة الترحيب بمنصة بنيان' : 'Bunyan Splash Screen'}
         >
-          <BunyanLogo size="2xl" iconOnly lang={lang} className="shadow-xl rounded-3xl" />
+          <BunyanLogo size="2xl" iconOnly lang={lang} className="shadow-[0_0_40px_rgba(0,240,255,0.22)] rounded-3xl" />
           <div className="text-center space-y-1">
             <div className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {lang === 'ar' ? 'منصة بنيان' : 'BUNYAN CORE SYSTEM'}
+              {lang === 'ar' ? 'منصة بنيان · التوأم الرقمي' : 'BUNYAN CORE SYSTEM'}
             </div>
-            <div className="text-xs font-mono uppercase tracking-widest text-slate-500 dark:text-slate-300">
-              5D BIM · CAD · GIS · SHARJAH MUNICIPALITY
+            <div className="text-xs font-mono uppercase tracking-widest text-[#0284C7] dark:text-[#00F0FF]">
+              5D BIM · DIGITAL TWIN · GIS · SHARJAH MUNICIPALITY
             </div>
           </div>
-          <div className="w-40 h-1 rounded-full bg-slate-300/70 dark:bg-slate-700 overflow-hidden">
-            <div className="h-full w-2/3 bg-slate-500 dark:bg-slate-300 rounded-full animate-pulse" />
+          <div className="w-44 h-1.5 rounded-full bg-slate-300/70 dark:bg-[#101B30] overflow-hidden border border-[#00F0FF]/25">
+            <div className="h-full w-2/3 bg-gradient-to-r from-[#00F0FF] to-[#1677FF] rounded-full animate-pulse" />
           </div>
         </div>
       )}
@@ -724,11 +903,14 @@ function BunyanWorkspace() {
           activeProjectId={activeProject.id}
           onSelectProject={setActiveProjectId}
           currentRole={currentRole}
+          firebaseUser={firebaseUser}
           userEmail={firebaseUser?.email}
           syncState={syncState}
           onSyncNow={() => {
             void handleSyncNow();
           }}
+          onSignInGoogle={handleSignInGoogle}
+          onSignOut={handleSignOut}
           onOpenMobileNav={() => setMobileNavOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenNotifications={() => setNotificationsOpen(true)}
@@ -737,7 +919,23 @@ function BunyanWorkspace() {
           onOpenExport={() => setExportModalOpen(true)}
         />
 
-        <main className="flex-1 p-4 lg:p-6 max-w-[1440px] w-full mx-auto">
+        <main className="flex-1 p-4 lg:p-6 max-w-[1480px] w-full mx-auto">
+          {activeModule === 'dashboard' && (
+            <HolographicDashboard
+              projects={projects}
+              activeProject={activeProject}
+              company={companyProfile}
+              transactions={transactions}
+              lang={lang}
+              currentRole={currentRole}
+              syncState={syncState}
+              onNavigate={setActiveModule}
+              onSelectProject={setActiveProjectId}
+              onOpenNotifications={() => setNotificationsOpen(true)}
+              onOpenExport={() => setExportModalOpen(true)}
+            />
+          )}
+
           {activeModule === 'command' && (
             <CommandCenter
               projects={projects}
@@ -771,6 +969,21 @@ function BunyanWorkspace() {
                 backupData={backupData}
                 onImportBackup={handleImportBackup}
                 cloudUid={cloudUid}
+                onLogDocumentAction={(action, proj, rowCount, titleAr, titleEn) =>
+                  handleRecordAuditLog({
+                    reportNumber: `DOC-${proj.code}`,
+                    reportTitleAr: titleAr,
+                    reportTitleEn: titleEn,
+                    definitionId: 'doc_vault_registry',
+                    action,
+                    actorName: actorDisplayName,
+                    actorRole: currentRole,
+                    templateId: 'official',
+                    paperSize: reportsStorage.printSettings.paperSize,
+                    orientation: reportsStorage.printSettings.orientation,
+                    rowCount,
+                  })
+                }
               />
             </Suspense>
           )}
@@ -784,7 +997,7 @@ function BunyanWorkspace() {
                 lang={lang}
                 currentRole={currentRole}
                 onSelectProject={setActiveProjectId}
-                onSaveProject={handleSaveProject}
+                onSaveProject={handleFinancialProjectUpdate}
               />
             </Suspense>
           )}
@@ -794,11 +1007,27 @@ function BunyanWorkspace() {
               <DocumentsModule
                 projects={projects}
                 activeProject={activeProject}
+                company={companyProfile}
                 lang={lang}
                 currentRole={currentRole}
                 cloudUid={cloudUid}
                 onSelectProject={setActiveProjectId}
                 onSaveProject={handleEngineeringProjectUpdate}
+                onLogDocumentAction={(action, proj, rowCount, titleAr, titleEn) =>
+                  handleRecordAuditLog({
+                    reportNumber: `DOC-${proj.code}`,
+                    reportTitleAr: titleAr,
+                    reportTitleEn: titleEn,
+                    definitionId: 'doc_vault_registry',
+                    action,
+                    actorName: actorDisplayName,
+                    actorRole: currentRole,
+                    templateId: 'official',
+                    paperSize: reportsStorage.printSettings.paperSize,
+                    orientation: reportsStorage.printSettings.orientation,
+                    rowCount,
+                  })
+                }
               />
             </Suspense>
           )}
@@ -871,8 +1100,21 @@ function BunyanWorkspace() {
                 project={activeProject}
                 projects={projects}
                 lang={lang}
+                canEdit={perms.canEditEngineering}
                 onUpdateProject={handleEngineeringProjectUpdate}
                 onSelectProject={setActiveProjectId}
+              />
+            </Suspense>
+          )}
+
+          {activeModule === 'structural' && (
+            <Suspense fallback={<ModuleLoadingFallback lang={lang} />}>
+              <StructuralWorkspace
+                project={activeProject}
+                lang={lang}
+                currentRole={currentRole}
+                cloudUid={cloudUid}
+                actorName={actorDisplayName}
               />
             </Suspense>
           )}
@@ -891,10 +1133,11 @@ function BunyanWorkspace() {
             </Suspense>
           )}
 
-          {activeModule === 'settings' && (
+          {(activeModule === 'accounts' || activeModule === 'settings') && (
             <Suspense fallback={<ModuleLoadingFallback lang={lang} />}>
               <SettingsAuthModule
                 lang={lang}
+                initialFocus={activeModule === 'accounts' ? 'accounts' : 'settings'}
                 currentRole={currentRole}
                 onChangeRole={setCurrentRole}
                 companyProfile={companyProfile}
@@ -903,10 +1146,9 @@ function BunyanWorkspace() {
                 onToggleBiometric={setBiometricRegistered}
                 firebaseUser={firebaseUser}
                 firestoreConnected={firestoreConnected}
-                onSignInGoogle={async () => {
-                  await signInWithGooglePopup();
-                }}
-                onSignOut={signOutFirebase}
+                syncState={syncState}
+                onSignInGoogle={handleSignInGoogle}
+                onSignOut={handleSignOut}
                 onSyncSeedToCloud={handleSyncNow}
                 backupData={backupData}
                 onImportBackup={handleImportBackup}

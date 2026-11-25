@@ -3,48 +3,67 @@
 
 @layer base {
   :root {
-    --font-sans: "Plus Jakarta Sans", "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif;
-    --font-arabic: "IBM Plex Sans Arabic", "Inter", "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-sans: "Plus Jakarta Sans", "IBM Plex Sans Arabic", "Cairo", system-ui, sans-serif;
+    --font-arabic: "IBM Plex Sans Arabic", "Cairo", "Plus Jakarta Sans", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    /* Architectural Light Palette */
-    --bg-canvas: #f8fafc;
-    --bg-surface: #ffffff;
-    --bg-surface-subtle: #f1f5f9;
+    /* Crisp Architectural Daylight Mode */
+    --bg-canvas: #eef3fb;
+    --bg-dark: #e4ecf8;
+    --bg-surface: rgba(255, 255, 255, 0.88);
+    --bg-surface-solid: #ffffff;
+    --bg-surface-subtle: #f1f6fc;
     --bg-surface-elevated: #ffffff;
-    --border-hairline: #e2e8f0;
-    --border-strong: #cbd5e1;
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
+    --border-hairline: rgba(15, 23, 42, 0.1);
+    --border-strong: rgba(22, 119, 255, 0.34);
+    --text-primary: #0a1428;
+    --text-secondary: #334155;
     --text-muted: #64748b;
 
-    /* Brand Accent: Muted Architectural Gold */
+    /* Holographic Accent Tokens (Daylight Balanced) */
+    --accent-cyan: #0284c7;
+    --accent-blue: #1677ff;
     --accent-gold: #b4863c;
     --accent-gold-hover: #9e7330;
-    --accent-gold-soft: rgba(180, 134, 60, 0.1);
+    --accent-gold-soft: rgba(180, 134, 60, 0.12);
+    --accent-green: #059669;
+    --accent-orange: #d97706;
+    --accent-red: #dc2626;
+    --glass-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.1);
+    --grid-line: rgba(2, 132, 199, 0.06);
   }
 
   .dark {
-    /* Deep Navy & Slate Dark Palette */
-    --bg-canvas: #070d19;
-    --bg-surface: #0e1628;
-    --bg-surface-subtle: #141f35;
-    --bg-surface-elevated: #17233b;
-    --border-hairline: #1e293b;
-    --border-strong: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
+    /* Futuristic Holographic Digital Twin Palette */
+    --bg-canvas: #050b18;
+    --bg-dark: #080f1f;
+    --bg-surface: rgba(16, 27, 48, 0.76);
+    --bg-surface-solid: #101b30;
+    --bg-surface-subtle: rgba(10, 19, 38, 0.82);
+    --bg-surface-elevated: #0e1a30;
+    --border-hairline: rgba(0, 240, 255, 0.15);
+    --border-strong: rgba(0, 240, 255, 0.38);
+    --text-primary: #eef6ff;
+    --text-secondary: #c5d6ef;
+    --text-muted: #7f97b8;
 
-    /* Brand Accent: Warm Champagne Gold */
-    --accent-gold: #c99a49;
-    --accent-gold-hover: #b4863c;
-    --accent-gold-soft: rgba(201, 154, 73, 0.14);
+    /* Neon & Gold Accents */
+    --accent-cyan: #00f0ff;
+    --accent-blue: #1677ff;
+    --accent-gold: #d6a64f;
+    --accent-gold-hover: #c99a49;
+    --accent-gold-soft: rgba(214, 166, 79, 0.15);
+    --accent-green: #00e5a8;
+    --accent-orange: #ff9d42;
+    --accent-red: #ff405c;
+    --glass-shadow: 0 14px 36px -14px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 240, 255, 0.06);
+    --grid-line: rgba(0, 240, 255, 0.055);
   }
 
   html {
     font-family: var(--font-sans);
     scroll-behavior: smooth;
+    background-color: var(--bg-canvas);
   }
 
   html[dir="rtl"] {
@@ -62,16 +81,88 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Futuristic Blueprint Grid Backdrop */
+.bunyan-holo-grid {
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(0, 240, 255, 0.08), transparent 36%),
+    radial-gradient(circle at 84% 8%, rgba(22, 119, 255, 0.09), transparent 34%),
+    radial-gradient(circle at 50% 95%, rgba(214, 166, 79, 0.06), transparent 40%),
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, auto, auto, 42px 42px, 42px 42px;
+}
+
+/* Frosted Glassmorphism Surface */
+.bunyan-glass {
+  background: var(--bg-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--glass-shadow);
+}
+
+.dark .bunyan-glass {
+  background-image: linear-gradient(
+    145deg,
+    rgba(0, 240, 255, 0.04) 0%,
+    rgba(16, 27, 48, 0.65) 42%,
+    rgba(8, 15, 31, 0.84) 100%
+  );
+}
+
+.bunyan-neon-border {
+  border-color: var(--border-hairline);
+}
+
+.dark .bunyan-neon-border:hover {
+  border-color: rgba(0, 240, 255, 0.42);
+  box-shadow: 0 0 22px -6px rgba(0, 240, 255, 0.25), var(--glass-shadow);
+}
+
+/* Subtle Holographic Scan Animation */
+@keyframes bunyan-scan-sweep {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.45;
+  }
+  80% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateY(400%);
+    opacity: 0;
+  }
+}
+
+.bunyan-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.bunyan-scanline::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.55), transparent);
+  pointer-events: none;
+  animation: bunyan-scan-sweep 7s ease-in-out infinite;
+}
+
 /* Crisp Architectural Surface Transition */
 .bunyan-transition {
   transition: background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
     border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
     color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Subtle Architectural Scrollbars */
+/* Subtle Futuristic Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -82,12 +173,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(127, 151, 184, 0.28);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(180, 134, 60, 0.65);
+  background: rgba(0, 240, 255, 0.55);
 }
 
 /* Skeleton Loader Shimmer */
@@ -103,9 +194,9 @@
 .bunyan-skeleton {
   background: linear-gradient(
     90deg,
-    rgba(148, 163, 184, 0.12) 25%,
-    rgba(148, 163, 184, 0.22) 50%,
-    rgba(148, 163, 184, 0.12) 75%
+    rgba(0, 240, 255, 0.06) 25%,
+    rgba(0, 240, 255, 0.16) 50%,
+    rgba(0, 240, 255, 0.06) 75%
   );
   background-size: 200% 100%;
   animation: bunyan-shimmer 1.6s ease-in-out infinite;
@@ -113,7 +204,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bunyan-skeleton,
-  .bunyan-transition {
+  .bunyan-transition,
+  .bunyan-scanline::after {
     animation: none !important;
     transition: none !important;
   }
@@ -158,7 +250,9 @@
   }
 
   body.bunyan-printing-official #bunyan-official-pdf-sheet,
-  body.bunyan-printing-report-center #bunyan-report-center-print-sheet {
+  body.bunyan-printing-report-center #bunyan-report-center-print-sheet,
+  body.bunyan-printing-doc-viewer #bunyan-doc-viewer-print,
+  body.bunyan-printing-project-files #bunyan-project-files-print {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -172,12 +266,40 @@
     box-shadow: none !important;
   }
 
-  body.bunyan-printing-report-center * {
+  body.bunyan-printing-doc-viewer .fixed.inset-0 {
+    position: static !important;
+    inset: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  body.bunyan-printing-doc-viewer .overflow-hidden,
+  body.bunyan-printing-doc-viewer .overflow-y-auto,
+  body.bunyan-printing-doc-viewer .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  body.bunyan-printing-project-files .fixed.inset-0 {
+    display: none !important;
+  }
+
+  body.bunyan-printing-report-center *,
+  body.bunyan-printing-doc-viewer *,
+  body.bunyan-printing-project-files * {
     visibility: hidden !important;
   }
 
   body.bunyan-printing-report-center #bunyan-report-center-print-sheet,
-  body.bunyan-printing-report-center #bunyan-report-center-print-sheet * {
+  body.bunyan-printing-report-center #bunyan-report-center-print-sheet *,
+  body.bunyan-printing-doc-viewer #bunyan-doc-viewer-print,
+  body.bunyan-printing-doc-viewer #bunyan-doc-viewer-print *,
+  body.bunyan-printing-project-files #bunyan-project-files-print,
+  body.bunyan-printing-project-files #bunyan-project-files-print * {
     visibility: visible !important;
   }
 

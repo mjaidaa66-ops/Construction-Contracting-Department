@@ -30,23 +30,38 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   override render(): React.ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0B111E] p-6">
-          <div className="max-w-lg w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111A2C] p-6 space-y-4">
-            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
+        <div
+          dir="auto"
+          className="min-h-screen flex items-center justify-center bg-[var(--bg-canvas,#050B18)] bunyan-holo-grid p-6 text-[var(--text-primary,#E8F1FF)]"
+        >
+          <div className="max-w-lg w-full rounded-2xl border border-[#0284C7]/35 dark:border-[#00F0FF]/35 bg-[var(--bg-surface,#101B30)] backdrop-blur-xl p-6 space-y-4 shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center gap-3 text-[#FF405C]">
               <AlertTriangle className="w-6 h-6 shrink-0" />
-              <h2 className="text-lg font-semibold">Application Recovery</h2>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold">
+                  استعادة النظام الهندسي · Application Recovery
+                </h2>
+                <p className="text-xs text-[var(--text-muted,#7E96BA)]">
+                  BUNYAN | 5D BIM Digital Twin Workspace
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-300 font-mono break-all">
+            <p
+              dir="ltr"
+              className="text-xs text-[var(--text-secondary,#A3B8D8)] bg-[var(--bg-surface-subtle,#0C1628)] border border-[var(--border-hairline,rgba(0,240,255,0.16))] rounded-xl p-3 font-mono break-all"
+            >
               {this.state.message}
             </p>
-            <button
-              type="button"
-              onClick={() => this.setState({ hasError: false, message: '' })}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-[#B4863C] text-white hover:bg-[#9E7330] transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reload Workspace
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, message: '' })}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold rounded-xl bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00F0FF] dark:to-[#1677FF] text-white dark:text-[#050B18] hover:brightness-110 transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>إعادة تحميل مساحة العمل · Reload Workspace</span>
+              </button>
+            </div>
           </div>
         </div>
       );

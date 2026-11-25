@@ -57,11 +57,11 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
               <div className="flex items-start gap-3 min-w-0">
                 <span className="mt-0.5 shrink-0">
                   {alert.severity === 'critical' ? (
-                    <AlertOctagon className="w-4 h-4 text-rose-500" />
+                    <AlertOctagon className="w-4 h-4 text-[#FF405C]" />
                   ) : alert.severity === 'warning' ? (
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <AlertTriangle className="w-4 h-4 text-[#FF9D42]" />
                   ) : (
-                    <Info className="w-4 h-4 text-[#B4863C]" />
+                    <Info className="w-4 h-4 text-[var(--accent-gold)]" />
                   )}
                 </span>
                 <div className="space-y-1 min-w-0">

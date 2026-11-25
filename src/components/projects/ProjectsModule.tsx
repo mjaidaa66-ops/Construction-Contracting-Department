@@ -4,10 +4,12 @@ import {
   ArrowUpDown,
   Building2,
   CheckCircle2,
+  Download,
   Edit3,
   Eye,
   FilePlus2,
   FolderOpen,
+  FolderSync,
   Plus,
   RotateCcw,
   Search,
@@ -28,12 +30,19 @@ import {
   type SortDirection,
 } from '../../utils/projectHelpers';
 import {
+  inferDocCategoryFromFilename,
+  inferMimeTypeFromFilename,
+  isSafeExportBinaryDataUrl,
+} from '../../utils/projectFilesEngine';
+import {
+  downloadChunkedDocument,
   ensureProjectExistsInCloud,
   uploadChunkedDocument,
 } from '../../services/firestoreStorage';
-import { cacheBinaryLocally } from '../../services/cloudSyncService';
+import { cacheBinaryLocally, getCachedBinaryLocally } from '../../services/cloudSyncService';
 import { BackupSyncModal } from './BackupSyncModal';
 import { DocumentViewerModal } from './DocumentViewerModal';
+import { ProjectFilesExchangeModal } from './ProjectFilesExchangeModal';
 import { ProjectFormModal } from './ProjectFormModal';
 import {
   Button,
@@ -60,6 +69,13 @@ interface ProjectsModuleProps {
   backupData: BackupData;
   onImportBackup: (data: BackupData, mode?: 'merge' | 'replace') => void;
   cloudUid?: string | null;
+  onLogDocumentAction?: (
+    action: 'print' | 'pdf' | 'xlsx' | 'csv' | 'archive',
+    project: Project,
+    rowCount: number,
+    titleAr: string,
+    titleEn: string
+  ) => void;
 }
 
 export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
@@ -73,6 +89,7 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
   backupData,
   onImportBackup,
   cloudUid,
+  onLogDocumentAction,
 }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -85,6 +102,7 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [filesExchangeOpen, setFilesExchangeOpen] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<ProjectDocument | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -134,54 +152,77 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
     setSortDir('desc');
   };
 
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+
   const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeProject) return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0 || !activeProject) return;
+    if (!perms.canEditEngineering) {
+      pushToast(
+        isAr ? 'رفع المستندات متاح للمدير والمهندس فقط.' : 'Document upload requires Admin or Engineer role.',
+        'error'
+      );
+      return;
+    }
+
     setUploadingDoc(true);
     setUploadError(null);
     try {
-      const reader = new FileReader();
-      const base64DataUrl: string = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
+      const createdDocs: ProjectDocument[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const base64DataUrl = await readFileAsDataUrl(file);
+        const mimeType = inferMimeTypeFromFilename(file.name, file.type);
+        const category = inferDocCategoryFromFilename(file.name);
 
-      let manifestId: string | undefined;
-      if (cloudUid) {
-        await ensureProjectExistsInCloud(activeProject, cloudUid);
-        const manifest = await uploadChunkedDocument({
-          ownerId: cloudUid,
-          projectId: activeProject.id,
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          base64DataUrl,
+        let manifestId: string | undefined;
+        if (cloudUid) {
+          await ensureProjectExistsInCloud(activeProject, cloudUid);
+          const manifest = await uploadChunkedDocument({
+            ownerId: cloudUid,
+            projectId: activeProject.id,
+            fileName: file.name,
+            mimeType,
+            base64DataUrl,
+          });
+          manifestId = manifest.id;
+        }
+
+        const docId = `doc-${Date.now()}-${i}`;
+        await cacheBinaryLocally(docId, base64DataUrl);
+        if (manifestId) {
+          await cacheBinaryLocally(manifestId, base64DataUrl);
+        }
+
+        createdDocs.push({
+          id: docId,
+          name: file.name,
+          category,
+          mimeType,
+          sizeBytes: file.size,
+          uploadedAt: new Date().toISOString().slice(0, 10),
+          manifestId,
+          localDataUrl: base64DataUrl,
         });
-        manifestId = manifest.id;
       }
-
-      const docId = `doc-${Date.now()}`;
-      await cacheBinaryLocally(docId, base64DataUrl);
-      if (manifestId) {
-        await cacheBinaryLocally(manifestId, base64DataUrl);
-      }
-
-      const newDoc: ProjectDocument = {
-        id: docId,
-        name: file.name,
-        category: file.type.includes('pdf') ? 'architectural' : 'permit',
-        mimeType: file.type || 'application/pdf',
-        sizeBytes: file.size,
-        uploadedAt: new Date().toISOString().slice(0, 10),
-        manifestId,
-        localDataUrl: base64DataUrl,
-      };
 
       onSaveProject({
         ...activeProject,
-        documents: [newDoc, ...activeProject.documents],
+        documents: [...createdDocs, ...activeProject.documents],
       });
-      pushToast(isAr ? 'تم إرفاق المستند بنجاح' : 'Document uploaded successfully', 'success');
+      pushToast(
+        isAr
+          ? `تم إرفاق ${createdDocs.length} مستند بنجاح`
+          : `Uploaded ${createdDocs.length} document(s) successfully`,
+        'success'
+      );
     } catch (err) {
       const msg =
         err instanceof Error
@@ -193,8 +234,120 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
       pushToast(msg, 'error');
     } finally {
       setUploadingDoc(false);
-      e.target.value = '';
     }
+  };
+
+  const handleReplaceDocumentFile = async (docId: string, file: File) => {
+    if (!activeProject || !perms.canEditEngineering) return;
+    setUploadingDoc(true);
+    setUploadError(null);
+    try {
+      const base64DataUrl = await readFileAsDataUrl(file);
+      const mimeType = inferMimeTypeFromFilename(file.name, file.type);
+      let manifestId: string | undefined;
+      if (cloudUid) {
+        await ensureProjectExistsInCloud(activeProject, cloudUid);
+        const manifest = await uploadChunkedDocument({
+          ownerId: cloudUid,
+          projectId: activeProject.id,
+          fileName: file.name,
+          mimeType,
+          base64DataUrl,
+        });
+        manifestId = manifest.id;
+      }
+
+      await cacheBinaryLocally(docId, base64DataUrl);
+      if (manifestId) {
+        await cacheBinaryLocally(manifestId, base64DataUrl);
+      }
+
+      let updatedDoc: ProjectDocument | null = null;
+      const nextDocs = activeProject.documents.map((d) => {
+        if (d.id !== docId) return d;
+        updatedDoc = {
+          ...d,
+          name: file.name,
+          mimeType,
+          sizeBytes: file.size,
+          uploadedAt: new Date().toISOString().slice(0, 10),
+          manifestId: manifestId ?? d.manifestId,
+          localDataUrl: base64DataUrl,
+        };
+        return updatedDoc;
+      });
+
+      onSaveProject({
+        ...activeProject,
+        documents: nextDocs,
+      });
+      if (updatedDoc) {
+        setViewingDoc(updatedDoc);
+      }
+      pushToast(
+        isAr ? 'تم إرفاق الملف الفعلي وعرضه داخل المنصة' : 'Actual file attached and opened inline',
+        'success'
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to attach file';
+      setUploadError(msg);
+      pushToast(msg, 'error');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleExportSingleArchiveDoc = async (docItem: ProjectDocument) => {
+    if (!perms.canExportReports) return;
+    let resolved = docItem.localDataUrl;
+    if (!resolved && docItem.manifestId) {
+      resolved = (await getCachedBinaryLocally(docItem.manifestId)) ?? undefined;
+    }
+    if (!resolved) {
+      resolved = (await getCachedBinaryLocally(docItem.id)) ?? undefined;
+    }
+    if (!resolved && docItem.manifestId) {
+      try {
+        const res = await downloadChunkedDocument(docItem.manifestId);
+        if (res?.dataUrl) {
+          resolved = res.dataUrl;
+          await cacheBinaryLocally(docItem.manifestId, res.dataUrl);
+          await cacheBinaryLocally(docItem.id, res.dataUrl);
+        }
+      } catch {
+        resolved = undefined;
+      }
+    }
+
+    if (resolved && isSafeExportBinaryDataUrl(resolved)) {
+      const a = document.createElement('a');
+      a.href = resolved;
+      a.download = docItem.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    setViewingDoc(docItem);
+    pushToast(
+      isAr
+        ? 'تم فتح الوثيقة الرسمية للعرض أو الطباعة أو التصدير بصيغة PDF.'
+        : 'Opened official document inline for Print or PDF export.',
+      'info'
+    );
+  };
+
+  const handleDeleteArchiveDoc = (docId: string) => {
+    if (!activeProject || !perms.canEditEngineering) return;
+    onSaveProject({
+      ...activeProject,
+      documents: activeProject.documents.filter((d) => d.id !== docId),
+    });
+    if (viewingDoc?.id === docId) {
+      setViewingDoc(null);
+    }
+    pushToast(isAr ? 'تم حذف المستند من أرشيف المشروع' : 'Document removed from archive', 'info');
   };
 
   const handleMilestoneToggle = (milestoneId: string) => {
@@ -314,6 +467,17 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {activeProject && (
+              <Button
+                variant="outline"
+                size="md"
+                icon={<FolderSync className="w-4 h-4 text-[#B4863C]" />}
+                onClick={() => setFilesExchangeOpen(true)}
+              >
+                {isAr ? 'استيراد وتصدير ملفات المشروع' : 'Project Files & Docs'}
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="md"
@@ -593,19 +757,31 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
             <CardHeader
               icon={<FolderOpen className="w-4 h-4" />}
               title={isAr ? 'أرشيف المخططات والوثائق' : 'Engineering Document Archive'}
+              subtitle={`${activeProject.code} · ${activeProject.documents.length} ${isAr ? 'وثيقة' : 'files'}`}
               action={
-                perms.canEditEngineering ? (
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] cursor-pointer">
-                    {uploadingDoc ? <Upload className="w-3.5 h-3.5 animate-bounce" /> : <FilePlus2 className="w-3.5 h-3.5" />}
-                    <span>{uploadingDoc ? (isAr ? 'جاري التجزئة...' : 'Uploading...') : (isAr ? 'رفع مستند' : 'Upload File')}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={handleUploadDocument}
-                      className="hidden"
-                    />
-                  </label>
-                ) : null
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    icon={<FolderSync className="w-3.5 h-3.5 text-[#B4863C]" />}
+                    onClick={() => setFilesExchangeOpen(true)}
+                  >
+                    {isAr ? 'استيراد / تصدير / طباعة' : 'Import / Export / Print'}
+                  </Button>
+                  {perms.canEditEngineering && (
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#B4863C] text-white text-xs font-semibold hover:bg-[#9E7330] cursor-pointer">
+                      {uploadingDoc ? <Upload className="w-3.5 h-3.5 animate-bounce" /> : <FilePlus2 className="w-3.5 h-3.5" />}
+                      <span>{uploadingDoc ? (isAr ? 'جاري التجزئة...' : 'Uploading...') : (isAr ? 'رفع ملفات' : 'Upload Files')}</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.png,.jpg,.jpeg,.webp,.svg,.dxf,.dwg,.ifc,.json,.csv,.txt,.xlsx,.docx"
+                        onChange={handleUploadDocument}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
               }
             />
 
@@ -626,30 +802,54 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
                   title={isAr ? 'لا توجد وثائق مرفقة بعد' : 'No Documents Uploaded'}
                   description={
                     isAr
-                      ? 'ارفع ملفات PDF أو صوراً هندسية لحفظها في الأرشيف السحابي للمشروع.'
-                      : 'Upload architectural PDFs or site photos to store them in this project archive.'
+                      ? 'ارفع ملفات PDF أو مخططات أو صوراً هندسية لعرضها مباشرة داخل التطبيق وحفظها في الأرشيف.'
+                      : 'Upload PDFs, CAD drawings, or photos to view them inline and store in the archive.'
                   }
                 />
               ) : (
                 activeProject.documents.map((d) => (
-                  <div key={d.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div key={d.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-[var(--bg-surface-subtle)] bunyan-transition">
                     <div className="min-w-0">
                       <div className="text-xs font-medium text-[var(--text-primary)] truncate">
                         {d.name}
                       </div>
                       <div className="text-[11px] font-mono tabular-nums text-[var(--text-muted)]">
                         {d.category} · {(d.sizeBytes / 1024).toFixed(1)} KB · {d.uploadedAt}
-                        {d.manifestId ? ' · Firestore Chunked' : ''}
+                        {d.manifestId ? ' · Firestore Chunked' : d.localDataUrl ? ' · Inline Ready' : ' · Official Record'}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      icon={<Eye className="w-3.5 h-3.5 text-[#B4863C]" />}
-                      onClick={() => setViewingDoc(d)}
-                    >
-                      {isAr ? 'عرض' : 'View'}
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        icon={<Eye className="w-3.5 h-3.5 text-[#B4863C]" />}
+                        onClick={() => setViewingDoc(d)}
+                      >
+                        {isAr ? 'فتح وعرض' : 'Open'}
+                      </Button>
+                      {perms.canExportReports && (
+                        <button
+                          type="button"
+                          onClick={() => void handleExportSingleArchiveDoc(d)}
+                          className="p-1.5 rounded-lg border border-[var(--border-hairline)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[#B4863C] cursor-pointer"
+                          title={isAr ? 'تصدير الملف' : 'Export File'}
+                          aria-label={isAr ? `تصدير ${d.name}` : `Export ${d.name}`}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {perms.canEditEngineering && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteArchiveDoc(d.id)}
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                          title={isAr ? 'حذف' : 'Delete'}
+                          aria-label={isAr ? `حذف ${d.name}` : `Delete ${d.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -666,6 +866,13 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
         initialProject={editingProject}
         existingProjects={projects}
         onSave={(p) => {
+          if (!perms.canManageProjects) {
+            pushToast(
+              isAr ? 'إدارة المشاريع متاحة للمدير والمهندس فقط.' : 'Project management requires Admin or Engineer role.',
+              'error'
+            );
+            return;
+          }
           onSaveProject(p);
           pushToast(isAr ? 'تم حفظ بيانات المشروع بنجاح' : 'Project saved', 'success');
         }}
@@ -680,10 +887,46 @@ export const ProjectsModule: React.FC<ProjectsModuleProps> = ({
         canImport={perms.canManageProjects}
       />
 
+      {activeProject && (
+        <ProjectFilesExchangeModal
+          isOpen={filesExchangeOpen}
+          onClose={() => setFilesExchangeOpen(false)}
+          project={activeProject}
+          company={backupData.companyProfile}
+          lang={lang}
+          cloudUid={cloudUid}
+          canEditFiles={perms.canEditEngineering}
+          canExportFiles={perms.canExportReports}
+          canPrintFiles={perms.canPrintReports}
+          onSaveProject={onSaveProject}
+          onPreviewDocument={(docItem) => setViewingDoc(docItem)}
+          onLogFileAction={(action, rowCount, titleAr, titleEn) =>
+            onLogDocumentAction?.(action, activeProject, rowCount, titleAr, titleEn)
+          }
+        />
+      )}
+
       <DocumentViewerModal
         docItem={viewingDoc}
+        project={activeProject}
+        company={backupData.companyProfile}
         onClose={() => setViewingDoc(null)}
         lang={lang}
+        canUpload={perms.canEditEngineering}
+        canPrint={perms.canPrintReports}
+        canExport={perms.canExportReports}
+        onReplaceDocumentFile={handleReplaceDocumentFile}
+        onLogDocAction={(action, docItem) => {
+          if (activeProject) {
+            onLogDocumentAction?.(
+              action,
+              activeProject,
+              1,
+              `${docItem.name} (${activeProject.code})`,
+              `${docItem.name} (${activeProject.code})`
+            );
+          }
+        }}
       />
 
       <ConfirmDialog

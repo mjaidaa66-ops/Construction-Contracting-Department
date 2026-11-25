@@ -73,35 +73,7 @@
       "retentionPercentage": 10,
       "ownerNationalId": "784-1985-1000000-1",
       "nameEn": "Ground Floor Villa & Perimeter Wall",
-      "documents": [
-        {
-          "uploadDate": "2020-03-15",
-          "title": "رخصة بناء معتمدة - 29/2020.pdf",
-          "fileName": "رخصة بناء معتمدة - 29/2020.pdf",
-          "category": "permit",
-          "id": "doc-proj-01-1",
-          "status": "approved",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "id": "doc-proj-01-2",
-          "uploadDate": "2020-03-15",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 15.dwg",
-          "category": "structural",
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 15.dwg"
-        },
-        {
-          "uploadDate": "2020-03-15",
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-01-3"
-        }
-      ],
+      "documents": [],
       "code": "WM-P15",
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "ownerEmail": "client.wmp15@wahatalmadambldg.ae",
@@ -153,35 +125,7 @@
       "permitDate": "2023-06-10",
       "code": "WM-P2275",
       "nameEn": "Building & Civil Contracting Project",
-      "documents": [
-        {
-          "status": "approved",
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-02-1",
-          "title": "رخصة بناء معتمدة - 216/2023.pdf",
-          "uploadDate": "2023-06-10",
-          "fileName": "رخصة بناء معتمدة - 216/2023.pdf",
-          "category": "permit"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 2275.dwg",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 2275.dwg",
-          "id": "doc-proj-02-2",
-          "uploadDate": "2023-06-10"
-        },
-        {
-          "uploadDate": "2023-06-10",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "id": "doc-proj-02-3",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "permitNumber": "216/2023",
       "ownerNationalId": "784-1985-1007777-1",
@@ -295,35 +239,7 @@
     {
       "projectType": "villa",
       "consultantLicenseNo": "CN-SHJ-4002",
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 51/2022.pdf",
-          "id": "doc-proj-03-1",
-          "status": "approved",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 51/2022.pdf",
-          "fileSize": "2.4 MB",
-          "uploadDate": "2022-04-18"
-        },
-        {
-          "uploadDate": "2022-04-18",
-          "title": "المخططات الإنشائية والمعمارية قطعة 685.dwg",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 685.dwg",
-          "id": "doc-proj-03-2",
-          "status": "approved",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "id": "doc-proj-03-3",
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2022-04-18"
-        }
-      ],
+      "documents": [],
       "status": "under_construction",
       "paidAmount": 595000,
       "permitNumber": "51/2022",
@@ -439,35 +355,7 @@
       "id": "proj-04",
       "code": "WM-P315",
       "consultantPhone": "+971 6 534 9900",
-      "documents": [
-        {
-          "uploadDate": "2024-01-22",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 9/2024.pdf",
-          "fileSize": "2.4 MB",
-          "title": "رخصة بناء معتمدة - 9/2024.pdf",
-          "status": "approved",
-          "id": "doc-proj-04-1"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "uploadDate": "2024-01-22",
-          "id": "doc-proj-04-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 315.dwg",
-          "category": "structural",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 315.dwg"
-        },
-        {
-          "status": "approved",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2024-01-22",
-          "fileSize": "1.9 MB",
-          "id": "doc-proj-04-3"
-        }
-      ],
+      "documents": [],
       "projectType": "villa",
       "plannedProgress": 90,
       "phases": [
@@ -636,35 +524,7 @@
       "licensingAuthority": "بلدية مدينة الشارقة",
       "consultantEngineer": "م. الاستشاري المشرف",
       "nameEn": "Building & Civil Contracting Project",
-      "documents": [
-        {
-          "fileName": "رخصة بناء معتمدة - 292/2015.pdf",
-          "category": "permit",
-          "uploadDate": "2015-11-05",
-          "title": "رخصة بناء معتمدة - 292/2015.pdf",
-          "id": "doc-proj-05-1",
-          "status": "approved",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "id": "doc-proj-05-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 248.dwg",
-          "status": "approved",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 248.dwg",
-          "category": "structural",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2015-11-05"
-        },
-        {
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-05-3",
-          "uploadDate": "2015-11-05",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "code": "WM-P248",
       "expectedCompletionDate": "2016-12-30",
       "category": "المشاريع الإنشائية",
@@ -723,35 +583,7 @@
     },
     {
       "status": "under_construction",
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "uploadDate": "2024-05-14",
-          "id": "doc-proj-06-1",
-          "fileName": "رخصة بناء معتمدة - 109/2024.pdf",
-          "status": "approved",
-          "category": "permit",
-          "title": "رخصة بناء معتمدة - 109/2024.pdf"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "uploadDate": "2024-05-14",
-          "title": "المخططات الإنشائية والمعمارية قطعة 337.dwg",
-          "id": "doc-proj-06-2",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 337.dwg",
-          "status": "approved"
-        },
-        {
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2024-05-14",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-06-3"
-        }
-      ],
+      "documents": [],
       "invoicedAmount": 366350,
       "retentionPercentage": 10,
       "actualProgress": 85,
@@ -922,35 +754,7 @@
       "plannedProgress": 90,
       "contractorBranch": "واحة المدام لمقاولات البناء",
       "ownerNationalId": "784-1985-1046662-1",
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 28/2024.pdf",
-          "id": "doc-proj-07-1",
-          "uploadDate": "2024-02-19",
-          "title": "رخصة بناء معتمدة - 28/2024.pdf"
-        },
-        {
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 2040.dwg",
-          "category": "structural",
-          "id": "doc-proj-07-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 2040.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2024-02-19"
-        },
-        {
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "id": "doc-proj-07-3",
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2024-02-19"
-        }
-      ],
+      "documents": [],
       "consultantEngineer": "م. الاستشاري المشرف",
       "gisData": {
         "basinNumber": "7",
@@ -1106,35 +910,7 @@
       "code": "WM-P190",
       "plannedProgress": 90,
       "consultantEngineer": "م. الاستشاري المشرف",
-      "documents": [
-        {
-          "uploadDate": "2023-02-08",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 13/2023.pdf",
-          "title": "رخصة بناء معتمدة - 13/2023.pdf",
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "id": "doc-proj-08-1"
-        },
-        {
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 190.dwg",
-          "uploadDate": "2023-02-08",
-          "fileSize": "14.8 MB",
-          "id": "doc-proj-08-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 190.dwg",
-          "status": "approved"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2023-02-08",
-          "id": "doc-proj-08-3"
-        }
-      ],
+      "documents": [],
       "approvedBudget": 500000,
       "permitNumber": "13/2023",
       "licensingAuthority": "بلدية مدينة الشارقة"
@@ -1167,35 +943,7 @@
       "name": "بناء عدد (15) محلات + عدد (6) مكاتب +غرف خدمات +اسوار حسب التصميم المعتمد",
       "actualProgress": 85,
       "consultantEmail": "consultant@wahatalmadambldg.ae",
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "uploadDate": "2024-09-12",
-          "status": "approved",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 244/2024.pdf",
-          "title": "رخصة بناء معتمدة - 244/2024.pdf",
-          "id": "doc-proj-09-1"
-        },
-        {
-          "id": "doc-proj-09-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 407.dwg",
-          "category": "structural",
-          "title": "المخططات الإنشائية والمعمارية قطعة 407.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2024-09-12"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2024-09-12",
-          "id": "doc-proj-09-3",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf"
-        }
-      ],
+      "documents": [],
       "id": "proj-09",
       "category": "المشاريع الإنشائية",
       "approvedBudget": 650500,
@@ -1315,35 +1063,7 @@
       "permitDate": "2025-02-11",
       "code": "WM-P405",
       "actualProgress": 75,
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-10-1",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 123/2025.pdf",
-          "uploadDate": "2025-02-11",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 123/2025.pdf"
-        },
-        {
-          "status": "approved",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 405.dwg",
-          "category": "structural",
-          "title": "المخططات الإنشائية والمعمارية قطعة 405.dwg",
-          "uploadDate": "2025-02-11",
-          "fileSize": "14.8 MB",
-          "id": "doc-proj-10-2"
-        },
-        {
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2025-02-11",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-10-3",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "retentionPercentage": 10,
       "ownerPhone": "+971504888869",
       "invoicedAmount": 84000,
@@ -1494,44 +1214,7 @@
       "expectedCompletionDate": "2026-12-30",
       "permitDate": "2025-02-24",
       "id": "proj-11",
-      "documents": [
-        {
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 137/2025.pdf",
-          "uploadDate": "2025-02-24",
-          "title": "رخصة بناء معتمدة - 137/2025.pdf",
-          "id": "doc-proj-11-1",
-          "fileSize": "2.4 MB",
-          "status": "approved"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "id": "doc-proj-11-2",
-          "uploadDate": "2025-02-24",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 661.dwg",
-          "category": "structural",
-          "title": "المخططات الإنشائية والمعمارية قطعة 661.dwg"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "uploadDate": "2025-02-24",
-          "id": "doc-proj-11-3",
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf"
-        },
-        {
-          "uploadDate": "2026-11-01",
-          "category": "structural",
-          "fileName": "اجازة بناء_compressed.pdf",
-          "title": "اجازة بناء_compressed.pdf",
-          "fileSize": "0.1 MB",
-          "status": "approved",
-          "id": "doc-1793559184751-hyo44"
-        }
-      ],
+      "documents": [],
       "phases": [
         {
           "nameEn": "Excavation & Footing Concrete Casting",
@@ -1624,35 +1307,7 @@
           "startDate": "2025-01-07"
         }
       ],
-      "documents": [
-        {
-          "fileName": "رخصة بناء معتمدة - 3/2025.pdf",
-          "category": "permit",
-          "uploadDate": "2025-01-07",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 3/2025.pdf",
-          "id": "doc-proj-12-1",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "id": "doc-proj-12-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 830.dwg",
-          "category": "structural",
-          "uploadDate": "2025-01-07",
-          "title": "المخططات الإنشائية والمعمارية قطعة 830.dwg"
-        },
-        {
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-12-3",
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "uploadDate": "2025-01-07"
-        }
-      ],
+      "documents": [],
       "licensingAuthority": "بلدية منطقة المدام",
       "expectedCompletionDate": "2026-12-30",
       "consultantEngineer": "م. الاستشاري المشرف",
@@ -1740,35 +1395,7 @@
       "consultantOffice": "الرؤية المتكاملة للاستشارات الهندسية",
       "consultantEmail": "consultant@wahatalmadambldg.ae",
       "code": "WM-P607",
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 35/2025.pdf",
-          "status": "approved",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 35/2025.pdf",
-          "uploadDate": "2025-01-28",
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-13-1"
-        },
-        {
-          "id": "doc-proj-13-2",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 607.dwg",
-          "title": "المخططات الإنشائية والمعمارية قطعة 607.dwg",
-          "status": "approved",
-          "uploadDate": "2025-01-28",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2025-01-28",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-13-3",
-          "status": "approved"
-        }
-      ],
+      "documents": [],
       "gisData": {
         "zoning": "سكني خاص (G+1)",
         "emirate": "الشارقة",
@@ -1929,35 +1556,7 @@
       "category": "المشاريع الإنشائية",
       "retentionPercentage": 10,
       "ownerNationalId": "784-1985-1101101-1",
-      "documents": [
-        {
-          "id": "doc-proj-14-1",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 42/2025.pdf",
-          "status": "approved",
-          "fileSize": "2.4 MB",
-          "uploadDate": "2025-02-03",
-          "title": "رخصة بناء معتمدة - 42/2025.pdf"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 2424.dwg",
-          "id": "doc-proj-14-2",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 2424.dwg",
-          "category": "structural",
-          "uploadDate": "2025-02-03"
-        },
-        {
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2025-02-03",
-          "id": "doc-proj-14-3"
-        }
-      ],
+      "documents": [],
       "nameEn": "Ground Floor Villa & Perimeter Wall",
       "code": "WM-P2424",
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
@@ -2026,35 +1625,7 @@
       "permitExpiryDate": "2026-12-30",
       "consultantEmail": "consultant@wahatalmadambldg.ae",
       "code": "WM-P3483",
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "id": "doc-proj-15-1",
-          "category": "permit",
-          "title": "رخصة بناء معتمدة - 50/2025.pdf",
-          "fileName": "رخصة بناء معتمدة - 50/2025.pdf",
-          "uploadDate": "2025-02-14"
-        },
-        {
-          "status": "approved",
-          "uploadDate": "2025-02-14",
-          "title": "المخططات الإنشائية والمعمارية قطعة 3483.dwg",
-          "fileSize": "14.8 MB",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 3483.dwg",
-          "category": "structural",
-          "id": "doc-proj-15-2"
-        },
-        {
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-15-3",
-          "status": "approved",
-          "uploadDate": "2025-02-14",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "gisData": {
         "latitude": 25.14,
         "boundaryPoints": [
@@ -2181,35 +1752,7 @@
       ],
       "licensingAuthority": "بلدية مدينة الشارقة",
       "consultantEngineer": "م. الاستشاري المشرف",
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 51/2025.pdf",
-          "fileName": "رخصة بناء معتمدة - 51/2025.pdf",
-          "category": "permit",
-          "fileSize": "2.4 MB",
-          "uploadDate": "2025-02-15",
-          "status": "approved",
-          "id": "doc-proj-16-1"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "title": "المخططات الإنشائية والمعمارية قطعة 317.dwg",
-          "status": "approved",
-          "uploadDate": "2025-02-15",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 317.dwg",
-          "id": "doc-proj-16-2"
-        },
-        {
-          "status": "approved",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-16-3",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2025-02-15"
-        }
-      ],
+      "documents": [],
       "plannedProgress": 80,
       "ownerEmail": "client.wmp317@wahatalmadambldg.ae",
       "actualProgress": 75,
@@ -2339,35 +1882,7 @@
       "consultantOffice": "الرؤية الذكية للاستشارات الهندسيه ذ.م.م.ش.ش.و",
       "permitExpiryDate": "2026-12-30",
       "contractorBranch": "واحة المدام لمقاولات البناء",
-      "documents": [
-        {
-          "uploadDate": "2025-02-22",
-          "fileSize": "2.4 MB",
-          "title": "رخصة بناء معتمدة - 59/2025.pdf",
-          "status": "approved",
-          "category": "permit",
-          "id": "doc-proj-17-1",
-          "fileName": "رخصة بناء معتمدة - 59/2025.pdf"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 1029.dwg",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 1029.dwg",
-          "id": "doc-proj-17-2",
-          "uploadDate": "2025-02-22",
-          "status": "approved",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "uploadDate": "2025-02-22",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "id": "doc-proj-17-3"
-        }
-      ],
+      "documents": [],
       "approvedBudget": 640500,
       "paymentMilestones": [
         {
@@ -2484,35 +1999,7 @@
       "invoicedAmount": 154000,
       "code": "WM-P8950",
       "projectType": "commercial_tower",
-      "documents": [
-        {
-          "id": "doc-proj-18-1",
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 1223/2025.pdf",
-          "uploadDate": "2025-06-18",
-          "fileName": "رخصة بناء معتمدة - 1223/2025.pdf",
-          "category": "permit"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "id": "doc-proj-18-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 8950.dwg",
-          "status": "approved",
-          "uploadDate": "2025-06-18",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 8950.dwg"
-        },
-        {
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2025-06-18",
-          "id": "doc-proj-18-3",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf"
-        }
-      ],
+      "documents": [],
       "status": "under_construction",
       "consultantEmail": "consultant@wahatalmadambldg.ae",
       "permitDate": "2025-06-18",
@@ -2634,35 +2121,7 @@
         "builtUpAreaSqFt": 11160,
         "plotAreaSqFt": 15780
       },
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 45/2021.pdf",
-          "fileName": "رخصة بناء معتمدة - 45/2021.pdf",
-          "category": "permit",
-          "uploadDate": "2021-05-10",
-          "id": "doc-proj-19-1",
-          "status": "approved",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "id": "doc-proj-19-2",
-          "fileSize": "14.8 MB",
-          "title": "المخططات الإنشائية والمعمارية قطعة 3722.dwg",
-          "uploadDate": "2021-05-10",
-          "status": "approved",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 3722.dwg"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "id": "doc-proj-19-3",
-          "uploadDate": "2021-05-10",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf"
-        }
-      ],
+      "documents": [],
       "paidAmount": 65000,
       "nameEn": "Building & Civil Contracting Project",
       "ownerNationalId": "784-1985-1139986-1",
@@ -2779,35 +2238,7 @@
       "expectedCompletionDate": "2026-12-30",
       "permitDate": "2025-08-04",
       "id": "proj-20",
-      "documents": [
-        {
-          "id": "doc-proj-20-1",
-          "uploadDate": "2025-08-04",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 1673/2025.pdf",
-          "title": "رخصة بناء معتمدة - 1673/2025.pdf",
-          "fileSize": "2.4 MB",
-          "status": "approved"
-        },
-        {
-          "uploadDate": "2025-08-04",
-          "title": "المخططات الإنشائية والمعمارية قطعة 17036.dwg",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 17036.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "id": "doc-proj-20-2"
-        },
-        {
-          "id": "doc-proj-20-3",
-          "fileSize": "1.9 MB",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2025-08-04"
-        }
-      ],
+      "documents": [],
       "phases": [
         {
           "startDate": "2025-08-04",
@@ -2916,35 +2347,7 @@
       "residentEngineer": "م. يوسف خليل الحمادي",
       "ownerPhone": "+971 52 419 7784",
       "invoicedAmount": 1092000,
-      "documents": [
-        {
-          "id": "doc-proj-21-1",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 217/2025.pdf",
-          "uploadDate": "2025-04-19",
-          "fileSize": "2.4 MB",
-          "title": "رخصة بناء معتمدة - 217/2025.pdf",
-          "status": "approved"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 1166.dwg",
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "uploadDate": "2025-04-19",
-          "id": "doc-proj-21-2",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 1166.dwg"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "uploadDate": "2025-04-19",
-          "id": "doc-proj-21-3",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "status": "under_construction",
       "ownerEmail": "client.wmp1166@wahatalmadambldg.ae",
       "approvedBudget": 1560000,
@@ -3061,35 +2464,7 @@
       "consultantEmail": "consultant@wahatalmadambldg.ae",
       "status": "under_construction",
       "consultantLicenseNo": "CN-SHJ-4021",
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 126/2025.pdf",
-          "fileName": "رخصة بناء معتمدة - 126/2025.pdf",
-          "category": "permit",
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "id": "doc-proj-22-1",
-          "uploadDate": "2025-03-15"
-        },
-        {
-          "uploadDate": "2025-03-15",
-          "fileSize": "14.8 MB",
-          "title": "المخططات الإنشائية والمعمارية قطعة 1329.dwg",
-          "status": "approved",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 1329.dwg",
-          "category": "structural",
-          "id": "doc-proj-22-2"
-        },
-        {
-          "id": "doc-proj-22-3",
-          "fileSize": "1.9 MB",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "uploadDate": "2025-03-15",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract"
-        }
-      ],
+      "documents": [],
       "permitDate": "2025-03-15",
       "gisData": {
         "plotAreaSqFt": 16710,
@@ -3205,35 +2580,7 @@
       "category": "المشاريع الإنشائية",
       "retentionPercentage": 10,
       "ownerNationalId": "784-1985-1171094-1",
-      "documents": [
-        {
-          "fileName": "رخصة بناء معتمدة - 108/2025.pdf",
-          "category": "permit",
-          "fileSize": "2.4 MB",
-          "uploadDate": "2025-03-02",
-          "status": "approved",
-          "id": "doc-proj-23-1",
-          "title": "رخصة بناء معتمدة - 108/2025.pdf"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "id": "doc-proj-23-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 2458.dwg",
-          "uploadDate": "2025-03-02",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 2458.dwg"
-        },
-        {
-          "status": "approved",
-          "id": "doc-proj-23-3",
-          "fileSize": "1.9 MB",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "uploadDate": "2025-03-02"
-        }
-      ],
+      "documents": [],
       "nameEn": "Commercial Office & Services Building",
       "code": "WM-P2458",
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
@@ -3382,35 +2729,7 @@
       "licensingAuthority": "بلدية مدينة الشارقة",
       "consultantEngineer": "م. الاستشاري المشرف",
       "plannedProgress": 40,
-      "documents": [
-        {
-          "fileName": "رخصة بناء معتمدة - 188/2026.pdf",
-          "category": "permit",
-          "fileSize": "2.4 MB",
-          "title": "رخصة بناء معتمدة - 188/2026.pdf",
-          "id": "doc-proj-24-1",
-          "uploadDate": "2026-01-25",
-          "status": "approved"
-        },
-        {
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 10095.dwg",
-          "id": "doc-proj-24-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 10095.dwg",
-          "uploadDate": "2026-01-25",
-          "status": "approved",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "id": "doc-proj-24-3",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2026-01-25"
-        }
-      ],
+      "documents": [],
       "paymentMilestones": [
         {
           "dueDate": "2026-01-25",
@@ -3484,35 +2803,7 @@
       "permitDate": "2026-01-25",
       "ownerPhone": "+971503664777",
       "retentionPercentage": 10,
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 189/2026.pdf",
-          "uploadDate": "2026-01-25",
-          "fileSize": "2.4 MB",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 189/2026.pdf",
-          "id": "doc-proj-25-1",
-          "status": "approved"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 10096.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2026-01-25",
-          "id": "doc-proj-25-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 10096.dwg",
-          "category": "structural"
-        },
-        {
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-25-3",
-          "fileSize": "1.9 MB",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "uploadDate": "2026-01-25"
-        }
-      ],
+      "documents": [],
       "approvedBudget": 155000,
       "status": "under_construction",
       "expectedCompletionDate": "2027-12-30",
@@ -3614,35 +2905,7 @@
       ],
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "licensingAuthority": "بلدية منطقة المدام",
-      "documents": [
-        {
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 22/2026.pdf",
-          "title": "رخصة بناء معتمدة - 22/2026.pdf",
-          "id": "doc-proj-26-1",
-          "status": "approved",
-          "fileSize": "2.4 MB",
-          "uploadDate": "2026-01-12"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 834.dwg",
-          "id": "doc-proj-26-2",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2026-01-12",
-          "status": "approved",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 834.dwg"
-        },
-        {
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2026-01-12",
-          "category": "contract",
-          "id": "doc-proj-26-3",
-          "status": "approved",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "plannedProgress": 40,
       "consultantPhone": "+97100000000",
       "retentionPercentage": 10,
@@ -3817,35 +3080,7 @@
       "name": "مكتب + سور حسب التصميم المعتمد",
       "contractorBranch": "واحة المدام لمقاولات البناء",
       "permitDate": "2026-02-01",
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 47/2026.pdf",
-          "id": "doc-proj-27-1",
-          "uploadDate": "2026-02-01",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 47/2026.pdf"
-        },
-        {
-          "title": "المخططات الإنشائية والمعمارية قطعة 1465.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "id": "doc-proj-27-2",
-          "uploadDate": "2026-02-01",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 1465.dwg",
-          "category": "structural"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "uploadDate": "2026-02-01",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-27-3"
-        }
-      ],
+      "documents": [],
       "ownerPhone": "+971508040463",
       "approvedBudget": 126000,
       "status": "under_construction"
@@ -3936,35 +3171,7 @@
       "nameEn": "Building & Civil Contracting Project",
       "code": "WM-P93",
       "category": "المشاريع الإنشائية",
-      "documents": [
-        {
-          "fileName": "رخصة بناء معتمدة - 51/2026.pdf",
-          "category": "permit",
-          "uploadDate": "2026-02-05",
-          "id": "doc-proj-28-1",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 51/2026.pdf",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "uploadDate": "2026-02-05",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 93.dwg",
-          "category": "structural",
-          "id": "doc-proj-28-2",
-          "title": "المخططات الإنشائية والمعمارية قطعة 93.dwg"
-        },
-        {
-          "id": "doc-proj-28-3",
-          "uploadDate": "2026-02-05",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileSize": "1.9 MB",
-          "status": "approved"
-        }
-      ],
+      "documents": [],
       "consultantEmail": "consultant@wahatalmadambldg.ae",
       "ownerEmail": "client.wmp93@wahatalmadambldg.ae",
       "status": "under_construction",
@@ -3996,35 +3203,7 @@
       "paymentMilestones": [],
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "consultantEmail": "consultant@wahatalmadambldg.ae",
-      "documents": [
-        {
-          "status": "approved",
-          "fileSize": "2.4 MB",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 20/2026.pdf",
-          "id": "doc-proj-29-1",
-          "title": "رخصة بناء معتمدة - 20/2026.pdf",
-          "uploadDate": "2026-01-10"
-        },
-        {
-          "uploadDate": "2026-01-10",
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 679.dwg",
-          "category": "structural",
-          "id": "doc-proj-29-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 679.dwg"
-        },
-        {
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileSize": "1.9 MB",
-          "status": "approved",
-          "uploadDate": "2026-01-10",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-29-3"
-        }
-      ],
+      "documents": [],
       "category": "المشاريع الإنشائية",
       "retentionPercentage": 10,
       "consultantLicenseNo": "CN-SHJ-4028",
@@ -4233,81 +3412,14 @@
       "name": "اضافة ملحق حسب التصميم المعتمد",
       "contractorBranch": "واحة المدام لمقاولات البناء",
       "permitDate": "2026-02-14",
-      "documents": [
-        {
-          "uploadDate": "2026-11-14",
-          "storageKey": "DOC-1794636223181",
-          "title": "إجازة بناء",
-          "id": "DOC-1794636223181",
-          "fileSize": "1304.0 KB",
-          "fileName": "كاش فلو.pdf",
-          "category": "financial",
-          "url": "idb://DOC-1794636223181",
-          "status": "approved"
-        },
-        {
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 67/2026.pdf",
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-30-1",
-          "fileName": "رخصة بناء معتمدة - 67/2026.pdf",
-          "category": "permit",
-          "uploadDate": "2026-02-14"
-        },
-        {
-          "fileSize": "14.8 MB",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 368.dwg",
-          "id": "doc-proj-30-2",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 368.dwg",
-          "category": "structural",
-          "uploadDate": "2026-02-14"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "uploadDate": "2026-02-14",
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-30-3",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "approvedBudget": 567000,
       "status": "under_construction",
       "ownerPhone": "+971 00 000 0000"
     },
     {
       "ownerPhone": "+971 50 917 2253",
-      "documents": [
-        {
-          "uploadDate": "2026-02-18",
-          "status": "approved",
-          "title": "رخصة بناء معتمدة - 73/2026.pdf",
-          "fileName": "رخصة بناء معتمدة - 73/2026.pdf",
-          "category": "permit",
-          "id": "doc-proj-31-1",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "uploadDate": "2026-02-18",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 842.dwg",
-          "title": "المخططات الإنشائية والمعمارية قطعة 842.dwg",
-          "id": "doc-proj-31-2",
-          "fileSize": "14.8 MB",
-          "status": "approved"
-        },
-        {
-          "fileSize": "1.9 MB",
-          "uploadDate": "2026-02-18",
-          "id": "doc-proj-31-3",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved"
-        }
-      ],
+      "documents": [],
       "gisData": {
         "longitude": 55.772,
         "plotAreaSqM": 1812,
@@ -4462,35 +3574,7 @@
         },
         "basinNumber": "2"
       },
-      "documents": [
-        {
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-32-1",
-          "status": "approved",
-          "uploadDate": "2026-02-19",
-          "category": "permit",
-          "fileName": "رخصة بناء معتمدة - 74/2026.pdf",
-          "title": "رخصة بناء معتمدة - 74/2026.pdf"
-        },
-        {
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 692.dwg",
-          "uploadDate": "2026-02-19",
-          "id": "doc-proj-32-2",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "title": "المخططات الإنشائية والمعمارية قطعة 692.dwg"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "uploadDate": "2026-02-19",
-          "id": "doc-proj-32-3",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "invoicedAmount": 276500,
       "ownerPhone": "+971 55 649 8812",
       "actualProgress": 35,
@@ -4610,35 +3694,7 @@
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "licensingAuthority": "بلدية مدينة الشارقة",
       "plannedProgress": 80,
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 2556/2025.pdf",
-          "fileName": "رخصة بناء معتمدة - 2556/2025.pdf",
-          "category": "permit",
-          "id": "doc-proj-33-1",
-          "uploadDate": "2025-11-20",
-          "status": "approved",
-          "fileSize": "2.4 MB"
-        },
-        {
-          "id": "doc-proj-33-2",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 11667.dwg",
-          "uploadDate": "2025-11-20",
-          "title": "المخططات الإنشائية والمعمارية قطعة 11667.dwg",
-          "status": "approved",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "status": "approved",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "id": "doc-proj-33-3",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2025-11-20"
-        }
-      ],
+      "documents": [],
       "consultantPhone": "+971 6 512 0000",
       "retentionPercentage": 10,
       "status": "under_construction",
@@ -4788,35 +3844,7 @@
       "residentEngineer": "م. أحمد عبد الرحمن الكعبي",
       "ownerPhone": "+971 50 782 5590",
       "paidAmount": 0,
-      "documents": [
-        {
-          "status": "approved",
-          "fileName": "رخصة بناء معتمدة - 1356/2026.pdf",
-          "category": "permit",
-          "title": "رخصة بناء معتمدة - 1356/2026.pdf",
-          "uploadDate": "2026-03-04",
-          "fileSize": "2.4 MB",
-          "id": "doc-proj-34-1"
-        },
-        {
-          "uploadDate": "2026-03-04",
-          "id": "doc-proj-34-2",
-          "status": "approved",
-          "fileSize": "14.8 MB",
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 3299.dwg",
-          "title": "المخططات الإنشائية والمعمارية قطعة 3299.dwg"
-        },
-        {
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "status": "approved",
-          "category": "contract",
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-34-3",
-          "uploadDate": "2026-03-04",
-          "fileSize": "1.9 MB"
-        }
-      ],
+      "documents": [],
       "consultantEngineer": "م. الاستشاري المشرف",
       "id": "proj-34",
       "code": "WM-P3299",
@@ -4908,35 +3936,7 @@
           "nameEn": "Architectural MEP, Finishes & Perimeter Wall"
         }
       ],
-      "documents": [
-        {
-          "title": "رخصة بناء معتمدة - 154/2026.pdf",
-          "fileName": "رخصة بناء معتمدة - 154/2026.pdf",
-          "category": "permit",
-          "id": "doc-proj-35-1",
-          "fileSize": "2.4 MB",
-          "status": "approved",
-          "uploadDate": "2026-03-10"
-        },
-        {
-          "category": "structural",
-          "fileName": "المخططات الإنشائية والمعمارية قطعة 588.dwg",
-          "status": "approved",
-          "title": "المخططات الإنشائية والمعمارية قطعة 588.dwg",
-          "uploadDate": "2026-03-10",
-          "id": "doc-proj-35-2",
-          "fileSize": "14.8 MB"
-        },
-        {
-          "fileName": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "category": "contract",
-          "title": "عقد المقاولة المعتمد - واحة المدام.pdf",
-          "id": "doc-proj-35-3",
-          "status": "approved",
-          "fileSize": "1.9 MB",
-          "uploadDate": "2026-03-10"
-        }
-      ],
+      "documents": [],
       "paymentMilestones": [],
       "plannedProgress": 40,
       "projectType": "commercial_tower",

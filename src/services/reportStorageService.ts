@@ -73,11 +73,34 @@ function openWorkspaceDb(): Promise<IDBDatabase | null> {
   });
 }
 
-export async function loadReportsWorkspace(): Promise<ReportsWorkspaceStorage> {
+export function normalizeReportsWorkspace(
+  partial: Partial<ReportsWorkspaceStorage> | null | undefined
+): ReportsWorkspaceStorage {
+  return mergeWithDefaults(partial);
+}
+
+function getScopedStorageKeys(scopeUid?: string | null): { idbKey: string; lsKey: string } {
+  const cleanUid = scopeUid ? scopeUid.replace(/[^a-zA-Z0-9_-]/g, '_') : '';
+  if (!cleanUid) {
+    return {
+      idbKey: REPORTS_WORKSPACE_KEY,
+      lsKey: LS_FALLBACK_KEY,
+    };
+  }
+  return {
+    idbKey: `${REPORTS_WORKSPACE_KEY}_${cleanUid}`,
+    lsKey: `${LS_FALLBACK_KEY}_${cleanUid}`,
+  };
+}
+
+export async function loadReportsWorkspace(
+  scopeUid?: string | null
+): Promise<ReportsWorkspaceStorage> {
+  const { idbKey, lsKey } = getScopedStorageKeys(scopeUid);
   let lsParsed: Partial<ReportsWorkspaceStorage> | null = null;
   try {
     if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(LS_FALLBACK_KEY);
+      const raw = localStorage.getItem(lsKey);
       if (raw) lsParsed = JSON.parse(raw) as Partial<ReportsWorkspaceStorage>;
     }
   } catch {
@@ -98,7 +121,7 @@ export async function loadReportsWorkspace(): Promise<ReportsWorkspaceStorage> {
         }
         const tx = db.transaction(STORE_WORKSPACE, 'readonly');
         const store = tx.objectStore(STORE_WORKSPACE);
-        const req = store.get(REPORTS_WORKSPACE_KEY);
+        const req = store.get(idbKey);
         req.onsuccess = () => resolve((req.result as Partial<ReportsWorkspaceStorage>) || null);
         req.onerror = () => resolve(null);
       } catch {
@@ -114,11 +137,13 @@ export async function loadReportsWorkspace(): Promise<ReportsWorkspaceStorage> {
 }
 
 export async function saveReportsWorkspace(
-  state: ReportsWorkspaceStorage
+  state: ReportsWorkspaceStorage,
+  scopeUid?: string | null
 ): Promise<void> {
+  const { idbKey, lsKey } = getScopedStorageKeys(scopeUid);
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(LS_FALLBACK_KEY, JSON.stringify(state));
+      localStorage.setItem(lsKey, JSON.stringify(state));
     }
   } catch {
     // Ignore localStorage quota failures; IndexedDB handles larger payloads
@@ -135,7 +160,7 @@ export async function saveReportsWorkspace(
           return;
         }
         const tx = db.transaction(STORE_WORKSPACE, 'readwrite');
-        tx.objectStore(STORE_WORKSPACE).put(state, REPORTS_WORKSPACE_KEY);
+        tx.objectStore(STORE_WORKSPACE).put(state, idbKey);
         tx.oncomplete = () => resolve();
         tx.onerror = () => resolve();
       } catch {

@@ -21,6 +21,7 @@ import type {
   Role,
   UserProfile,
 } from '../types/bunyan';
+import type { ReportsWorkspaceStorage } from '../types/reports';
 import { db, handleFirestoreError, OperationType } from './firebase';
 
 // 800KB base64 slice size to safely stay below Firestore 1MB per-document cap
@@ -574,6 +575,76 @@ export function subscribeCompanyProfile(
           addressEn: String(raw.addressEn || ''),
           phone: String(raw.phone || ''),
           email: String(raw.email || ''),
+        },
+        {
+          hasPendingWrites: snap.metadata.hasPendingWrites,
+          fromCache: snap.metadata.fromCache,
+        }
+      );
+    },
+    (error) => {
+      if (onError) onError(error);
+      else handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveReportsWorkspaceToCloud(
+  workspace: ReportsWorkspaceStorage,
+  ownerId: string
+): Promise<void> {
+  const safeUid = sanitizeFirestoreId(ownerId);
+  const path = `report_workspaces/${safeUid}`;
+  try {
+    await setDoc(doc(db, 'report_workspaces', safeUid), {
+      id: safeUid,
+      ownerId: safeUid,
+      savedReports: stripUndefinedDeep((workspace.savedReports || []).slice(0, 200)),
+      customTemplates: stripUndefinedDeep(workspace.customTemplates || {}),
+      printSettings: stripUndefinedDeep(workspace.printSettings || {}),
+      auditLogs: stripUndefinedDeep((workspace.auditLogs || []).slice(0, 250)),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribeReportsWorkspace(
+  ownerId: string,
+  onData: (workspace: Partial<ReportsWorkspaceStorage> | null, meta: SnapshotSyncMetadata) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const safeUid = sanitizeFirestoreId(ownerId);
+  const path = `report_workspaces/${safeUid}`;
+  return onSnapshot(
+    doc(db, 'report_workspaces', safeUid),
+    { includeMetadataChanges: true },
+    (snap) => {
+      if (!snap.exists()) {
+        onData(null, {
+          hasPendingWrites: snap.metadata.hasPendingWrites,
+          fromCache: snap.metadata.fromCache,
+        });
+        return;
+      }
+      const raw = normalizeFirestoreData(snap.data() as Record<string, unknown>);
+      onData(
+        {
+          savedReports: Array.isArray(raw.savedReports)
+            ? (raw.savedReports as ReportsWorkspaceStorage['savedReports'])
+            : [],
+          customTemplates:
+            raw.customTemplates && typeof raw.customTemplates === 'object'
+              ? (raw.customTemplates as ReportsWorkspaceStorage['customTemplates'])
+              : undefined,
+          printSettings:
+            raw.printSettings && typeof raw.printSettings === 'object'
+              ? (raw.printSettings as ReportsWorkspaceStorage['printSettings'])
+              : undefined,
+          auditLogs: Array.isArray(raw.auditLogs)
+            ? (raw.auditLogs as ReportsWorkspaceStorage['auditLogs'])
+            : [],
         },
         {
           hasPendingWrites: snap.metadata.hasPendingWrites,

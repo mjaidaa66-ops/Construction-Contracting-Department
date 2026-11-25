@@ -50,7 +50,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 backdrop-blur-[2px] p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#030712]/75 backdrop-blur-sm p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -60,11 +60,11 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className={`w-full ${maxWidthClass} max-h-[90vh] flex flex-col rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] shadow-xl overflow-hidden focus:outline-none`}
+        className={`w-full ${maxWidthClass} max-h-[90vh] flex flex-col rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-surface-elevated)] shadow-2xl overflow-hidden focus:outline-none`}
       >
         <div className="px-5 py-4 border-b border-[var(--border-hairline)] flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            {icon && <span className="text-[#B4863C] shrink-0">{icon}</span>}
+            {icon && <span className="text-[var(--accent-cyan)] shrink-0">{icon}</span>}
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base font-bold text-[var(--text-primary)] truncate">
                 {title}
@@ -98,6 +98,8 @@ export const Modal: React.FC<ModalProps> = ({
     </div>
   );
 };
+
+export const ModalDialog = Modal;
 
 export interface DrawerProps {
   isOpen: boolean;
@@ -141,7 +143,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-slate-950/55 backdrop-blur-[1px] no-print"
+      className="fixed inset-0 z-50 flex justify-end bg-[#030712]/70 backdrop-blur-xs no-print"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -151,11 +153,11 @@ export const Drawer: React.FC<DrawerProps> = ({
       <div
         ref={drawerRef}
         tabIndex={-1}
-        className="w-full max-w-md h-full bg-[var(--bg-surface)] border-s border-[var(--border-hairline)] shadow-2xl flex flex-col focus:outline-none"
+        className="w-full max-w-md h-full bg-[var(--bg-surface-elevated)] border-s border-[var(--border-strong)] shadow-2xl flex flex-col focus:outline-none"
       >
         <div className="px-5 py-4 border-b border-[var(--border-hairline)] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            {icon && <span className="text-[#B4863C] shrink-0">{icon}</span>}
+            {icon && <span className="text-[var(--accent-cyan)] shrink-0">{icon}</span>}
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-[var(--text-primary)] truncate">{title}</h3>
               {subtitle && (
@@ -204,7 +206,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       maxWidthClass="max-w-md"
-      icon={<AlertTriangle className={`w-5 h-5 ${danger ? 'text-rose-500' : 'text-[#B4863C]'}`} />}
+      icon={<AlertTriangle className={`w-5 h-5 ${danger ? 'text-[#FF405C]' : 'text-[var(--accent-gold)]'}`} />}
       title={title}
       footer={
         <>

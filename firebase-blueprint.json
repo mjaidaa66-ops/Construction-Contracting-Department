@@ -129,6 +129,228 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "ownerId", "nameAr", "nameEn", "licenseNumber", "updatedAt"]
+    },
+    "ReportWorkspace": {
+      "title": "ReportWorkspace",
+      "description": "Per-user saved reports, favorites, print settings, templates, and print audit logs.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "savedReports": { "type": "array" },
+        "customTemplates": { "type": "object" },
+        "printSettings": { "type": "object" },
+        "auditLogs": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "savedReports", "customTemplates", "printSettings", "auditLogs", "updatedAt"]
+    },
+    "StructuralProject": {
+      "title": "StructuralProject",
+      "description": "Structural Intelligence project metadata bridged to a Bunyan construction project.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "bunyanProjectId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "nameEn": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "structuralSystem": { "type": "string", "maxLength": 200 },
+        "designCode": { "type": "string", "maxLength": 200 },
+        "activeRevisionId": { "type": "string", "maxLength": 128 },
+        "revisionCount": { "type": "number" },
+        "reliabilitySummary": { "type": "string", "enum": ["SOURCE_VERIFIED", "DERIVED", "UNVERIFIED", "MISSING", "FAILED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "bunyanProjectId", "code", "name", "nameEn", "revisionCount", "reliabilitySummary", "createdAt", "updatedAt"]
+    },
+    "StructuralModel": {
+      "title": "StructuralModel",
+      "description": "Normalized structural model header imported from CSI ETABS v20 or exported tables.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sourceApplication": { "type": "string", "enum": ["CSI ETABS", "ETABS Exported Tables"] },
+        "sourceVersion": { "type": "string", "maxLength": 64 },
+        "sourceFileReference": { "type": "string", "maxLength": 400 },
+        "originalUnits": { "type": "string", "maxLength": 40 },
+        "normalizedUnits": { "type": "string", "maxLength": 40 },
+        "coordinateSystem": { "type": "string", "maxLength": 64 },
+        "modelLocked": { "type": "boolean" },
+        "storyCount": { "type": "number" },
+        "gridCount": { "type": "number" },
+        "nodeCount": { "type": "number" },
+        "frameCount": { "type": "number" },
+        "areaCount": { "type": "number" },
+        "materialCount": { "type": "number" },
+        "sectionCount": { "type": "number" },
+        "loadPatternCount": { "type": "number" },
+        "loadCaseCount": { "type": "number" },
+        "loadComboCount": { "type": "number" },
+        "provenance": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "revisionId", "name", "sourceApplication", "sourceVersion", "originalUnits", "normalizedUnits", "provenance", "createdAt", "updatedAt"]
+    },
+    "StructuralImportJob": {
+      "title": "StructuralImportJob",
+      "description": "Auditable ETABS import job log and hash tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sourceMode": { "type": "string", "enum": ["ETABS_OAPI_LIVE", "ETABS_EXPORTED_TABLES"] },
+        "sourceFileReference": { "type": "string", "maxLength": 400 },
+        "sourceHash": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PENDING", "RUNNING", "PREVIEW_READY", "CONFIRMED", "CANCELLED", "FAILED"] },
+        "currentStep": { "type": "number" },
+        "totalSteps": { "type": "number" },
+        "startedAt": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "errorMessage": { "type": "string", "maxLength": 500 },
+        "retryCount": { "type": "number" },
+        "reliabilitySummary": { "type": "string", "enum": ["SOURCE_VERIFIED", "DERIVED", "UNVERIFIED", "MISSING", "FAILED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "revisionId", "sourceMode", "sourceHash", "status", "reliabilitySummary", "createdAt", "updatedAt"]
+    },
+    "StructuralElementsPacket": {
+      "title": "StructuralElementsPacket",
+      "description": "Normalized stories, grids, frames, areas, and load definitions for a structural revision.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "stories": { "type": "array" },
+        "grids": { "type": "array" },
+        "nodesCount": { "type": "number" },
+        "frames": { "type": "array" },
+        "areas": { "type": "array" },
+        "loadPatterns": { "type": "array" },
+        "loadCases": { "type": "array" },
+        "loadCombinations": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "modelId", "revisionId", "stories", "grids", "nodesCount", "frames", "areas", "createdAt"]
+    },
+    "StructuralMaterialsPacket": {
+      "title": "StructuralMaterialsPacket",
+      "description": "Normalized structural material properties preserving raw and SI values.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "items": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "modelId", "revisionId", "items", "createdAt"]
+    },
+    "StructuralSectionsPacket": {
+      "title": "StructuralSectionsPacket",
+      "description": "Normalized frame and area section definitions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "items": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "modelId", "revisionId", "items", "createdAt"]
+    },
+    "StructuralResultsPacket": {
+      "title": "StructuralResultsPacket",
+      "description": "Analysis/design status and Phase 2 readiness packet for a structural revision.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "analysisResults": { "type": "array" },
+        "designResults": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "modelId", "revisionId", "analysisResults", "designResults", "createdAt"]
+    },
+    "StructuralValidationRecord": {
+      "title": "StructuralValidationRecord",
+      "description": "Engineering completeness, consistency, and reliability validation output.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PASSED", "PASSED_WITH_WARNINGS", "FAILED"] },
+        "reliability": { "type": "string", "enum": ["SOURCE_VERIFIED", "DERIVED", "UNVERIFIED", "MISSING", "FAILED"] },
+        "checkedAt": { "type": "string" },
+        "errorCount": { "type": "number" },
+        "warningCount": { "type": "number" },
+        "issues": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "revisionId", "status", "reliability", "errorCount", "warningCount", "issues", "createdAt"]
+    },
+    "StructuralModelRevision": {
+      "title": "StructuralModelRevision",
+      "description": "Immutable versioned structural model revision snapshot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "revisionNumber": { "type": "number" },
+        "label": { "type": "string", "maxLength": 200 },
+        "sourceHash": { "type": "string", "maxLength": 128 },
+        "immutable": { "type": "boolean" },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 160 },
+        "summary": { "type": "object" },
+        "reliability": { "type": "string", "enum": ["SOURCE_VERIFIED", "DERIVED", "UNVERIFIED", "MISSING", "FAILED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "modelId", "revisionNumber", "sourceHash", "immutable", "reliability", "createdAt"]
+    },
+    "StructuralReport": {
+      "title": "StructuralReport",
+      "description": "Structural engineering audit, validation, and model inventory report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "revisionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reportType": { "type": "string", "enum": ["IMPORT_AUDIT", "VALIDATION_SUMMARY", "MODEL_INVENTORY"] },
+        "titleAr": { "type": "string", "maxLength": 250 },
+        "titleEn": { "type": "string", "maxLength": 250 },
+        "generatedAt": { "type": "string" },
+        "reliability": { "type": "string", "enum": ["SOURCE_VERIFIED", "DERIVED", "UNVERIFIED", "MISSING", "FAILED"] },
+        "markdownContent": { "type": "string", "maxLength": 50000 },
+        "metrics": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "projectId", "revisionId", "reportType", "titleAr", "titleEn", "reliability", "markdownContent", "createdAt"]
     }
   },
   "firestore": {
@@ -159,6 +381,50 @@
     "/company_profiles/{profileId}": {
       "schema": { "$ref": "#/entities/CompanyProfile" },
       "description": "UAE contracting company and UAE VAT TRN profile settings."
+    },
+    "/report_workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/ReportWorkspace" },
+      "description": "Per-user saved reports, favorites, templates, print preferences, and audit history."
+    },
+    "/structuralProjects/{projectId}": {
+      "schema": { "$ref": "#/entities/StructuralProject" },
+      "description": "Structural Intelligence projects bridged to Bunyan projects."
+    },
+    "/structuralModels/{modelId}": {
+      "schema": { "$ref": "#/entities/StructuralModel" },
+      "description": "Normalized CSI ETABS structural model headers."
+    },
+    "/structuralImports/{importId}": {
+      "schema": { "$ref": "#/entities/StructuralImportJob" },
+      "description": "ETABS import workflow jobs and status."
+    },
+    "/structuralElements/{elementDocId}": {
+      "schema": { "$ref": "#/entities/StructuralElementsPacket" },
+      "description": "Normalized structural geometry and load definition packets."
+    },
+    "/structuralMaterials/{materialDocId}": {
+      "schema": { "$ref": "#/entities/StructuralMaterialsPacket" },
+      "description": "Normalized structural materials."
+    },
+    "/structuralSections/{sectionDocId}": {
+      "schema": { "$ref": "#/entities/StructuralSectionsPacket" },
+      "description": "Normalized structural sections."
+    },
+    "/structuralResults/{resultDocId}": {
+      "schema": { "$ref": "#/entities/StructuralResultsPacket" },
+      "description": "Structural analysis and design status packets."
+    },
+    "/structuralValidations/{validationId}": {
+      "schema": { "$ref": "#/entities/StructuralValidationRecord" },
+      "description": "Engineering consistency and validation results."
+    },
+    "/structuralRevisions/{revisionId}": {
+      "schema": { "$ref": "#/entities/StructuralModelRevision" },
+      "description": "Immutable versioned structural model revisions."
+    },
+    "/structuralReports/{reportId}": {
+      "schema": { "$ref": "#/entities/StructuralReport" },
+      "description": "Structural engineering audit and validation reports."
     }
   }
 }

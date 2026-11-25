@@ -3,24 +3,40 @@ import {
   Archive,
   Building2,
   CheckCircle2,
+  Cpu,
   Download,
   Fingerprint,
+  LifeBuoy,
   LogIn,
   LogOut,
   Shield,
+  ShieldCheck,
   Smartphone,
   UserCheck,
+  XCircle,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
+import type { CloudSyncState } from '../../services/cloudSyncService';
+import { FIRESTORE_DATABASE_ID, formatFirebaseAuthError } from '../../services/firebase';
 import type { BackupData, CompanyProfile, Language, Role } from '../../types/bunyan';
-import { getRolePermissions } from '../../utils/rbacPermissions';
+import { getRolePermissions, type RolePermissions } from '../../utils/rbacPermissions';
 import { usePWAInstall } from '../../utils/usePWAInstall';
 import { BunyanLogo } from '../common/BunyanLogo';
 import { BackupSyncModal } from '../projects/BackupSyncModal';
-import { Button, Card, CardHeader, Input, StatusIndicator, useToast } from '../ui';
+import {
+  Button,
+  Card,
+  CardHeader,
+  HolographicPanel,
+  Input,
+  StatusBadge,
+  StatusIndicator,
+  useToast,
+} from '../ui';
 
 interface SettingsAuthModuleProps {
   lang: Language;
+  initialFocus?: 'accounts' | 'settings';
   currentRole: Role;
   onChangeRole: (role: Role) => void;
   companyProfile: CompanyProfile;
@@ -29,6 +45,7 @@ interface SettingsAuthModuleProps {
   onToggleBiometric: (next: boolean) => void;
   firebaseUser: User | null;
   firestoreConnected: boolean;
+  syncState?: CloudSyncState;
   onSignInGoogle: () => Promise<void>;
   onSignOut: () => Promise<void>;
   onSyncSeedToCloud: () => Promise<void>;
@@ -36,8 +53,25 @@ interface SettingsAuthModuleProps {
   onImportBackup?: (data: BackupData, mode?: 'merge' | 'replace') => void;
 }
 
+const PERMISSION_ROWS: Array<{
+  key: keyof RolePermissions;
+  ar: string;
+  en: string;
+}> = [
+  { key: 'canManageProjects', ar: 'إنشاء وتعديل المشاريع والعقود', en: 'Create & Edit Projects' },
+  { key: 'canDeleteProjects', ar: 'حذف المشاريع نهائياً', en: 'Delete Projects' },
+  { key: 'canEditEngineering', ar: 'تعديل الحصر الهندسي و BIM 5D', en: 'Edit Engineering & 5D BIM' },
+  { key: 'canEditFinancials', ar: 'تعديل المستخلصات والتدفقات المالية', en: 'Edit Financials & Claims' },
+  { key: 'canViewFinancialReports', ar: 'اعتماد وعرض التقارير المالية', en: 'View & Audit Financial Reports' },
+  { key: 'canManageGovernment', ar: 'إدارة معاملات بلدية الشارقة', en: 'Manage Municipal Portal' },
+  { key: 'canManageCompanySettings', ar: 'تعديل إعدادات الشركة والضرائب', en: 'Manage Company & VAT Settings' },
+  { key: 'canExportReports', ar: 'تصدير وطباعة التقارير الرسمية', en: 'Export & Print Official Reports' },
+  { key: 'canManageTemplates', ar: 'إدارة قوالب وإعدادات مركز التقارير', en: 'Manage Report Templates & Settings' },
+];
+
 export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   lang,
+  initialFocus = 'settings',
   currentRole,
   onChangeRole,
   companyProfile,
@@ -46,6 +80,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   onToggleBiometric,
   firebaseUser,
   firestoreConnected,
+  syncState,
   onSignInGoogle,
   onSignOut,
   onSyncSeedToCloud,
@@ -54,6 +89,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
 }) => {
   const [companyForm, setCompanyForm] = useState<CompanyProfile>(companyProfile);
   const [syncing, setSyncing] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const { pushToast } = useToast();
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
@@ -78,46 +114,108 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <Card padded className="flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)]">
-        <BunyanLogo size="lg" lang={lang} />
-        <div className="text-xs text-[var(--text-secondary)] max-w-md">
-          {isAr
-            ? 'إدارة تسجيل الدخول وإنشاء الحساب السحابي، وصلاحيات المستخدمين، وإعدادات المنشأة المعتمدة.'
-            : 'Manage Google account sign-in & registration, workspace RBAC permissions, and verified UAE company profile.'}
+    <div className="space-y-6 max-w-6xl">
+      <HolographicPanel className="p-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <BunyanLogo size="lg" lang={lang} />
+          <div className="space-y-1">
+            <StatusBadge
+              tone="info"
+              label={
+                initialFocus === 'accounts'
+                  ? isAr ? 'الحسابات والصلاحيات (RBAC)' : 'Accounts & Permissions (RBAC)'
+                  : isAr ? 'الإعدادات والدعم الفني' : 'System Settings & Technical Support'
+              }
+            />
+            <p className="text-xs text-[var(--text-secondary)] max-w-xl">
+              {isAr
+                ? 'إدارة تسجيل الدخول بحساب Google، والمزامنة الفورية مع Cloud Firestore، ومصفوفة صلاحيات الفريق، وملف المنشأة والدعم الفني.'
+                : 'Manage Google Sign-in, automatic per-user Cloud Firestore sync, workspace RBAC permissions matrix, company profile, and system diagnostics.'}
+            </p>
+          </div>
         </div>
-      </Card>
+      </HolographicPanel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Firebase Google Authentication & Cloud Sync */}
         <Card padded className="space-y-4">
           <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-[#B4863C]" />
+            <Shield className="w-5 h-5 text-[var(--accent-cyan)]" />
             <h2 className="text-base font-bold text-[var(--text-primary)]">
-              {isAr ? 'تسجيل الدخول وإنشاء الحساب والمزامنة السحابية' : 'Sign In, Account Access & Cloud Sync'}
+              {isAr ? 'تسجيل الدخول بحساب جوجل والمزامنة السحابية' : 'Google Sign-In & Cloud Firestore Sync'}
             </h2>
           </div>
 
-          <div className="p-4 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] text-xs space-y-2">
+          {firebaseUser && (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)]">
+              {firebaseUser.photoURL ? (
+                <img
+                  src={firebaseUser.photoURL}
+                  alt={firebaseUser.displayName || 'Google User'}
+                  className="w-10 h-10 rounded-full object-cover border border-[var(--border-hairline)]"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00F0FF] to-[#1677FF] text-[#050B18] font-bold flex items-center justify-center">
+                  {(firebaseUser.displayName || firebaseUser.email || 'G').slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="font-bold text-[var(--text-primary)] truncate">
+                  {firebaseUser.displayName || (isAr ? 'مستخدم منصة بنيان' : 'Bunyan User')}
+                </div>
+                <div dir="ltr" className="font-mono text-[11px] text-[var(--text-muted)] truncate">
+                  {firebaseUser.email}
+                </div>
+              </div>
+              <StatusIndicator
+                tone={firebaseUser.emailVerified ? 'success' : 'warning'}
+                label={firebaseUser.emailVerified ? (isAr ? 'موثق' : 'Verified') : (isAr ? 'غير موثق' : 'Unverified')}
+              />
+            </div>
+          )}
+
+          <div className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-hairline)] text-xs space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-[var(--text-muted)]">{isAr ? 'حالة الاتصال السحابي:' : 'Firestore Status:'}</span>
               <StatusIndicator
-                tone={firestoreConnected ? 'success' : 'warning'}
-                label={firestoreConnected ? (isAr ? 'متصل سحابياً' : 'Connected') : (isAr ? 'وضع التخزين المحلي' : 'Local Cache Mode')}
+                tone={firestoreConnected && firebaseUser ? 'success' : 'warning'}
+                label={
+                  firestoreConnected && firebaseUser
+                    ? isAr ? 'متزامن تلقائياً' : 'Auto-Sync Active'
+                    : firestoreConnected
+                    ? isAr ? 'متاح (بانتظار تسجيل الدخول)' : 'Ready (Sign in to sync)'
+                    : isAr ? 'وضع التخزين المحلي' : 'Local Cache Mode'
+                }
               />
             </div>
             <div className="flex justify-between items-center gap-2">
               <span className="text-[var(--text-muted)]">{isAr ? 'الحساب المسجل:' : 'Signed-in Account:'}</span>
-              <span className="font-mono text-[var(--text-primary)] truncate">
+              <span dir="ltr" className="font-mono text-[var(--text-primary)] truncate">
                 {firebaseUser?.email || (isAr ? 'غير مسجل (معاينة محلية)' : 'Not signed in (Local Preview)')}
               </span>
             </div>
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[var(--text-muted)]">{isAr ? 'قاعدة البيانات:' : 'Firestore DB:'}</span>
+              <span dir="ltr" className="font-mono text-[10.5px] text-[var(--accent-cyan)] truncate max-w-[220px]">
+                {FIRESTORE_DATABASE_ID}
+              </span>
+            </div>
+            {syncState?.lastSyncedAt && (
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-[var(--text-muted)]">{isAr ? 'آخر مزامنة:' : 'Last Synced:'}</span>
+                <span dir="ltr" className="font-mono text-[11px] text-[var(--text-secondary)]">
+                  {new Date(syncState.lastSyncedAt).toLocaleString(isAr ? 'ar-AE' : 'en-AE')}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
             {firebaseUser ? (
               <>
                 <Button
+                  variant="cyan"
                   loading={syncing}
                   icon={<CheckCircle2 className="w-4 h-4" />}
                   onClick={async () => {
@@ -165,19 +263,17 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
               </>
             ) : (
               <Button
+                variant="cyan"
+                loading={signingIn}
                 icon={<LogIn className="w-4 h-4" />}
                 onClick={async () => {
+                  setSigningIn(true);
                   try {
                     await onSignInGoogle();
                   } catch (err) {
-                    pushToast(
-                      err instanceof Error
-                        ? err.message
-                        : isAr
-                        ? 'تعذر فتح نافذة تسجيل الدخول عبر Google'
-                        : 'Google sign-in failed or was blocked',
-                      'error'
-                    );
+                    pushToast(formatFirebaseAuthError(err, lang), 'error');
+                  } finally {
+                    setSigningIn(false);
                   }
                 }}
               >
@@ -186,7 +282,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             )}
 
             {backupData && onImportBackup && (
-              <Button variant="outline" icon={<Archive className="w-4 h-4 text-[#B4863C]" />} onClick={() => setBackupOpen(true)}>
+              <Button variant="outline" icon={<Archive className="w-4 h-4 text-[var(--accent-gold)]" />} onClick={() => setBackupOpen(true)}>
                 {isAr ? 'النسخ الاحتياطي JSON' : 'JSON Backup & Restore'}
               </Button>
             )}
@@ -194,7 +290,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             {!isInstalled && isInstallable && (
               <Button
                 variant="outline"
-                icon={<Download className="w-4 h-4 text-[#B4863C]" />}
+                icon={<Download className="w-4 h-4 text-[var(--accent-cyan)]" />}
                 onClick={async () => {
                   const ok = await install();
                   if (ok) {
@@ -209,7 +305,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             {!isInstalled && !isInstallable && isIOS && (
               <Button
                 variant="outline"
-                icon={<Smartphone className="w-4 h-4 text-[#B4863C]" />}
+                icon={<Smartphone className="w-4 h-4 text-[var(--accent-cyan)]" />}
                 onClick={() =>
                   pushToast(
                     isAr
@@ -228,7 +324,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
         {/* Role & Biometric Security */}
         <Card padded className="space-y-4">
           <div className="flex items-center gap-2.5">
-            <UserCheck className="w-5 h-5 text-[#B4863C]" />
+            <UserCheck className="w-5 h-5 text-[var(--accent-cyan)]" />
             <h2 className="text-base font-bold text-[var(--text-primary)]">
               {isAr ? 'الصلاحيات والتحقق الحيوي' : 'Role Access & Biometric Flag'}
             </h2>
@@ -244,10 +340,10 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                   key={r}
                   type="button"
                   onClick={() => onChangeRole(r)}
-                  className={`py-2 px-3 rounded-lg border text-xs font-semibold capitalize bunyan-transition cursor-pointer ${
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold capitalize bunyan-transition cursor-pointer ${
                     currentRole === r
-                      ? 'border-[#B4863C] bg-[#B4863C] text-white'
-                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[#B4863C]'
+                      ? 'border-[var(--accent-cyan)]/60 bg-gradient-to-l from-[#1677FF] to-[#0284C7] dark:from-[#00C8E0] dark:to-[#1677FF] text-white dark:text-[#050B18] font-bold'
+                      : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/45'
                   }`}
                 >
                   {r}
@@ -263,7 +359,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
 
           <div className="pt-3 border-t border-[var(--border-hairline)] flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs">
-              <Fingerprint className={`w-5 h-5 ${biometricRegistered ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`} />
+              <Fingerprint className={`w-5 h-5 ${biometricRegistered ? 'text-[#00E5A8]' : 'text-[var(--text-muted)]'}`} />
               <div>
                 <div className="font-semibold text-[var(--text-primary)]">
                   {isAr ? 'توثيق البصمة / Passkey' : 'Biometric Verification'}
@@ -282,6 +378,88 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
             >
               {biometricRegistered ? (isAr ? 'مفعل' : 'Enabled') : (isAr ? 'تفعيل الآن' : 'Register')}
             </Button>
+          </div>
+        </Card>
+      </div>
+
+      {/* RBAC Permissions Matrix + System Support & Diagnostics */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <Card className="lg:col-span-7 overflow-hidden">
+          <CardHeader
+            icon={<ShieldCheck className="w-4 h-4" />}
+            title={isAr ? 'مصفوفة الصلاحيات الفعّالة للدور النشط' : 'Active Role RBAC Permissions Matrix'}
+            subtitle={
+              isAr
+                ? `الصلاحيات الفعلية المطبقة حالياً على دور (${currentRole})`
+                : `Live capability enforcement for active role (${currentRole})`
+            }
+          />
+          <div className="divide-y divide-[var(--border-hairline)] text-xs">
+            {PERMISSION_ROWS.map((row) => {
+              const allowed = perms[row.key];
+              return (
+                <div key={row.key} className="px-5 py-2.5 flex items-center justify-between gap-3">
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {isAr ? row.ar : row.en}
+                  </span>
+                  {allowed ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-[#00E5A8] font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'مسموح' : 'Allowed'}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[var(--text-muted)]">
+                      <XCircle className="w-3.5 h-3.5 text-[#FF405C]" />
+                      <span>{isAr ? 'مقيد' : 'Restricted'}</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-5 overflow-hidden">
+          <CardHeader
+            icon={<LifeBuoy className="w-4 h-4" />}
+            title={isAr ? 'الدعم الفني وتشخيص النظام' : 'Technical Support & System Diagnostics'}
+            subtitle={isAr ? 'بيانات البيئة السحابية والتطبيق المحلي PWA' : 'Cloud environment, offline persistence & compliance'}
+          />
+          <div className="p-5 space-y-3 text-xs">
+            <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
+              <span className="text-[var(--text-muted)]">{isAr ? 'إصدار النظام' : 'Platform Build'}</span>
+              <span dir="ltr" className="font-mono font-semibold text-[var(--accent-cyan)]">BUNYAN 5D · 2026.1</span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
+              <span className="text-[var(--text-muted)]">{isAr ? 'وضع العمل دون إنترنت' : 'Offline Persistence'}</span>
+              <span className="font-semibold text-emerald-600 dark:text-[#00E5A8]">
+                {syncState?.persistenceEnabled !== false ? (isAr ? 'نشط (IndexedDB)' : 'Active (IndexedDB)') : 'Off'}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
+              <span className="text-[var(--text-muted)]">{isAr ? 'تثبيت PWA' : 'PWA Runtime'}</span>
+              <span className="font-semibold text-[var(--text-primary)]">
+                {isInstalled ? (isAr ? 'مثبت كتطبيق' : 'Installed') : (isAr ? 'متصفح الويب' : 'Web Browser')}
+              </span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
+              <span className="text-[var(--text-muted)]">{isAr ? 'معيار الامتثال البلدي' : 'Compliance Standard'}</span>
+              <span className="font-semibold text-[var(--text-primary)]">
+                {isAr ? 'بلدية الشارقة · DTPS' : 'Sharjah Mun. · DTPS'}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-[#0284C7]/25 dark:border-[#00F0FF]/25 bg-[#0284C7]/6 dark:bg-[#00F0FF]/8 space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
+                <Cpu className="w-4 h-4 text-[var(--accent-cyan)] shrink-0" />
+                <span>{isAr ? 'إرشادات الدعم الفني السريع' : 'Quick Support Guidance'}</span>
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                {isAr
+                  ? 'في حال الحاجة لاستعادة نسخة احتياطية أو ترحيل بيانات المشاريع بين الأجهزة، استخدم "النسخ الاحتياطي JSON" أو سجّل الدخول بنفس حساب Google للمزامنة الفورية عبر السحابة.'
+                  : 'To migrate projects across workstations or restore snapshots, use JSON Backup & Restore or sign in with your verified Google account for automatic Cloud Firestore sync.'}
+              </p>
+            </div>
           </div>
         </Card>
       </div>
@@ -321,7 +499,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={!perms.canManageCompanySettings}>
+            <Button type="submit" variant="cyan" disabled={!perms.canManageCompanySettings}>
               {isAr ? 'حفظ ملف المنشأة' : 'Save Company Profile'}
             </Button>
           </div>

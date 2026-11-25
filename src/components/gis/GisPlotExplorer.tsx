@@ -8,14 +8,23 @@ interface GisPlotExplorerProps {
   project: Project;
   projects?: Project[];
   lang: Language;
+  canEdit?: boolean;
   onUpdateProject: (p: Project) => void;
   onSelectProject?: (id: string) => void;
 }
+
+const SETBACK_LABELS: Record<'front' | 'rear' | 'sideLeft' | 'sideRight', { ar: string; en: string }> = {
+  front: { ar: 'الأمامي (م)', en: 'Front (m)' },
+  rear: { ar: 'الخلفي (م)', en: 'Rear (m)' },
+  sideLeft: { ar: 'الجانب الأيسر (م)', en: 'Left Side (m)' },
+  sideRight: { ar: 'الجانب الأيمن (م)', en: 'Right Side (m)' },
+};
 
 export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
   project,
   projects = [],
   lang,
+  canEdit = true,
   onUpdateProject,
   onSelectProject,
 }) => {
@@ -83,13 +92,14 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
   const coveragePct = survey.coveragePct;
 
   const handleSetbackChange = (field: keyof typeof gisData.setbacks, val: number) => {
+    if (!canEdit) return;
     onUpdateProject({
       ...project,
       gisData: {
         ...gisData,
         setbacks: {
           ...gisData.setbacks,
-          [field]: Math.max(0, val),
+          [field]: Math.max(0, Number.isFinite(val) ? val : 0),
         },
       },
     });
@@ -114,10 +124,10 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 key={p.id}
                 type="button"
                 onClick={() => onSelectProject(p.id)}
-                className={`px-2.5 py-1.5 rounded-lg border font-mono text-[11px] font-semibold cursor-pointer bunyan-transition ${
+                className={`px-2.5 py-1.5 rounded-xl border font-mono text-[11px] font-semibold cursor-pointer bunyan-transition ${
                   p.id === project.id
-                    ? 'border-[#B4863C] bg-[#B4863C] text-white'
-                    : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[#B4863C]'
+                    ? 'border-[#00F0FF]/60 bg-[#0284C7] dark:bg-[#00F0FF] text-white dark:text-[#050B18]'
+                    : 'border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--accent-cyan)]/50'
                 }`}
               >
                 {p.gisData.plotNumber} · {p.gisData.sectorName}
@@ -157,9 +167,9 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                     key={i}
                     type="button"
                     onClick={btn.toggle}
-                    className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold cursor-pointer bunyan-transition ${
+                    className={`px-2.5 py-1 rounded-xl border text-[11px] font-semibold cursor-pointer bunyan-transition ${
                       btn.active
-                        ? 'border-[#B4863C] bg-[#B4863C]/12 text-[#B4863C] dark:text-[#C99A49]'
+                        ? 'border-[var(--accent-cyan)]/55 bg-[#0284C7]/12 dark:bg-[#00F0FF]/15 text-[var(--accent-cyan)]'
                         : 'border-[var(--border-hairline)] text-[var(--text-muted)]'
                     }`}
                   >
@@ -170,22 +180,22 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
             }
           />
 
-          <div className="bg-[#08101F] p-4 flex-1 flex items-center justify-center min-h-[520px]">
+          <div className="bg-[#050B18] p-4 flex-1 flex items-center justify-center min-h-[520px] relative">
             <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full max-h-[540px]">
               <defs>
                 <pattern id="gisGrid" width="32" height="32" patternUnits="userSpaceOnUse">
-                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />
+                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="rgba(0,240,255,0.12)" strokeWidth="1" />
                 </pattern>
               </defs>
               {showGrid && <rect width={svgW} height={svgH} fill="url(#gisGrid)" />}
 
               {/* Road Frontage Indicator */}
-              <rect x={toSvg(minX, minY).sx} y={toSvg(minX, minY).sy - 36} width={plotW * scale} height="22" fill="rgba(51,65,85,0.5)" rx="3" />
+              <rect x={toSvg(minX, minY).sx} y={toSvg(minX, minY).sy - 36} width={plotW * scale} height="22" fill="rgba(0,240,255,0.08)" stroke="rgba(0,240,255,0.28)" strokeWidth="1" rx="4" />
               <text
                 x={toSvg(minX + plotW / 2, minY).sx}
                 y={toSvg(minX, minY).sy - 21}
                 textAnchor="middle"
-                fill="#CBD5E1"
+                fill="#00F0FF"
                 fontSize="11"
                 fontFamily="monospace"
               >
@@ -195,8 +205,8 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
               {/* Plot Polygon */}
               <polygon
                 points={polyStr}
-                fill="rgba(180,134,60,0.14)"
-                stroke="#D4AF37"
+                fill="rgba(214,166,79,0.12)"
+                stroke="#D6A64F"
                 strokeWidth="2.5"
               />
 
@@ -205,8 +215,8 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 <>
                   <polygon
                     points={insetPolyStr}
-                    fill="rgba(56,189,248,0.12)"
-                    stroke="#38BDF8"
+                    fill="rgba(0,240,255,0.10)"
+                    stroke="#00F0FF"
                     strokeWidth="2"
                     strokeDasharray="6 4"
                   />
@@ -214,7 +224,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                     x={envCentroid.cx}
                     y={envCentroid.cy}
                     textAnchor="middle"
-                    fill="#E0F2FE"
+                    fill="#E0F7FF"
                     fontSize="12"
                     fontFamily="monospace"
                   >
@@ -233,7 +243,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
                 const midY = (p1.sy + p2.sy) / 2;
                 return (
                   <g key={idx}>
-                    <circle cx={p1.sx} cy={p1.sy} r="5" fill="#D4AF37" stroke="#0F172A" strokeWidth="1.5" />
+                    <circle cx={p1.sx} cy={p1.sy} r="5.5" fill="#00E5A8" stroke="#050B18" strokeWidth="1.5" />
                     <text x={p1.sx + 8} y={p1.sy - 8} fill="#F8FAFC" fontSize="10" fontFamily="monospace">
                       {pt.label || `P${idx + 1}`}
                     </text>
@@ -248,8 +258,8 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
 
               {/* North Arrow */}
               <g transform={`translate(${svgW - 48}, 48)`}>
-                <circle r="18" fill="rgba(15,23,42,0.85)" stroke="#475569" strokeWidth="1" />
-                <path d="M 0 -12 L 5 6 L 0 2 L -5 6 Z" fill="#D4AF37" />
+                <circle r="18" fill="rgba(5,11,24,0.9)" stroke="#00F0FF" strokeOpacity="0.45" strokeWidth="1" />
+                <path d="M 0 -12 L 5 6 L 0 2 L -5 6 Z" fill="#00F0FF" />
                 <text y="16" textAnchor="middle" fill="#CBD5E1" fontSize="9" fontFamily="monospace">N</text>
               </g>
             </svg>
@@ -294,7 +304,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
                 <span className="text-[var(--text-muted)]">{isAr ? 'رقم القطعة / الحوض' : 'Plot / Basin'}</span>
-                <span dir="ltr" className="font-mono font-semibold text-[#B4863C]">{gisData.plotNumber} / {gisData.basinNumber}</span>
+                <span dir="ltr" className="font-mono font-semibold text-[var(--accent-cyan)]">{gisData.plotNumber} / {gisData.basinNumber}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
                 <span className="text-[var(--text-muted)]">{isAr ? 'الإحداثيات WGS84' : 'WGS84 Coordinates'}</span>
@@ -312,7 +322,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
               <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
                 <span className="text-[var(--text-muted)]">{isAr ? 'إسقاط UTM 40N' : 'UTM Zone 40N'}</span>
                 {survey.utm40N ? (
-                  <span dir="ltr" className="font-mono tabular-nums text-[11px] text-sky-500">
+                  <span dir="ltr" className="font-mono tabular-nums text-[11px] text-[var(--accent-cyan)]">
                     E:{survey.utm40N.eastingM.toFixed(2)} · N:{survey.utm40N.northingM.toFixed(2)}
                   </span>
                 ) : (
@@ -333,7 +343,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
                 <span className="text-[var(--text-muted)]">{isAr ? 'نسبة البناء المسموحة' : 'Max Envelope Coverage'}</span>
-                <span dir="ltr" className="font-mono tabular-nums font-semibold text-sky-600 dark:text-sky-400">
+                <span dir="ltr" className="font-mono tabular-nums font-semibold text-[#00E5A8]">
                   {coveragePct.toFixed(1)}% ({buildableAreaSqM.toFixed(1)} m²)
                 </span>
               </div>
@@ -353,20 +363,23 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {(['front', 'rear', 'sideLeft', 'sideRight'] as const).map((side) => (
                   <label key={side} className="space-y-1">
-                    <span className="text-[var(--text-muted)] capitalize block">{side}</span>
+                    <span className="text-[var(--text-muted)] block">
+                      {isAr ? SETBACK_LABELS[side].ar : SETBACK_LABELS[side].en}
+                    </span>
                     <input
                       type="number"
                       step="0.5"
                       min={0}
+                      disabled={!canEdit}
                       value={gisData.setbacks[side]}
                       onChange={(e) => handleSetbackChange(side, Number(e.target.value))}
-                      className="w-full h-8 px-3 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] font-mono tabular-nums"
+                      className="w-full h-8 px-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface-subtle)] text-[var(--text-primary)] font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-[var(--accent-cyan)]/45 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </label>
                 ))}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+              <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-[#00E5A8]">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>
                   {isAr
@@ -379,7 +392,7 @@ export const GisPlotExplorer: React.FC<GisPlotExplorerProps> = ({
 
           <Card padded className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-              <Layers className="w-4 h-4 text-[#B4863C]" />
+              <Layers className="w-4 h-4 text-[var(--accent-cyan)]" />
               <span>{isAr ? 'مساحة البناء الحالية BUA' : 'Built-Up Area (BUA)'}</span>
             </div>
             <span dir="ltr" className="font-mono tabular-nums font-bold text-[var(--text-primary)]">
