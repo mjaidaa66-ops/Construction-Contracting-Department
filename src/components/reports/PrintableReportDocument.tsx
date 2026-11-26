@@ -157,7 +157,7 @@ export const PrintableReportDocument: React.FC<PrintableReportDocumentProps> = (
               >
                 <img
                   src={BUNYAN_OFFICIAL_LOGO_SRC}
-                  alt="شعار منصة بنيان الرسمي"
+                  alt="شعار المنظمة الرسمي"
                   style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                 />
               </div>
@@ -166,7 +166,7 @@ export const PrintableReportDocument: React.FC<PrintableReportDocumentProps> = (
                   {isAr ? company.nameAr : company.nameEn}
                 </div>
                 <div style={{ fontSize: '10.5px', opacity: 0.8, marginTop: '2px' }}>
-                  {isAr ? 'منصة بنيان لإدارة المشاريع والإنشاءات' : 'BUNYAN CORE ENGINEERING SYSTEM'}
+                  {isAr ? 'المنظمة لإدارة المشاريع والإنشاءات' : 'ORGANIZATION ENGINEERING SYSTEM'}
                 </div>
                 <div
                   dir="ltr"

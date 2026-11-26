@@ -26,7 +26,7 @@ export function buildTakeoffWorkbook(params: {
 
   // Sheet 1: Executive BOQ Summary (AED + 5% UAE VAT)
   const summaryRows = [
-    ['BUNYAN CORE SYSTEM — UAE 5D BOQ SUMMARY'],
+    ['ORGANIZATION — UAE 5D BOQ SUMMARY'],
     ['Verification Status', verification.badgeEn, 'Source', verification.status],
     ['Audit Notice', verification.noticeEn],
     ['Company', company.nameEn, 'TRN', company.trnNumber],

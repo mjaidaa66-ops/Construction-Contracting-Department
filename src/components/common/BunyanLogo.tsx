@@ -102,7 +102,7 @@ export const BunyanLogo: React.FC<BunyanLogoProps> = ({
         {isPrint ? (
           <img
             src={bunyanOfficialLogo}
-            alt={lang === 'ar' ? 'شعار منصة بنيان الرسمي' : 'Bunyan Official Architectural Logo'}
+            alt={lang === 'ar' ? 'شعار المنظمة الرسمي' : 'Organization Official Architectural Logo'}
             className="w-full h-full object-contain block"
             draggable={false}
           />
@@ -118,7 +118,7 @@ export const BunyanLogo: React.FC<BunyanLogoProps> = ({
               isPrint ? 'text-slate-950' : 'text-[var(--text-primary)]'
             }`}
           >
-            {lang === 'ar' ? 'منصة بنيان' : 'BUNYAN'}
+            {lang === 'ar' ? 'المنظمة' : 'Organization'}
           </div>
           <div
             className={`${dims.sub} font-mono uppercase tracking-wider truncate ${

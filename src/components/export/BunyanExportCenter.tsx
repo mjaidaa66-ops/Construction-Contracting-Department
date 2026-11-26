@@ -209,7 +209,7 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
             >
               <img
                 src={BUNYAN_OFFICIAL_LOGO_SRC}
-                alt="شعار منصة بنيان الرسمي"
+                alt="شعار المنظمة الرسمي"
                 style={{
                   width: '100%',
                   height: '100%',
@@ -220,7 +220,7 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
             </div>
             <div>
               <div style={{ fontSize: '16px', fontWeight: 700, color: '#020617', lineHeight: 1.25 }}>
-                {isAr ? 'منصة بنيان' : 'BUNYAN CORE'}
+                {isAr ? 'المنظمة' : 'ORGANIZATION'}
               </div>
               <div
                 dir="ltr"
@@ -231,7 +231,7 @@ const OfficialReportSheet: React.FC<OfficialSheetProps> = ({
                   letterSpacing: '0.06em',
                 }}
               >
-                {isAr ? 'BUNYAN · 5D BIM' : 'بنيان · 5D BIM'}
+                {isAr ? 'ORGANIZATION · 5D BIM' : 'المنظمة · 5D BIM'}
               </div>
             </div>
           </div>
@@ -859,7 +859,7 @@ export const BunyanExportCenter: React.FC<BunyanExportCenterProps> = ({
     const safeCode = (project.code || project.id).replace(/[^a-zA-Z0-9_-]/g, '_');
 
     const summarySheetRows: (string | number)[][] = [
-      ['منصة بنيان | BUNYAN CORE — 5D BOQ & UAE VAT SUMMARY'],
+      ['المنظمة | ORGANIZATION — 5D BOQ & UAE VAT SUMMARY'],
       ['Verification Status', verification.badgeEn],
       ['Verification Notice', verification.noticeEn],
       [],

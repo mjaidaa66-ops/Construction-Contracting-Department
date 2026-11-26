@@ -42,7 +42,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                   استعادة النظام الهندسي · Application Recovery
                 </h2>
                 <p className="text-xs text-[var(--text-muted,#8496B0)]">
-                  BUNYAN | 3D Digital Twin & 5D BIM Platform
+                  Organization | 3D Digital Twin & 5D BIM Platform
                 </p>
               </div>
             </div>

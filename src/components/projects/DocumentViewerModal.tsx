@@ -507,12 +507,12 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img
                       src={BUNYAN_OFFICIAL_LOGO_SRC}
-                      alt="شعار بنيان"
+                      alt="شعار المنظمة"
                       style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#F1F5F9' }}
                     />
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 800, color: '#020617' }}>
-                        {company ? (isAr ? company.nameAr : company.nameEn) : isAr ? 'منصة بنيان للمشاريع' : 'Bunyan Core System'}
+                        {company ? (isAr ? company.nameAr : company.nameEn) : isAr ? 'المنظمة للمشاريع' : 'Organization'}
                       </div>
                       <div style={{ fontSize: '11px', color: '#475569' }}>
                         {isAr ? 'وثيقة أرشيف مشروع معتمدة — معاينة مباشرة داخل المنصة' : 'Verified Project Archive Document — Inline Preview'}

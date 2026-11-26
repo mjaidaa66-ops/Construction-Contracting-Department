@@ -269,7 +269,7 @@ export function exportProjectDocumentsToExcel(
   const isAr = lang === 'ar';
   const wb = XLSX.utils.book_new();
   const rows: Array<Array<string | number>> = [
-    [isAr ? 'منصة بنيان — سجل ملفات ومستندات المشروع' : 'BUNYAN CORE — PROJECT DOCUMENTS REGISTER', ''],
+    [isAr ? 'المنظمة — سجل ملفات ومستندات المشروع' : 'ORGANIZATION — PROJECT DOCUMENTS REGISTER', ''],
     [isAr ? 'الشركة' : 'Company', isAr ? company.nameAr : company.nameEn],
     [isAr ? 'كود المشروع' : 'Project Code', project.code],
     [isAr ? 'اسم المشروع' : 'Project Name', isAr ? project.name : project.nameEn],

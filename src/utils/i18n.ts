@@ -75,7 +75,7 @@ export const TX_STATUS_LABELS: Record<TransactionStatus, { ar: string; en: strin
 
 export const UI_TEXT = {
   ar: {
-    appName: 'منصة بنيان',
+    appName: 'المنظمة',
     appSubtitle: 'نظام القيادة الهندسي والتوأم الرقمي 5D BIM',
     nav: {
       dashboard: 'لوحة التحكم',
@@ -115,7 +115,7 @@ export const UI_TEXT = {
     },
   },
   en: {
-    appName: 'BUNYAN · بنيان',
+    appName: 'Organization',
     appSubtitle: '5D BIM Digital Twin & Engineering Command Platform',
     nav: {
       dashboard: 'Control Dashboard',

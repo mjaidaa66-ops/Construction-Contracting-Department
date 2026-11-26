@@ -177,7 +177,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
               )}
               <div className="min-w-0 flex-1 text-xs">
                 <div className="font-bold text-[var(--text-primary)] truncate">
-                  {firebaseUser.displayName || (isAr ? 'مستخدم منصة بنيان' : 'Bunyan User')}
+                  {firebaseUser.displayName || (isAr ? 'مستخدم المنظمة' : 'Organization User')}
                 </div>
                 <div dir="ltr" className="font-mono text-[11px] text-[var(--text-muted)] truncate">
                   {firebaseUser.email}
@@ -323,7 +323,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
                 onClick={async () => {
                   const ok = await install();
                   if (ok) {
-                    pushToast(isAr ? 'تم تثبيت تطبيق بنيان بنجاح' : 'Bunyan app installed', 'success');
+                    pushToast(isAr ? 'تم تثبيت تطبيق المنظمة بنجاح' : 'Organization app installed', 'success');
                   }
                 }}
               >
@@ -472,7 +472,7 @@ export const SettingsAuthModule: React.FC<SettingsAuthModuleProps> = ({
           <div className="p-5 space-y-3 text-xs">
             <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
               <span className="text-[var(--text-muted)]">{isAr ? 'إصدار النظام' : 'Platform Build'}</span>
-              <span dir="ltr" className="font-mono font-semibold text-[var(--accent-cyan)]">BUNYAN 5D · 2026.1</span>
+              <span dir="ltr" className="font-mono font-semibold text-[var(--accent-cyan)]">ORGANIZATION 5D · 2026.1</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-[var(--border-hairline)]">
               <span className="text-[var(--text-muted)]">{isAr ? 'سياسة الاتصال السحابي' : 'Cloud Sync Policy'}</span>

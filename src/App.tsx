@@ -358,7 +358,7 @@ function BunyanWorkspace() {
         await upsertUserProfile({
           uid: nextUid,
           email: user.email || '',
-          displayName: user.displayName || 'Bunyan Engineer',
+          displayName: user.displayName || 'Organization Engineer',
           role: currentRole,
           companyName: companyRef.current.nameEn,
           licenseNumber: companyRef.current.licenseNumber,
@@ -1064,8 +1064,8 @@ function BunyanWorkspace() {
                     </h1>
                     <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                       {isAr
-                        ? 'منصة بنيان للتوأم الرقمي والهندسة 5D BIM تعمل حصرياً عبر مسار سحابي إلزامي ومُتحقق منه بدون أي تخزين محلي بديل لمنع تضارب النسخ.'
-                        : 'BUNYAN 3D Digital Twin & 5D BIM operates strictly on a verified Fail-Closed Cloud Firestore path with zero offline local-storage fallback.'}
+                        ? 'تطبيق المنظمة للتوأم الرقمي والهندسة 5D BIM يعمل حصرياً عبر مسار سحابي إلزامي ومُتحقق منه بدون أي تخزين محلي بديل لمنع تضارب النسخ.'
+                        : 'Organization 3D Digital Twin & 5D BIM operates strictly on a verified Fail-Closed Cloud Firestore path with zero offline local-storage fallback.'}
                     </p>
                   </div>
                 </div>
@@ -1224,12 +1224,12 @@ function BunyanWorkspace() {
           onClick={() => setShowSplash(false)}
           className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-[#F3F6FA]/96 dark:bg-[#090E1A]/96 backdrop-blur-md transition-opacity duration-300 cursor-pointer no-print"
           role="status"
-          aria-label={lang === 'ar' ? 'شاشة الترحيب بمنصة بنيان' : 'Bunyan Splash Screen'}
+          aria-label={lang === 'ar' ? 'شاشة الترحيب بالمنظمة' : 'Organization Splash Screen'}
         >
           <BunyanLogo size="2xl" iconOnly lang={lang} className="shadow-[var(--spatial-card-shadow)] rounded-3xl" />
           <div className="text-center space-y-1.5">
             <div className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-              {lang === 'ar' ? 'منصة بنيان · التوأم الرقمي الهندسي' : 'BUNYAN · 3D DIGITAL TWIN'}
+              {lang === 'ar' ? 'المنظمة · التوأم الرقمي الهندسي' : 'ORGANIZATION · 3D DIGITAL TWIN'}
             </div>
             <div dir="ltr" className="text-[11px] font-mono uppercase tracking-[0.16em] text-[var(--accent-blue)]">
               5D BIM · OPENBIM IFC · GIS · ISO 19650

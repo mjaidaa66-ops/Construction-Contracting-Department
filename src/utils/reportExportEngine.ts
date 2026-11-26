@@ -297,7 +297,7 @@ export function buildReportWorkbook(report: GeneratedReport, company: CompanyPro
 
   // Sheet 1: Official Cover & KPI Summary
   const metaRows: Array<Array<string | number>> = [
-    [isAr ? 'منصة بنيان — مركز التقارير والطباعة' : 'BUNYAN CORE — REPORTS & PRINTING CENTER', ''],
+    [isAr ? 'المنظمة — مركز التقارير والطباعة' : 'ORGANIZATION — REPORTS & PRINTING CENTER', ''],
     [isAr ? 'الشركة / المؤسسة' : 'Company', isAr ? company.nameAr : company.nameEn],
     [isAr ? 'رقم الرخصة' : 'License No.', company.licenseNumber],
     [isAr ? 'الرقم الضريبي UAE TRN' : 'UAE VAT TRN', company.trnNumber],

@@ -1549,7 +1549,7 @@ export const ReportsCenterModule: React.FC<ReportsCenterModuleProps> = ({
                 description={
                   isAr
                     ? 'أي عملية طباعة أو تصدير PDF أو Excel أو CSV سيتم تسجيلها تلقائياً هنا.'
-                    : 'Every print, PDF, Excel, or CSV export across Bunyan is logged here.'
+                    : 'Every print, PDF, Excel, or CSV export across Organization is logged here.'
                 }
               />
             ) : (
